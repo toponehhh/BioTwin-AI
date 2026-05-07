@@ -1,0 +1,241 @@
+@using BioTwin_AI.Services
+@rendermode InteractiveServer
+@inject AgentService AgentService
+
+<div class="chat-container">
+    <div class="chat-header">
+        <h5>Interview Assistant</h5>
+        <small class="text-muted">Ask me about my experience</small>
+    </div>
+
+    <div class="chat-messages" @ref="chatMessagesContainer">
+        @foreach (var message in chatMessages)
+        {
+            <div class="message @(message.IsUser ? "user-message" : "assistant-message")">
+                <div class="message-content">
+                    @((MarkupString)message.Content)
+                </div>
+                <small class="message-time">@message.Timestamp.ToString("HH:mm")</small>
+            </div>
+        }
+        
+        @if (isStreaming)
+        {
+            <div class="message assistant-message streaming">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Typing...</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="chat-input-area">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-sm" role="alert">
+                @errorMessage
+            </div>
+        }
+
+        <div class="input-group">
+            <input type="text" 
+                   class="form-control" 
+                   placeholder="Ask me a question..."
+                   @bind="currentQuestion"
+                   @onkeydown="HandleKeyDown"
+                   disabled="@isStreaming" />
+            <button class="btn btn-primary" 
+                    @onclick="SendQuestion" 
+                    disabled="@(string.IsNullOrWhiteSpace(currentQuestion) || isStreaming)">
+                <span class="spinner-border spinner-border-sm" 
+                      role="status" 
+                      aria-hidden="true" 
+                      style="@(isStreaming ? "" : "display:none;")"></span>
+                <span style="@(isStreaming ? "display:none;" : "")">Send</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: white;
+    }
+
+    .chat-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .chat-header h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .message {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        animation: slideIn 0.3s ease;
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .user-message {
+        align-items: flex-end;
+    }
+
+    .user-message .message-content {
+        background: #0d6efd;
+        color: white;
+        border-radius: 12px;
+        padding: 10px 16px;
+        max-width: 70%;
+        word-wrap: break-word;
+    }
+
+    .assistant-message {
+        align-items: flex-start;
+    }
+
+    .assistant-message .message-content {
+        background: #f0f0f0;
+        color: #212529;
+        border-radius: 12px;
+        padding: 10px 16px;
+        max-width: 85%;
+        word-wrap: break-word;
+        line-height: 1.5;
+    }
+
+    .assistant-message.streaming {
+        padding: 10px 16px;
+    }
+
+    .message-time {
+        color: #999;
+        font-size: 0.75rem;
+        padding: 0 8px;
+    }
+
+    .chat-input-area {
+        border-top: 1px solid #dee2e6;
+        padding: 16px;
+        background: #f8f9fa;
+    }
+
+    .input-group .form-control {
+        border-radius: 20px 0 0 20px;
+        padding: 10px 16px;
+        border: 1px solid #dee2e6;
+    }
+
+    .input-group .btn {
+        border-radius: 0 20px 20px 0;
+        padding: 10px 20px;
+    }
+
+    .alert-sm {
+        padding: 8px 12px;
+        margin-bottom: 12px;
+        font-size: 0.875rem;
+    }
+</style>
+
+@code {
+    private class ChatMessage
+    {
+        public string Content { get; set; } = "";
+        public bool IsUser { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+
+    private List<ChatMessage> chatMessages = new();
+    private string currentQuestion = "";
+    private bool isStreaming = false;
+    private string errorMessage = "";
+    private ElementReference chatMessagesContainer;
+
+    private async Task SendQuestion()
+    {
+        if (string.IsNullOrWhiteSpace(currentQuestion))
+            return;
+
+        errorMessage = "";
+
+        // Add user message
+        chatMessages.Add(new ChatMessage
+        {
+            Content = HtmlEncode(currentQuestion),
+            IsUser = true,
+            Timestamp = DateTime.Now
+        });
+
+        var question = currentQuestion;
+        currentQuestion = "";
+        await ScrollToBottom();
+
+        isStreaming = true;
+        var assistantMessage = new ChatMessage { IsUser = false, Timestamp = DateTime.Now };
+        chatMessages.Add(assistantMessage);
+
+        try
+        {
+            var response = await AgentService.AnswerQuestionAsync(question);
+            assistantMessage.Content = response;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+            assistantMessage.Content = "Sorry, I encountered an error processing your question.";
+        }
+        finally
+        {
+            isStreaming = false;
+        }
+
+        await ScrollToBottom();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !isStreaming)
+        {
+            await SendQuestion();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await Task.Delay(100);
+        // In production, use JS interop to scroll
+    }
+
+    private string HtmlEncode(string text)
+    {
+        return System.Net.WebUtility.HtmlEncode(text);
+    }
+}

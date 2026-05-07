@@ -1,0 +1,134 @@
+@using BioTwin_AI.Services
+@using BioTwin_AI.Models
+@rendermode InteractiveServer
+@inject ResumeUploadService UploadService
+
+<div class="resume-sidebar">
+    <div class="sidebar-header">
+        <h5>Resume Sections</h5>
+        <a href="/resume/upload" class="btn btn-sm btn-primary">+ Add Section</a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    }
+    else if (resumeEntries?.Any() == true)
+    {
+        <div class="resume-list">
+            @foreach (var entry in resumeEntries)
+            {
+                <div class="resume-item" @onclick="() => SelectEntry(entry)">
+                    <div class="resume-item-header">
+                        <h6>@entry.Title</h6>
+                        <small class="text-muted">@entry.CreatedAt.ToString("MMM dd, yyyy")</small>
+                    </div>
+                    <p class="resume-item-preview">
+                        @{
+                            var preview = entry.Content.Length > 100 
+                                ? entry.Content.Substring(0, 100) + "..." 
+                                : entry.Content;
+                        }
+                        @preview
+                    </p>
+                    <small class="text-secondary">@entry.SourceFileName</small>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info" role="alert">
+            No resume sections uploaded yet. <a href="/resume/upload">Upload one</a>
+        </div>
+    }
+</div>
+
+<style>
+    .resume-sidebar {
+        background: #f8f9fa;
+        border-right: 1px solid #dee2e6;
+        padding: 20px;
+        height: calc(100vh - 60px);
+        overflow-y: auto;
+    }
+
+    .sidebar-header {
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .resume-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .resume-item {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .resume-item:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
+    }
+
+    .resume-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+    }
+
+    .resume-item-header h6 {
+        margin: 0;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .resume-item-preview {
+        margin: 8px 0;
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public EventCallback<ResumeEntry> OnEntrySelected { get; set; }
+
+    private List<ResumeEntry> resumeEntries = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEntries();
+    }
+
+    private async Task LoadEntries()
+    {
+        try
+        {
+            isLoading = true;
+            resumeEntries = await UploadService.GetAllEntriesAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectEntry(ResumeEntry entry)
+    {
+        await OnEntrySelected.InvokeAsync(entry);
+    }
+}

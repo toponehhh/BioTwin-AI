@@ -1,0 +1,141 @@
+@page "/resume/upload"
+@using BioTwin_AI.Services
+@using BioTwin_AI.Data
+@using BioTwin_AI.Models
+@rendermode InteractiveServer
+@inject ResumeUploadService UploadService
+@inject NavigationManager Navigation
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <h2>Upload Resume Section</h2>
+            
+            <div class="alert alert-info" role="alert">
+                <strong>Supported formats:</strong> PDF, DOCX, PPTX, HTML, TXT
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <form @onsubmit="HandleFileUpload">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Section Title</label>
+                            <input type="text" class="form-control" id="title" @bind="sectionTitle"
+                                   placeholder="e.g., Education, Experience, Skills" required />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fileUpload" class="form-label">Select File</label>
+                            <InputFile id="fileUpload" class="form-control" @ref="fileInput"
+                                       accept=".pdf,.docx,.pptx,.html,.txt" OnChange="@HandleFileSelected" />
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(selectedFileName))
+                        {
+                            <div class="alert alert-secondary" role="alert">
+                                Selected: <strong>@selectedFileName</strong>
+                            </div>
+                        }
+
+                        @if (isUploading)
+                        {
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Uploading...</span>
+                            </div>
+                            <p class="text-muted">Processing: @statusMessage</p>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary"
+                                    disabled="@string.IsNullOrEmpty(selectedFileName)">
+                                Upload & Convert
+                            </button>
+                        }
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger mt-3" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        @if (uploadSuccess)
+                        {
+                            <div class="alert alert-success mt-3" role="alert">
+                                <strong>Success!</strong> Resume section has been processed and indexed.
+                            </div>
+                        }
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <a href="/chat" class="btn btn-secondary">Back to Chat</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private InputFile? fileInput;
+    private string sectionTitle = "";
+    private string selectedFileName = "";
+    private bool isUploading = false;
+    private string statusMessage = "";
+    private string errorMessage = "";
+    private bool uploadSuccess = false;
+    private IBrowserFile? selectedFile;
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        selectedFileName = e.File.Name;
+        errorMessage = "";
+        uploadSuccess = false;
+    }
+
+    private async Task HandleFileUpload()
+    {
+        errorMessage = "";
+        uploadSuccess = false;
+
+        try
+        {
+            if (selectedFile == null)
+            {
+                errorMessage = "Please select a file";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(sectionTitle))
+            {
+                errorMessage = "Please enter a section title";
+                return;
+            }
+
+            isUploading = true;
+            statusMessage = "Converting to Markdown...";
+
+            await UploadService.ProcessResumeFileAsync(selectedFile, sectionTitle);
+
+            statusMessage = "";
+            uploadSuccess = true;
+            selectedFileName = "";
+            selectedFile = null;
+            sectionTitle = "";
+            fileInput = null;
+
+            // Redirect after success
+            await Task.Delay(2000);
+            Navigation.NavigateTo("/chat");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+}
