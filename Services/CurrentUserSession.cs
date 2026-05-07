@@ -6,6 +6,8 @@ namespace BioTwin_AI.Services
     {
         private const string StorageKey = "biotwin.currentUser";
 
+        public event Action? Changed;
+
         public string? Username { get; private set; }
 
         public bool IsAuthenticated => !string.IsNullOrWhiteSpace(Username);
@@ -13,11 +15,13 @@ namespace BioTwin_AI.Services
         public void SignIn(string username)
         {
             Username = username;
+            NotifyStateChanged();
         }
 
         public void SignOut()
         {
             Username = null;
+            NotifyStateChanged();
         }
 
         public async Task RestoreAsync(IJSRuntime jsRuntime)
@@ -28,6 +32,7 @@ namespace BioTwin_AI.Services
                 if (!string.IsNullOrWhiteSpace(username))
                 {
                     Username = username;
+                    NotifyStateChanged();
                 }
             }
             catch
@@ -56,6 +61,11 @@ namespace BioTwin_AI.Services
             {
                 // Ignore JS interop failures during teardown.
             }
+        }
+
+        private void NotifyStateChanged()
+        {
+            Changed?.Invoke();
         }
     }
 }

@@ -1,0 +1,112 @@
+@page "/resume/export"
+@using System.Text
+@using BioTwin_AI.Data
+@using BioTwin_AI.Services
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@inject BioTwinDbContext DbContext
+@inject CurrentUserSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@if (!_sessionResolved)
+{
+    <div class="container mt-4">
+        <div class="alert alert-secondary">Loading session...</div>
+    </div>
+}
+else if (!Session.IsAuthenticated)
+{
+    <div class="container mt-4">
+        <div class="alert alert-warning">Please sign in first.</div>
+        <a class="btn btn-primary" href="/login">Go to Login</a>
+    </div>
+}
+else
+{
+    <div class="container-fluid mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Export Resume</h2>
+            <button class="btn btn-primary" @onclick="CopyAllAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">Copy
+                Markdown</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="alert alert-success">@_message</div>
+            }
+
+            @if (string.IsNullOrWhiteSpace(_markdown))
+            {
+                <div class="alert alert-info">No resume sections found. Please upload content first.</div>
+            }
+            else
+            {
+                <div class="card">
+                    <div class="card-body">
+                        <textarea class="form-control" rows="18" readonly>@_markdown</textarea>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+@code {
+    private bool _sessionResolved;
+    private string _markdown = string.Empty;
+    private string _message = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Session.RestoreAsync(JS);
+        _sessionResolved = true;
+
+        if (!Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadMarkdownAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadMarkdownAsync()
+    {
+        var entries = await DbContext.ResumeEntries
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync();
+
+        if (entries.Count == 0)
+        {
+            _markdown = string.Empty;
+            return;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Resume");
+        sb.AppendLine();
+
+        foreach (var item in entries)
+        {
+            sb.AppendLine($"## {item.Title}");
+            sb.AppendLine();
+            sb.AppendLine(item.Content);
+            sb.AppendLine();
+        }
+
+        _markdown = sb.ToString().Trim();
+    }
+
+    private async Task CopyAllAsync()
+    {
+        _message = string.Empty;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _markdown);
+        _message = "Markdown copied to clipboard.";
+    }
+}

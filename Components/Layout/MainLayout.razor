@@ -1,4 +1,13 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+    <div class="orb orb-5"></div>
+</div>
 
 <div class="page">
     <div class="sidebar">
@@ -6,11 +15,14 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+        @if (!Navigation.Uri.Contains("/login"))
+        {
+            <div class="top-row px-4">
+                <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            </div>
+        }
 
-        <article class="content px-4">
+        <article class="content @(Navigation.Uri.Contains("/login") ? "content-login" : "") px-4">
             @Body
         </article>
     </main>

@@ -6,37 +6,262 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<div class="container mt-5" style="max-width:520px;">
-    <div class="card shadow-sm">
-        <div class="card-body p-4">
-            <h3 class="mb-3">BioTwin Login</h3>
+<div class="login-container">
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-header">
+                <h2 class="login-title">BioTwin</h2>
+                <p class="login-subtitle">AI Interview Assistant</p>
+            </div>
 
             @if (!string.IsNullOrEmpty(message))
             {
-                <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
+                <div class="alert-custom @(isError ? "alert-danger" : "alert-success")">
+                    <span class="alert-icon">@(isError ? "⚠" : "✓")</span>
+                    <span>@message</span>
+                </div>
             }
 
-            <div class="btn-group mb-3" role="group">
-                <button type="button" class="btn @(isRegister ? "btn-outline-primary" : "btn-primary")"
-                        @onclick="() => isRegister = false">Sign In</button>
-                <button type="button" class="btn @(isRegister ? "btn-primary" : "btn-outline-primary")"
-                        @onclick="() => isRegister = true">Register</button>
+            <div class="mode-switcher">
+                <button class="mode-btn @(!isRegister ? "active" : "")" @onclick="() => isRegister = false">
+                    <span class="mode-icon">→</span>
+                    <span>Sign In</span>
+                </button>
+                <button class="mode-btn @(isRegister ? "active" : "")" @onclick="() => isRegister = true">
+                    <span class="mode-icon">+</span>
+                    <span>Register</span>
+                </button>
             </div>
 
             <EditForm Model="loginModel" OnValidSubmit="HandleSubmit">
-                <div class="mb-3">
+                <div class="form-group">
                     <label class="form-label">Username</label>
-                    <input class="form-control" @bind="loginModel.Username" required />
+                    <input class="form-input" @bind="loginModel.Username" placeholder="Enter username" required />
                 </div>
-                <div class="mb-3">
+                <div class="form-group">
                     <label class="form-label">Password</label>
-                    <input class="form-control" type="password" @bind="loginModel.Password" required />
+                    <input class="form-input" type="password" @bind="loginModel.Password" placeholder="Enter password" required />
                 </div>
-                <button class="btn btn-primary w-100" type="submit">@(isRegister ? "Create Account" : "Sign In")</button>
+                <button class="btn-submit" type="submit">
+                    @(isRegister ? "Create Account" : "Sign In")
+                </button>
             </EditForm>
         </div>
     </div>
 </div>
+
+<style>
+.login-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    position: relative;
+    overflow: hidden;
+    padding: 20px;
+}
+
+.login-container::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: drift 20s linear infinite;
+}
+
+@@keyframes drift {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(50px, 50px); }
+}
+
+.login-wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+}
+
+.login-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 24px;
+    padding: 48px 32px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@@keyframes popIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.login-title {
+    font-size: 32px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 8px 0;
+}
+
+.login-subtitle {
+    color: #86868b;
+    font-size: 14px;
+    margin: 0;
+    font-weight: 500;
+}
+
+.alert-custom {
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    animation: slideDown 0.3s ease;
+}
+
+@@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-custom.alert-danger {
+    background: rgba(255, 68, 88, 0.1);
+    color: #ff4458;
+}
+
+.alert-custom.alert-success {
+    background: rgba(0, 208, 132, 0.1);
+    color: #00d084;
+}
+
+.alert-icon {
+    font-weight: bold;
+}
+
+.mode-switcher {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 12px;
+    background: #f5f5f7;
+    color: #86868b;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.mode-btn:hover {
+    background: #e8e8ed;
+}
+
+.mode-btn.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+}
+
+.mode-icon {
+    font-weight: bold;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d1d1f;
+    margin-bottom: 8px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #d5d5d7;
+    border-radius: 12px;
+    font-size: 14px;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.form-input:focus {
+    outline: none;
+    background: white;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-input::placeholder {
+    color: #a1a1a6;
+}
+
+.btn-submit {
+    width: 100%;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+}
+
+.btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(102, 126, 234, 0.4);
+}
+
+.btn-submit:active {
+    transform: translateY(0);
+}
+</style>
 
 @code {
     private readonly LoginModel loginModel = new();
@@ -83,7 +308,7 @@
         if (result.Success)
         {
             await Session.PersistAsync(JS);
-            Navigation.NavigateTo("/chat", forceLoad: true);
+            Navigation.NavigateTo("/chat");
         }
     }
 }

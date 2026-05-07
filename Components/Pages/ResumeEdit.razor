@@ -1,0 +1,137 @@
+@page "/resume/edit"
+@using BioTwin_AI.Data
+@using BioTwin_AI.Models
+@using BioTwin_AI.Services
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@inject BioTwinDbContext DbContext
+@inject CurrentUserSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@if (!_sessionResolved)
+{
+    <div class="container mt-4">
+        <div class="alert alert-secondary">Loading session...</div>
+    </div>
+}
+else if (!Session.IsAuthenticated)
+{
+    <div class="container mt-4">
+        <div class="alert alert-warning">Please sign in first.</div>
+        <a class="btn btn-primary" href="/login">Go to Login</a>
+    </div>
+}
+else
+{
+    <div class="container-fluid mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Resume Edit</h2>
+            <a class="btn btn-outline-primary" href="/resume/upload">Upload New Section</a>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="alert alert-success">@_message</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        @if (_entries.Count == 0)
+        {
+            <div class="alert alert-info">No resume sections found. Please upload one first.</div>
+        }
+        else
+        {
+            @foreach (var entry in _entries)
+            {
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="mb-2 text-muted small">Created: @entry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input class="form-control" @bind="entry.Title" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Markdown Content</label>
+                            <textarea class="form-control" rows="8" @bind="entry.Content"></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" @onclick="() => SaveEntryAsync(entry)">Save</button>
+                            <button class="btn btn-outline-danger" @onclick="() => DeleteEntryAsync(entry)">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    private readonly List<ResumeEntry> _entries = [];
+    private bool _sessionResolved;
+    private string _message = string.Empty;
+    private string _error = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Session.RestoreAsync(JS);
+        _sessionResolved = true;
+
+        if (!Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadEntriesAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadEntriesAsync()
+    {
+        _entries.Clear();
+        var items = await DbContext.ResumeEntries
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+        _entries.AddRange(items);
+    }
+
+    private async Task SaveEntryAsync(ResumeEntry entry)
+    {
+        _message = string.Empty;
+        _error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(entry.Title) || string.IsNullOrWhiteSpace(entry.Content))
+        {
+            _error = "Title and content are required.";
+            return;
+        }
+
+        await DbContext.SaveChangesAsync();
+        _message = $"Saved section '{entry.Title}'.";
+    }
+
+    private async Task DeleteEntryAsync(ResumeEntry entry)
+    {
+        _message = string.Empty;
+        _error = string.Empty;
+
+        DbContext.ResumeEntries.Remove(entry);
+        await DbContext.SaveChangesAsync();
+        _entries.Remove(entry);
+        _message = "Section deleted.";
+    }
+}

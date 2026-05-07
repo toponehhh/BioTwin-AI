@@ -1,4 +1,5 @@
 ﻿@using BioTwin_AI.Services
+@implements IDisposable
 @inject CurrentUserSession Session
 @inject AuthService AuthService
 @inject NavigationManager Navigation
@@ -21,17 +22,27 @@
             </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="chat" Match="NavLinkMatch.All">
-                    <span class="bi bi-chat-dots-fill" aria-hidden="true"></span> Chat
+                    <span class="bi bi-chat-dots-fill" aria-hidden="true"></span> AI Chat
                 </NavLink>
             </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="resume/upload">
-                    <span class="bi bi-cloud-upload-fill" aria-hidden="true"></span> Upload Resume
+                    <span class="bi bi-cloud-upload-fill" aria-hidden="true"></span> Resume Upload
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="resume/edit">
+                    <span class="bi bi-pencil-square" aria-hidden="true"></span> Resume Edit
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="resume/export">
+                    <span class="bi bi-download" aria-hidden="true"></span> Export Resume
                 </NavLink>
             </div>
             <div class="nav-item px-3">
                 <button class="btn btn-link nav-link text-start" @onclick="LogoutAsync">
-                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Sign Out
+                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
                 </button>
             </div>
         }
@@ -47,6 +58,11 @@
 </div>
 
 @code {
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
@@ -63,6 +79,16 @@
         AuthService.Logout();
         await Session.ClearPersistedAsync(JS);
         Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void OnSessionChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
     }
 }
 

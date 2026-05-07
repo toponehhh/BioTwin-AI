@@ -1,19 +1,169 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+/* === Modern macOS Jelly Effect === */
+:root {
+    --primary: #5e5ce6;
+    --primary-light: #7c7ced;
+    --primary-dark: #4c4ac4;
+    --accent: #00d4ff;
+    --success: #00d084;
+    --warning: #ffa500;
+    --danger: #ff4458;
+    --bg: #f5f5f7;
+    --surface: rgba(255, 255, 255, 0.7);
+    --surface-dark: rgba(60, 60, 67, 0.05);
+    --text: #1d1d1f;
+    --text-secondary: #86868b;
+    --glass: rgba(255, 255, 255, 0.6);
+    --glass-dark: rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.15);
 }
 
-a, .btn-link {
-    color: #006bb7;
+html,
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+    background: #f0f0f8;
+    min-height: 100vh;
+    height: 100%;
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+/* === macOS Wallpaper Style Orb Background === */
+.bg-orbs {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: linear-gradient(160deg, #fafafe 0%, #eef0fa 50%, #f5eeff 100%);
+}
+
+.orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.55;
+    animation: orbFloat 12s ease-in-out infinite alternate;
+}
+
+.orb-1 {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(120, 119, 220, 0.7) 0%, rgba(120, 119, 220, 0) 70%);
+    top: -150px;
+    left: -100px;
+    animation-duration: 14s;
+    animation-delay: 0s;
+}
+
+.orb-2 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(255, 130, 200, 0.6) 0%, rgba(255, 130, 200, 0) 70%);
+    top: -80px;
+    right: -80px;
+    animation-duration: 17s;
+    animation-delay: -3s;
+}
+
+.orb-3 {
+    width: 550px;
+    height: 550px;
+    background: radial-gradient(circle, rgba(80, 200, 240, 0.55) 0%, rgba(80, 200, 240, 0) 70%);
+    bottom: -100px;
+    left: 10%;
+    animation-duration: 19s;
+    animation-delay: -6s;
+}
+
+.orb-4 {
+    width: 450px;
+    height: 450px;
+    background: radial-gradient(circle, rgba(255, 200, 100, 0.45) 0%, rgba(255, 200, 100, 0) 70%);
+    bottom: 10%;
+    right: 5%;
+    animation-duration: 15s;
+    animation-delay: -9s;
+}
+
+.orb-5 {
+    width: 350px;
+    height: 350px;
+    background: radial-gradient(circle, rgba(160, 100, 255, 0.5) 0%, rgba(160, 100, 255, 0) 70%);
+    top: 40%;
+    left: 40%;
+    animation-duration: 20s;
+    animation-delay: -5s;
+}
+
+@keyframes orbFloat {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(30px, -40px) scale(1.05);
+    }
+
+    66% {
+        transform: translate(-20px, 30px) scale(0.97);
+    }
+
+    100% {
+        transform: translate(15px, -20px) scale(1.02);
+    }
+}
+
+a,
+.btn-link {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover,
+.btn-link:hover {
+    color: var(--primary-light);
 }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border: none;
+    border-radius: 12px;
+    padding: 10px 24px;
+    font-weight: 600;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(94, 92, 230, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
+}
+
+.btn {
+    border-radius: 10px;
+    border: none;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.btn:focus,
+.btn:active:focus,
+.btn-link.nav-link:focus,
+.form-control:focus,
+.form-check-input:focus {
+    box-shadow: 0 0 0 3px rgba(94, 92, 230, 0.1);
+    outline: none;
 }
 
 .content {
@@ -42,19 +192,93 @@ h1:focus {
     color: white;
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+.form-floating>.form-control-plaintext::placeholder,
+.form-floating>.form-control::placeholder {
     color: var(--bs-secondary-color);
     text-align: end;
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+.form-floating>.form-control-plaintext:focus::placeholder,
+.form-floating>.form-control:focus::placeholder {
     text-align: start;
+}
+
+/* Modern form controls and cards */
+.form-control {
+    border: 1px solid #d5d5d7;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(94, 92, 230, 0.1);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.card {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-sm);
+}
+
+.alert {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+
+.alert-danger {
+    background: rgba(255, 68, 88, 0.1);
+    color: #ff4458;
+}
+
+.alert-success {
+    background: rgba(0, 208, 132, 0.1);
+    color: #00d084;
+}
+
+.alert-warning {
+    background: rgba(255, 165, 0, 0.1);
+    color: #ffa500;
+}
+
+.alert-info {
+    background: rgba(0, 212, 255, 0.1);
+    color: #00d4ff;
+}
+
+/* Smooth scrollbar styling */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
 }
