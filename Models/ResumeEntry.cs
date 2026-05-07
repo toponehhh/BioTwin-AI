@@ -28,8 +28,13 @@ namespace BioTwin_AI.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
-        /// Vector ID in Qdrant for retrieval
+        /// Tenant identifier for data isolation.
         /// </summary>
-        public string? VectorId { get; set; }
+        public string TenantId { get; set; } = "default";
+
+        /// <summary>
+        /// Serialized embedding payload for RAG retrieval
+        /// </summary>
+        public string? EmbeddingPayload { get; set; }
     }
 }

@@ -5,76 +5,94 @@
 @rendermode InteractiveServer
 @inject ResumeUploadService UploadService
 @inject NavigationManager Navigation
+@inject BioTwin_AI.Services.CurrentUserSession Session
+@inject IJSRuntime JS
 
-<div class="container-fluid mt-4">
-    <div class="row">
-        <div class="col-md-8 mx-auto">
-            <h2>Upload Resume Section</h2>
-            
-            <div class="alert alert-info" role="alert">
-                <strong>Supported formats:</strong> PDF, DOCX, PPTX, HTML, TXT
-            </div>
-
-            <div class="card">
-                <div class="card-body">
-                    <form @onsubmit="HandleFileUpload">
-                        <div class="mb-3">
-                            <label for="title" class="form-label">Section Title</label>
-                            <input type="text" class="form-control" id="title" @bind="sectionTitle"
-                                   placeholder="e.g., Education, Experience, Skills" required />
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="fileUpload" class="form-label">Select File</label>
-                            <InputFile id="fileUpload" class="form-control" @ref="fileInput"
-                                       accept=".pdf,.docx,.pptx,.html,.txt" OnChange="@HandleFileSelected" />
-                        </div>
-
-                        @if (!string.IsNullOrEmpty(selectedFileName))
-                        {
-                            <div class="alert alert-secondary" role="alert">
-                                Selected: <strong>@selectedFileName</strong>
-                            </div>
-                        }
-
-                        @if (isUploading)
-                        {
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Uploading...</span>
-                            </div>
-                            <p class="text-muted">Processing: @statusMessage</p>
-                        }
-                        else
-                        {
-                            <button type="submit" class="btn btn-primary"
-                                    disabled="@string.IsNullOrEmpty(selectedFileName)">
-                                Upload & Convert
-                            </button>
-                        }
-
-                        @if (!string.IsNullOrEmpty(errorMessage))
-                        {
-                            <div class="alert alert-danger mt-3" role="alert">
-                                @errorMessage
-                            </div>
-                        }
-
-                        @if (uploadSuccess)
-                        {
-                            <div class="alert alert-success mt-3" role="alert">
-                                <strong>Success!</strong> Resume section has been processed and indexed.
-                            </div>
-                        }
-                    </form>
+@if (!_sessionResolved)
+{
+    <div class="container mt-5">
+        <div class="alert alert-secondary">Loading session...</div>
+    </div>
+}
+else if (!Session.IsAuthenticated)
+{
+    <div class="container mt-5">
+        <div class="alert alert-warning">Please sign in to upload resume sections.</div>
+        <a class="btn btn-primary" href="/login">Go to Login</a>
+    </div>
+}
+else
+{
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-md-8 mx-auto">
+                <h2>Upload Resume Section</h2>
+                
+                <div class="alert alert-info" role="alert">
+                    <strong>Supported formats:</strong> PDF, DOCX, PPTX, HTML, TXT
                 </div>
-            </div>
 
-            <div class="mt-4">
-                <a href="/chat" class="btn btn-secondary">Back to Chat</a>
+                <div class="card">
+                    <div class="card-body">
+                        <form @onsubmit="HandleFileUpload">
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Section Title</label>
+                                <input type="text" class="form-control" id="title" @bind="sectionTitle"
+                                       placeholder="e.g., Education, Experience, Skills" required />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="fileUpload" class="form-label">Select File</label>
+                                <InputFile id="fileUpload" class="form-control" @ref="fileInput"
+                                           accept=".pdf,.docx,.pptx,.html,.txt" OnChange="@HandleFileSelected" />
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(selectedFileName))
+                            {
+                                <div class="alert alert-secondary" role="alert">
+                                    Selected: <strong>@selectedFileName</strong>
+                                </div>
+                            }
+
+                            @if (isUploading)
+                            {
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Uploading...</span>
+                                </div>
+                                <p class="text-muted">Processing: @statusMessage</p>
+                            }
+                            else
+                            {
+                                <button type="submit" class="btn btn-primary"
+                                        disabled="@string.IsNullOrEmpty(selectedFileName)">
+                                    Upload & Convert
+                                </button>
+                            }
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger mt-3" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            @if (uploadSuccess)
+                            {
+                                <div class="alert alert-success mt-3" role="alert">
+                                    <strong>Success!</strong> Resume section has been processed and indexed.
+                                </div>
+                            }
+                        </form>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <a href="/chat" class="btn btn-secondary">Back to Chat</a>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
     private InputFile? fileInput;
@@ -85,6 +103,24 @@
     private string errorMessage = "";
     private bool uploadSuccess = false;
     private IBrowserFile? selectedFile;
+    private bool _sessionResolved;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Session.RestoreAsync(JS);
+        _sessionResolved = true;
+        StateHasChanged();
+
+        if (!Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
 
     private void HandleFileSelected(InputFileChangeEventArgs e)
     {

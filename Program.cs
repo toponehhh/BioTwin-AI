@@ -2,6 +2,7 @@ using BioTwin_AI.Components;
 using BioTwin_AI.Data;
 using BioTwin_AI.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,16 +11,22 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // Configure SQLite DbContext
-var dbPath = Path.Combine(AppContext.BaseDirectory, "biotwin.db");
+var dbDirectory = Path.Combine(builder.Environment.ContentRootPath, "database");
+Directory.CreateDirectory(dbDirectory);
+var dbPath = Path.Combine(dbDirectory, "biotwin.db");
 builder.Services.AddDbContext<BioTwinDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}")
 );
 
 // Configure RAG Service
-builder.Services.AddScoped<RagService>();
+builder.Services.AddScoped<IRagService, RagService>();
+
+// Configure lightweight auth/session services
+builder.Services.AddScoped<CurrentUserSession>();
+builder.Services.AddScoped<AuthService>();
 
 // Configure Agent Service
-builder.Services.AddScoped<AgentService>();
+builder.Services.AddHttpClient<AgentService>();
 
 // Configure Resume Upload Service
 builder.Services.AddScoped<ResumeUploadService>();
@@ -37,12 +44,15 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<BioTwinDbContext>();
     dbContext.Database.EnsureCreated();
+
+    // Patch existing DB to multi-tenant schema (DB-first friendly, idempotent).
+    await EnsureMultiTenantSchemaAsync(dbContext);
 }
 
 // Initialize RAG system
 using (var scope = app.Services.CreateScope())
 {
-    var ragService = scope.ServiceProvider.GetRequiredService<RagService>();
+    var ragService = scope.ServiceProvider.GetRequiredService<IRagService>();
     await ragService.InitializeAsync();
 }
 
@@ -63,3 +73,34 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+static async Task EnsureMultiTenantSchemaAsync(BioTwinDbContext dbContext)
+{
+    var connection = dbContext.Database.GetDbConnection();
+    if (connection.State != ConnectionState.Open)
+    {
+        await connection.OpenAsync();
+    }
+
+    await using var checkCommand = connection.CreateCommand();
+    checkCommand.CommandText = "SELECT COUNT(1) FROM pragma_table_info('ResumeEntries') WHERE name = 'TenantId';";
+    var tenantColumnExists = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
+
+    if (!tenantColumnExists)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE ResumeEntries ADD COLUMN TenantId TEXT NOT NULL DEFAULT 'default';");
+    }
+
+    await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeEntries_TenantId ON ResumeEntries(TenantId);");
+    await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeEntries_TenantId_CreatedAt ON ResumeEntries(TenantId, CreatedAt);");
+
+    await dbContext.Database.ExecuteSqlRawAsync(@"
+        CREATE TABLE IF NOT EXISTS UserAccounts (
+            Id INTEGER NOT NULL CONSTRAINT PK_UserAccounts PRIMARY KEY AUTOINCREMENT,
+            Username TEXT NOT NULL,
+            PasswordHash TEXT NOT NULL,
+            CreatedAt TEXT NOT NULL
+        );
+    ");
+    await dbContext.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IF NOT EXISTS IX_UserAccounts_Username ON UserAccounts(Username);");
+}

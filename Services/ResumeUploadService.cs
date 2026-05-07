@@ -12,16 +12,18 @@ namespace BioTwin_AI.Services
     public class ResumeUploadService
     {
         private readonly BioTwinDbContext _dbContext;
-        private readonly RagService _ragService;
+        private readonly IRagService _ragService;
         private readonly HttpClient _httpClient;
         private readonly ILogger<ResumeUploadService> _logger;
         private readonly string _all2mdApiUrl;
+        private readonly CurrentUserSession _session;
 
         public ResumeUploadService(
             BioTwinDbContext dbContext,
-            RagService ragService,
+            IRagService ragService,
             HttpClient httpClient,
             ILogger<ResumeUploadService> logger,
+            CurrentUserSession session,
             IConfiguration config)
         {
             _dbContext = dbContext;
@@ -29,6 +31,17 @@ namespace BioTwin_AI.Services
             _httpClient = httpClient;
             _logger = logger;
             _all2mdApiUrl = config["All2MD:ApiUrl"] ?? "http://localhost:8000";
+            _session = session;
+        }
+
+        private string GetTenantId()
+        {
+            if (!_session.IsAuthenticated || string.IsNullOrWhiteSpace(_session.Username))
+            {
+                throw new InvalidOperationException("Please sign in first.");
+            }
+
+            return _session.Username;
         }
 
         /// <summary>
@@ -50,12 +63,14 @@ namespace BioTwin_AI.Services
                 var markdownContent = await ConvertToMarkdownAsync(file.Name, fileBytes);
 
                 // Step 3: Store in SQLite
+                var tenantId = GetTenantId();
                 var entry = new ResumeEntry
                 {
                     Title = title,
                     Content = markdownContent,
                     SourceFileName = file.Name,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    TenantId = tenantId
                 };
 
                 _dbContext.ResumeEntries.Add(entry);
@@ -64,21 +79,22 @@ namespace BioTwin_AI.Services
                 _logger.LogInformation("Saved resume entry ID: {Id}", entry.Id);
 
                 // Step 4: Index in sqlite-vec for RAG retrieval
-                var vectorId = await _ragService.StoreEmbeddingAsync(
+                var embeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(
                     markdownContent,
                     new Dictionary<string, string>
                     {
                         { "title", title },
                         { "content", markdownContent },
                         { "db_id", entry.Id.ToString() },
-                        { "source_file", file.Name }
+                        { "source_file", file.Name },
+                        { "tenant_id", tenantId }
                     }
                 );
 
-                entry.VectorId = vectorId;
+                entry.EmbeddingPayload = embeddingPayload;
                 await _dbContext.SaveChangesAsync();
 
-                _logger.LogInformation("Indexed resume in sqlite-vec with vector ID: {VectorId}", vectorId);
+                _logger.LogInformation("Indexed resume with embedding payload");
 
                 return entry;
             }
@@ -136,7 +152,11 @@ namespace BioTwin_AI.Services
         /// </summary>
         public async Task<List<ResumeEntry>> GetAllEntriesAsync()
         {
-            return await _dbContext.ResumeEntries.OrderByDescending(e => e.CreatedAt).ToListAsync();
+            var tenantId = GetTenantId();
+            return await _dbContext.ResumeEntries
+                .Where(e => e.TenantId == tenantId)
+                .OrderByDescending(e => e.CreatedAt)
+                .ToListAsync();
         }
 
         /// <summary>
@@ -144,7 +164,9 @@ namespace BioTwin_AI.Services
         /// </summary>
         public async Task<ResumeEntry?> GetEntryAsync(int id)
         {
-            return await _dbContext.ResumeEntries.FirstOrDefaultAsync(e => e.Id == id);
+            var tenantId = GetTenantId();
+            return await _dbContext.ResumeEntries
+                .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId);
         }
 
         /// <summary>
@@ -152,12 +174,14 @@ namespace BioTwin_AI.Services
         /// </summary>
         public async Task DeleteEntryAsync(int id)
         {
-            var entry = await _dbContext.ResumeEntries.FirstOrDefaultAsync(e => e.Id == id);
+            var tenantId = GetTenantId();
+            var entry = await _dbContext.ResumeEntries
+                .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId);
             if (entry != null)
             {
                 _dbContext.ResumeEntries.Remove(entry);
                 await _dbContext.SaveChangesAsync();
-                _logger.LogInformation("Deleted resume entry ID: {Id}", id);
+                _logger.LogInformation("Deleted resume entry ID: {Id} for tenant {TenantId}", id, tenantId);
             }
         }
     }

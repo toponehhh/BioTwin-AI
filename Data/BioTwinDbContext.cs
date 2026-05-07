@@ -10,6 +10,7 @@ namespace BioTwin_AI.Data
         }
 
         public DbSet<ResumeEntry> ResumeEntries { get; set; } = null!;
+        public DbSet<UserAccount> UserAccounts { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -24,6 +25,37 @@ namespace BioTwin_AI.Data
 
             modelBuilder.Entity<ResumeEntry>()
                 .Property(r => r.Content)
+                .IsRequired();
+
+            modelBuilder.Entity<ResumeEntry>()
+                .Property(r => r.TenantId)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<ResumeEntry>()
+                .HasIndex(r => r.TenantId);
+
+            modelBuilder.Entity<ResumeEntry>()
+                .HasIndex(r => new { r.TenantId, r.CreatedAt });
+
+            modelBuilder.Entity<ResumeEntry>()
+                .Property(r => r.EmbeddingPayload)
+                .HasColumnName("VectorId");
+
+            modelBuilder.Entity<UserAccount>()
+                .HasKey(u => u.Id);
+
+            modelBuilder.Entity<UserAccount>()
+                .Property(u => u.Username)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<UserAccount>()
+                .HasIndex(u => u.Username)
+                .IsUnique();
+
+            modelBuilder.Entity<UserAccount>()
+                .Property(u => u.PasswordHash)
                 .IsRequired();
         }
     }

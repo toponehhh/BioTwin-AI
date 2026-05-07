@@ -1,0 +1,89 @@
+@page "/login"
+@using BioTwin_AI.Services
+@rendermode InteractiveServer
+@inject AuthService AuthService
+@inject CurrentUserSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="container mt-5" style="max-width:520px;">
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h3 class="mb-3">BioTwin Login</h3>
+
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
+            }
+
+            <div class="btn-group mb-3" role="group">
+                <button type="button" class="btn @(isRegister ? "btn-outline-primary" : "btn-primary")"
+                        @onclick="() => isRegister = false">Sign In</button>
+                <button type="button" class="btn @(isRegister ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="() => isRegister = true">Register</button>
+            </div>
+
+            <EditForm Model="loginModel" OnValidSubmit="HandleSubmit">
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <input class="form-control" @bind="loginModel.Username" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input class="form-control" type="password" @bind="loginModel.Password" required />
+                </div>
+                <button class="btn btn-primary w-100" type="submit">@(isRegister ? "Create Account" : "Sign In")</button>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginModel loginModel = new();
+    private string message = string.Empty;
+    private bool isError;
+    private bool isRegister;
+
+    private sealed class LoginModel
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Session.RestoreAsync(JS);
+        if (Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/chat");
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        (bool Success, string Message) result;
+
+        if (isRegister)
+        {
+            result = await AuthService.RegisterAsync(loginModel.Username, loginModel.Password);
+        }
+        else
+        {
+            result = await AuthService.LoginAsync(loginModel.Username, loginModel.Password);
+        }
+
+        isError = !result.Success;
+        message = result.Message;
+
+        if (result.Success)
+        {
+            await Session.PersistAsync(JS);
+            Navigation.NavigateTo("/chat", forceLoad: true);
+        }
+    }
+}

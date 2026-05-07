@@ -3,33 +3,52 @@
 @using BioTwin_AI.Components
 @using BioTwin_AI.Models
 @rendermode InteractiveServer
+@inject BioTwin_AI.Services.CurrentUserSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<div class="biotwin-container">
-    <div class="sidebar-column">
-        <ResumeSidebarComponent OnEntrySelected="HandleEntrySelected" />
+@if (!_sessionResolved)
+{
+    <div class="container mt-5">
+        <div class="alert alert-secondary">Loading session...</div>
     </div>
-    
-    <div class="chat-column">
-        <ChatInterfaceComponent />
+}
+else if (!Session.IsAuthenticated)
+{
+    <div class="container mt-5">
+        <div class="alert alert-warning">Please sign in to access chat and resume data.</div>
+        <a class="btn btn-primary" href="/login">Go to Login</a>
     </div>
+}
+else
+{
+    <div class="biotwin-container">
+        <div class="sidebar-column">
+            <ResumeSidebarComponent OnEntrySelected="HandleEntrySelected" />
+        </div>
+        
+        <div class="chat-column">
+            <ChatInterfaceComponent />
+        </div>
 
-    @if (selectedEntry != null)
-    {
-        <div class="detail-modal" @onclick="CloseDetail">
-            <div class="modal-content" @onclick:stopPropagation>
-                <div class="modal-header">
-                    <h5>@selectedEntry.Title</h5>
-                    <button type="button" class="btn-close" @onclick="CloseDetail"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="markdown-content">
-                        @((MarkupString)selectedEntry.Content)
+        @if (selectedEntry != null)
+        {
+            <div class="detail-modal" @onclick="CloseDetail">
+                <div class="modal-content" @onclick:stopPropagation>
+                    <div class="modal-header">
+                        <h5>@selectedEntry.Title</h5>
+                        <button type="button" class="btn-close" @onclick="CloseDetail"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="markdown-content">
+                            @((MarkupString)selectedEntry.Content)
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    }
-</div>
+        }
+    </div>
+}
 
 <style>
     .biotwin-container {
@@ -151,6 +170,24 @@
 
 @code {
     private ResumeEntry? selectedEntry;
+    private bool _sessionResolved;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Session.RestoreAsync(JS);
+        _sessionResolved = true;
+        StateHasChanged();
+
+        if (!Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
 
     private void HandleEntrySelected(ResumeEntry entry)
     {
