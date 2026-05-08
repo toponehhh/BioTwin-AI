@@ -1,0 +1,403 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="febd1031-7ff4-4884-9606-ea53fc3779c1" name="huangd@LNGSHAL-569 2026-05-08 17:46:06" runUser="LEGAL\huangd" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-05-08T17:46:06.5463698+08:00" queuing="2026-05-08T17:46:06.5463702+08:00" start="2026-05-08T17:46:05.7089519+08:00" finish="2026-05-08T17:46:07.6072475+08:00" />
+  <TestSettings name="default" id="471cb4c6-c362-405d-83cd-8018c58c864c">
+    <Deployment runDeploymentRoot="huangd_LNGSHAL-569_2026-05-08_17_46_06" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="9ced5446-4505-454f-84f1-92f605413d74" testId="8d8bfb68-ae59-761b-fb59-5c71abd1a620" testName="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_WithMissingUsername_ReturnsFalse" computerName="LNGSHAL-569" duration="00:00:00.5547794" startTime="2026-05-08T17:46:06.9912835+08:00" endTime="2026-05-08T17:46:06.9912839+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9ced5446-4505-454f-84f1-92f605413d74" />
+    <UnitTestResult executionId="773ad43d-5144-4109-ae4e-2364e2c2c693" testId="162451ae-dcc8-a136-aa55-a88f72afd155" testName="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_WithEmptySearchResults_ReturnsFallbackMessage" computerName="LNGSHAL-569" duration="00:00:00.2304640" startTime="2026-05-08T17:46:06.6670863+08:00" endTime="2026-05-08T17:46:06.6670867+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="773ad43d-5144-4109-ae4e-2364e2c2c693" />
+    <UnitTestResult executionId="268e7514-c816-4275-bef7-98f6e367e540" testId="386fa5a3-2d51-1bcd-ea28-75699e6db06b" testName="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignIn_DefaultRoleIsCandidateWhenNotSpecified" computerName="LNGSHAL-569" duration="00:00:00.0001906" startTime="2026-05-08T17:46:06.4574675+08:00" endTime="2026-05-08T17:46:06.4574675+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="268e7514-c816-4275-bef7-98f6e367e540" />
+    <UnitTestResult executionId="3d4d7569-b495-4c30-9586-62a6e2fbdfe9" testId="9162d907-4011-f8de-5ee0-345250c64078" testName="BioTwin_AI.Tests.Services.AuthServiceTests.LoginAsync_WithNonexistentUser_ReturnsFalse" computerName="LNGSHAL-569" duration="00:00:00.0033199" startTime="2026-05-08T17:46:07.4694555+08:00" endTime="2026-05-08T17:46:07.4694559+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3d4d7569-b495-4c30-9586-62a6e2fbdfe9" />
+    <UnitTestResult executionId="19362da5-213e-4114-bf85-0f31c80cb693" testId="715dfa34-8935-c3af-9945-05518dc91ec5" testName="BioTwin_AI.Tests.Services.RagServiceTests.CreateEmbeddingPayloadAsync_CallsEmbeddingService" computerName="LNGSHAL-569" duration="00:00:00.0618488" startTime="2026-05-08T17:46:07.0718594+08:00" endTime="2026-05-08T17:46:07.0718598+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="19362da5-213e-4114-bf85-0f31c80cb693">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.</Message>
+          <StackTrace>   at Moq.Guard.IsOverridable(MethodInfo method, Expression expression) in /_/src/Moq/Guard.cs:line 99&#xD;
+   at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable) in /_/src/Moq/MethodExpectation.cs:line 236&#xD;
+   at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 240&#xD;
+   at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 170&#xD;
+   at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty) in /_/src/Moq/Mock.cs:line 728&#xD;
+   at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition) in /_/src/Moq/Mock.cs:line 562&#xD;
+   at Moq.Mock`1.Setup[TResult](Expression`1 expression) in /_/src/Moq/Mock`1.cs:line 645&#xD;
+   at BioTwin_AI.Tests.Services.RagServiceTests.CreateEmbeddingPayloadAsync_CallsEmbeddingService() in C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs:line 184&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="3d434821-90c2-4a88-a0b9-4ba18b566a3a" testId="2fc3f0c2-5c44-9dc3-7a8d-4ff2b68a38a1" testName="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.ResumeEntry_WithEmbedding_PersistsCorrectly" computerName="LNGSHAL-569" duration="00:00:00.0175188" startTime="2026-05-08T17:46:07.3461978+08:00" endTime="2026-05-08T17:46:07.3461982+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3d434821-90c2-4a88-a0b9-4ba18b566a3a" />
+    <UnitTestResult executionId="a83f9136-1ba7-41e2-837e-f01cf225bde7" testId="38e5db1e-fcea-d760-0f45-a36c89809547" testName="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_RespectLimitParameter" computerName="LNGSHAL-569" duration="00:00:00.5675365" startTime="2026-05-08T17:46:07.0107771+08:00" endTime="2026-05-08T17:46:07.0107774+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a83f9136-1ba7-41e2-837e-f01cf225bde7">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.</Message>
+          <StackTrace>   at Moq.Guard.IsOverridable(MethodInfo method, Expression expression) in /_/src/Moq/Guard.cs:line 99&#xD;
+   at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable) in /_/src/Moq/MethodExpectation.cs:line 236&#xD;
+   at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 240&#xD;
+   at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 170&#xD;
+   at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty) in /_/src/Moq/Mock.cs:line 728&#xD;
+   at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition) in /_/src/Moq/Mock.cs:line 562&#xD;
+   at Moq.Mock`1.Setup[TResult](Expression`1 expression) in /_/src/Moq/Mock`1.cs:line 645&#xD;
+   at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_RespectLimitParameter() in C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs:line 140&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="b5b24238-c197-44d0-8df5-deb4f53f106b" testId="6b558ee7-297c-3458-8519-0a8f8dbad6f6" testName="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignOut_ClearsSessionState" computerName="LNGSHAL-569" duration="00:00:00.0015341" startTime="2026-05-08T17:46:06.5134944+08:00" endTime="2026-05-08T17:46:06.5134950+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b5b24238-c197-44d0-8df5-deb4f53f106b">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.False() Failure&#xD;
+Expected: False&#xD;
+Actual:   True</Message>
+          <StackTrace>   at BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignOut_ClearsSessionState() in C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\CurrentUserSessionTests.cs:line 77&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="4c77a6fd-be35-46d5-b10e-8229d0bacd84" testId="169e923f-682f-3846-4cfd-30bfb4f6c187" testName="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_WithDuplicateUsername_ReturnsFalse" computerName="LNGSHAL-569" duration="00:00:00.3298956" startTime="2026-05-08T17:46:07.3214053+08:00" endTime="2026-05-08T17:46:07.3214056+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4c77a6fd-be35-46d5-b10e-8229d0bacd84" />
+    <UnitTestResult executionId="0bd4d02b-1754-40b1-8acc-14a97987d5be" testId="18c42583-74cc-11c3-d277-ad6c308d87b8" testName="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.ResumeEntry_MultiTenantIsolation" computerName="LNGSHAL-569" duration="00:00:00.0265714" startTime="2026-05-08T17:46:07.3729669+08:00" endTime="2026-05-08T17:46:07.3729671+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0bd4d02b-1754-40b1-8acc-14a97987d5be" />
+    <UnitTestResult executionId="4038c504-7cf7-4cdd-be99-4c3078a17952" testId="cccb1625-b39c-7bd9-2233-0bbf12428dcf" testName="BioTwin_AI.Tests.Services.AuthServiceTests.LoginAsync_WithValidCredentials_SignsInUser" computerName="LNGSHAL-569" duration="00:00:00.0579350" startTime="2026-05-08T17:46:07.4640208+08:00" endTime="2026-05-08T17:46:07.4640212+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4038c504-7cf7-4cdd-be99-4c3078a17952" />
+    <UnitTestResult executionId="32bddf06-eeb2-473f-86d5-e4275cda34b4" testId="67fd6895-627f-d618-6023-f7ba3688774e" testName="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_CandidateCanOnlySearchOwnResumes" computerName="LNGSHAL-569" duration="00:00:00.0030008" startTime="2026-05-08T17:46:07.2724766+08:00" endTime="2026-05-08T17:46:07.2724769+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="32bddf06-eeb2-473f-86d5-e4275cda34b4">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.</Message>
+          <StackTrace>   at Moq.Guard.IsOverridable(MethodInfo method, Expression expression) in /_/src/Moq/Guard.cs:line 99&#xD;
+   at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable) in /_/src/Moq/MethodExpectation.cs:line 236&#xD;
+   at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 240&#xD;
+   at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 170&#xD;
+   at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty) in /_/src/Moq/Mock.cs:line 728&#xD;
+   at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition) in /_/src/Moq/Mock.cs:line 562&#xD;
+   at Moq.Mock`1.Setup[TResult](Expression`1 expression) in /_/src/Moq/Mock`1.cs:line 645&#xD;
+   at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_CandidateCanOnlySearchOwnResumes() in C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs:line 31&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="a0f9d0d1-09cb-4b87-9af5-c41dcab0cdd8" testId="40fec132-9689-0aaf-bbc8-e970385073b4" testName="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.ResumeEntry_OrderByCreatedAt" computerName="LNGSHAL-569" duration="00:00:00.8549707" startTime="2026-05-08T17:46:07.2915172+08:00" endTime="2026-05-08T17:46:07.2915176+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a0f9d0d1-09cb-4b87-9af5-c41dcab0cdd8" />
+    <UnitTestResult executionId="b82d9eed-fd37-45ac-9517-a4c2192d20fe" testId="c6b8c57a-77e6-a8e1-d40d-0a49284b503d" testName="BioTwin_AI.Tests.Services.CurrentUserSessionTests.DefaultRole_IsCandidate" computerName="LNGSHAL-569" duration="00:00:00.0002305" startTime="2026-05-08T17:46:06.5141348+08:00" endTime="2026-05-08T17:46:06.5141348+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b82d9eed-fd37-45ac-9517-a4c2192d20fe" />
+    <UnitTestResult executionId="814319a2-4f32-4bea-a7bb-dceeab8d5a8f" testId="f8388b8e-7013-91dc-bcb2-3641bc193a07" testName="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_WithValidCredentials_CreatesUserAndSignsIn" computerName="LNGSHAL-569" duration="00:00:00.0204469" startTime="2026-05-08T17:46:07.3419268+08:00" endTime="2026-05-08T17:46:07.3419272+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="814319a2-4f32-4bea-a7bb-dceeab8d5a8f" />
+    <UnitTestResult executionId="e3ca521f-3492-4352-8b1c-f0ef911a4470" testId="4369afb1-30d2-a021-2111-036f509ab3f1" testName="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_InterviewerCanSearchAllResumes" computerName="LNGSHAL-569" duration="00:00:00.0040291" startTime="2026-05-08T17:46:07.2800240+08:00" endTime="2026-05-08T17:46:07.2800243+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e3ca521f-3492-4352-8b1c-f0ef911a4470">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.</Message>
+          <StackTrace>   at Moq.Guard.IsOverridable(MethodInfo method, Expression expression) in /_/src/Moq/Guard.cs:line 99&#xD;
+   at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable) in /_/src/Moq/MethodExpectation.cs:line 236&#xD;
+   at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 240&#xD;
+   at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 170&#xD;
+   at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty) in /_/src/Moq/Mock.cs:line 728&#xD;
+   at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition) in /_/src/Moq/Mock.cs:line 562&#xD;
+   at Moq.Mock`1.Setup[TResult](Expression`1 expression) in /_/src/Moq/Mock`1.cs:line 645&#xD;
+   at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_InterviewerCanSearchAllResumes() in C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs:line 70&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="65eef124-67d6-436a-82ad-8da3b9a1663e" testId="3fe3c835-ec4b-6fc3-2af0-17ca8fc51bf2" testName="BioTwin_AI.Tests.Services.RagServiceTests.InitializeAsync_LogsRagInitialization" computerName="LNGSHAL-569" duration="00:00:00.1959506" startTime="2026-05-08T17:46:07.2665770+08:00" endTime="2026-05-08T17:46:07.2665773+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="65eef124-67d6-436a-82ad-8da3b9a1663e" />
+    <UnitTestResult executionId="b566eab3-6e55-448c-836a-f0cbcc49d4f7" testId="c79ed235-6088-852f-d4a0-6676c7eca7cf" testName="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_LogsQuestion" computerName="LNGSHAL-569" duration="00:00:00.0164571" startTime="2026-05-08T17:46:06.6963678+08:00" endTime="2026-05-08T17:46:06.6963683+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b566eab3-6e55-448c-836a-f0cbcc49d4f7" />
+    <UnitTestResult executionId="22f8d3df-a805-435e-852a-f9e37d32ee72" testId="4eeb18b6-879f-46bf-2039-8e3fef748dd5" testName="BioTwin_AI.Tests.Services.CurrentUserSessionTests.InterviewerLogin_GeneratesUniqueAnonymousSession" computerName="LNGSHAL-569" duration="00:00:00.0048499" startTime="2026-05-08T17:46:06.5140931+08:00" endTime="2026-05-08T17:46:06.5140932+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="22f8d3df-a805-435e-852a-f9e37d32ee72" />
+    <UnitTestResult executionId="43040d5c-2940-4422-b530-ecf0debda1cc" testId="77e1babc-a811-79ab-253f-0129b3247fba" testName="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_InterviewerUsesThirdPersonPrompt" computerName="LNGSHAL-569" duration="00:00:00.0126421" startTime="2026-05-08T17:46:06.6798111+08:00" endTime="2026-05-08T17:46:06.6798115+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="43040d5c-2940-4422-b530-ecf0debda1cc" />
+    <UnitTestResult executionId="5a4d3007-4778-4973-9b26-1b5bb15796d5" testId="1f6a112c-84ef-7358-8166-a568457da070" testName="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.UserAccount_UniqueUsernameConstraint" computerName="LNGSHAL-569" duration="00:00:00.0356041" startTime="2026-05-08T17:46:07.3304525+08:00" endTime="2026-05-08T17:46:07.3304528+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5a4d3007-4778-4973-9b26-1b5bb15796d5">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Throws() Failure: No exception was thrown&#xD;
+Expected: typeof(System.Exception)</Message>
+          <StackTrace>   at BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.UserAccount_UniqueUsernameConstraint() in C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Integration\MultiTenantIntegrationTests.cs:line 75&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="36a6b225-8905-4fe6-8c59-9ea242f1b68e" testId="e186668a-4087-180c-4549-e46e837d1d98" testName="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignIn_WithInterviewerRole_SetsUsernameAndRole" computerName="LNGSHAL-569" duration="00:00:00.0137235" startTime="2026-05-08T17:46:06.4561152+08:00" endTime="2026-05-08T17:46:06.4561154+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="36a6b225-8905-4fe6-8c59-9ea242f1b68e" />
+    <UnitTestResult executionId="c2687cf6-c30d-4219-854b-198746a00ea9" testId="d51fd7c0-0c6c-76fb-4521-87dbe7c51ab8" testName="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_NormalizeUsernameToLowercase" computerName="LNGSHAL-569" duration="00:00:00.0239129" startTime="2026-05-08T17:46:07.4935376+08:00" endTime="2026-05-08T17:46:07.4935381+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c2687cf6-c30d-4219-854b-198746a00ea9" />
+    <UnitTestResult executionId="1ee9f04f-a7d5-4794-bf4a-610d197a3248" testId="87490d1a-e3d2-e1bb-3b6c-9f4a057529a5" testName="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_CandidateUsesFirstPersonPrompt" computerName="LNGSHAL-569" duration="00:00:00.0036185" startTime="2026-05-08T17:46:06.7001019+08:00" endTime="2026-05-08T17:46:06.7001023+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1ee9f04f-a7d5-4794-bf4a-610d197a3248" />
+    <UnitTestResult executionId="9b4e9c11-04c2-4a51-bf9a-099aaf4259cc" testId="b3784af2-7d06-c30c-96b4-a3e9870693b2" testName="BioTwin_AI.Tests.Services.AuthServiceTests.LoginAsync_WithIncorrectPassword_ReturnsFalse" computerName="LNGSHAL-569" duration="00:00:00.0639318" startTime="2026-05-08T17:46:07.4059134+08:00" endTime="2026-05-08T17:46:07.4059143+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9b4e9c11-04c2-4a51-bf9a-099aaf4259cc" />
+    <UnitTestResult executionId="48db79a5-897a-4133-aaeb-e9fa09b26687" testId="f8998a57-c59f-2202-64a0-79b07a610a44" testName="BioTwin_AI.Tests.Services.CurrentUserSessionTests.Changed_EventFiredOnSignIn" computerName="LNGSHAL-569" duration="00:00:00.0004914" startTime="2026-05-08T17:46:06.4574015+08:00" endTime="2026-05-08T17:46:06.4574016+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="48db79a5-897a-4133-aaeb-e9fa09b26687" />
+    <UnitTestResult executionId="cffe73f1-e236-48e9-a87d-d3b9b7a3ec19" testId="1f26a6eb-c8ba-4748-366b-66e2124bdc24" testName="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignIn_WithCandidateRole_SetsUsernameAndRole" computerName="LNGSHAL-569" duration="00:00:00.0002504" startTime="2026-05-08T17:46:06.4573278+08:00" endTime="2026-05-08T17:46:06.4573279+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cffe73f1-e236-48e9-a87d-d3b9b7a3ec19" />
+    <UnitTestResult executionId="35c4821c-f465-4540-8095-a8cf7e1f6755" testId="4c40ac2f-d47f-e102-5efc-2de583eb12e2" testName="BioTwin_AI.Tests.Services.SimpleTest.TestBasic" computerName="LNGSHAL-569" duration="00:00:00.0062171" startTime="2026-05-08T17:46:06.4488062+08:00" endTime="2026-05-08T17:46:06.4488747+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="35c4821c-f465-4540-8095-a8cf7e1f6755" />
+    <UnitTestResult executionId="c4004256-dc8b-4e04-b662-9938118b4024" testId="67f6b468-ff36-21d4-b4a8-e928dfb2f764" testName="BioTwin_AI.Tests.Services.AuthServiceTests.Logout_ClearsUserSession" computerName="LNGSHAL-569" duration="00:00:00.0012447" startTime="2026-05-08T17:46:07.4653942+08:00" endTime="2026-05-08T17:46:07.4653946+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c4004256-dc8b-4e04-b662-9938118b4024" />
+    <UnitTestResult executionId="ad9ac677-5f25-4596-9809-8ab7855c98f9" testId="a3acd63a-623e-03f9-0caa-b47b4617f6c3" testName="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_ReturnsEmptyListWhenNoMatches" computerName="LNGSHAL-569" duration="00:00:00.0025345" startTime="2026-05-08T17:46:07.2758211+08:00" endTime="2026-05-08T17:46:07.2758214+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ad9ac677-5f25-4596-9809-8ab7855c98f9">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.</Message>
+          <StackTrace>   at Moq.Guard.IsOverridable(MethodInfo method, Expression expression) in /_/src/Moq/Guard.cs:line 99&#xD;
+   at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable) in /_/src/Moq/MethodExpectation.cs:line 236&#xD;
+   at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 240&#xD;
+   at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty) in /_/src/Moq/ExpressionExtensions.cs:line 170&#xD;
+   at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty) in /_/src/Moq/Mock.cs:line 728&#xD;
+   at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition) in /_/src/Moq/Mock.cs:line 562&#xD;
+   at Moq.Mock`1.Setup[TResult](Expression`1 expression) in /_/src/Moq/Mock`1.cs:line 645&#xD;
+   at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_ReturnsEmptyListWhenNoMatches() in C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs:line 109&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.ResumeEntry_MultiTenantIsolation" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="18c42583-74cc-11c3-d277-ad6c308d87b8">
+      <Execution id="0bd4d02b-1754-40b1-8acc-14a97987d5be" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests" name="ResumeEntry_MultiTenantIsolation" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.LoginAsync_WithNonexistentUser_ReturnsFalse" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="9162d907-4011-f8de-5ee0-345250c64078">
+      <Execution id="3d4d7569-b495-4c30-9586-62a6e2fbdfe9" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="LoginAsync_WithNonexistentUser_ReturnsFalse" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.Logout_ClearsUserSession" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="67f6b468-ff36-21d4-b4a8-e928dfb2f764">
+      <Execution id="c4004256-dc8b-4e04-b662-9938118b4024" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="Logout_ClearsUserSession" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.RagServiceTests.InitializeAsync_LogsRagInitialization" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="3fe3c835-ec4b-6fc3-2af0-17ca8fc51bf2">
+      <Execution id="65eef124-67d6-436a-82ad-8da3b9a1663e" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.RagServiceTests" name="InitializeAsync_LogsRagInitialization" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignIn_WithCandidateRole_SetsUsernameAndRole" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="1f26a6eb-c8ba-4748-366b-66e2124bdc24">
+      <Execution id="cffe73f1-e236-48e9-a87d-d3b9b7a3ec19" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.CurrentUserSessionTests" name="SignIn_WithCandidateRole_SetsUsernameAndRole" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignOut_ClearsSessionState" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="6b558ee7-297c-3458-8519-0a8f8dbad6f6">
+      <Execution id="b5b24238-c197-44d0-8df5-deb4f53f106b" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.CurrentUserSessionTests" name="SignOut_ClearsSessionState" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.UserAccount_UniqueUsernameConstraint" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="1f6a112c-84ef-7358-8166-a568457da070">
+      <Execution id="5a4d3007-4778-4973-9b26-1b5bb15796d5" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests" name="UserAccount_UniqueUsernameConstraint" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.ResumeEntry_WithEmbedding_PersistsCorrectly" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="2fc3f0c2-5c44-9dc3-7a8d-4ff2b68a38a1">
+      <Execution id="3d434821-90c2-4a88-a0b9-4ba18b566a3a" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests" name="ResumeEntry_WithEmbedding_PersistsCorrectly" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_WithValidCredentials_CreatesUserAndSignsIn" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="f8388b8e-7013-91dc-bcb2-3641bc193a07">
+      <Execution id="814319a2-4f32-4bea-a7bb-dceeab8d5a8f" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="RegisterAsync_WithValidCredentials_CreatesUserAndSignsIn" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_ReturnsEmptyListWhenNoMatches" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="a3acd63a-623e-03f9-0caa-b47b4617f6c3">
+      <Execution id="ad9ac677-5f25-4596-9809-8ab7855c98f9" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.RagServiceTests" name="SearchAsync_ReturnsEmptyListWhenNoMatches" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_WithMissingUsername_ReturnsFalse" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="8d8bfb68-ae59-761b-fb59-5c71abd1a620">
+      <Execution id="9ced5446-4505-454f-84f1-92f605413d74" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="RegisterAsync_WithMissingUsername_ReturnsFalse" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.SimpleTest.TestBasic" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="4c40ac2f-d47f-e102-5efc-2de583eb12e2">
+      <Execution id="35c4821c-f465-4540-8095-a8cf7e1f6755" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.SimpleTest" name="TestBasic" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_NormalizeUsernameToLowercase" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="d51fd7c0-0c6c-76fb-4521-87dbe7c51ab8">
+      <Execution id="c2687cf6-c30d-4219-854b-198746a00ea9" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="RegisterAsync_NormalizeUsernameToLowercase" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_WithEmptySearchResults_ReturnsFallbackMessage" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="162451ae-dcc8-a136-aa55-a88f72afd155">
+      <Execution id="773ad43d-5144-4109-ae4e-2364e2c2c693" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AgentServiceTests" name="AnswerQuestionAsync_WithEmptySearchResults_ReturnsFallbackMessage" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.LoginAsync_WithValidCredentials_SignsInUser" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="cccb1625-b39c-7bd9-2233-0bbf12428dcf">
+      <Execution id="4038c504-7cf7-4cdd-be99-4c3078a17952" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="LoginAsync_WithValidCredentials_SignsInUser" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.CurrentUserSessionTests.DefaultRole_IsCandidate" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="c6b8c57a-77e6-a8e1-d40d-0a49284b503d">
+      <Execution id="b82d9eed-fd37-45ac-9517-a4c2192d20fe" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.CurrentUserSessionTests" name="DefaultRole_IsCandidate" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignIn_WithInterviewerRole_SetsUsernameAndRole" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="e186668a-4087-180c-4549-e46e837d1d98">
+      <Execution id="36a6b225-8905-4fe6-8c59-9ea242f1b68e" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.CurrentUserSessionTests" name="SignIn_WithInterviewerRole_SetsUsernameAndRole" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.LoginAsync_WithIncorrectPassword_ReturnsFalse" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="b3784af2-7d06-c30c-96b4-a3e9870693b2">
+      <Execution id="9b4e9c11-04c2-4a51-bf9a-099aaf4259cc" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="LoginAsync_WithIncorrectPassword_ReturnsFalse" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_InterviewerUsesThirdPersonPrompt" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="77e1babc-a811-79ab-253f-0129b3247fba">
+      <Execution id="43040d5c-2940-4422-b530-ecf0debda1cc" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AgentServiceTests" name="AnswerQuestionAsync_InterviewerUsesThirdPersonPrompt" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AuthServiceTests.RegisterAsync_WithDuplicateUsername_ReturnsFalse" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="169e923f-682f-3846-4cfd-30bfb4f6c187">
+      <Execution id="4c77a6fd-be35-46d5-b10e-8229d0bacd84" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AuthServiceTests" name="RegisterAsync_WithDuplicateUsername_ReturnsFalse" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.CurrentUserSessionTests.Changed_EventFiredOnSignIn" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="f8998a57-c59f-2202-64a0-79b07a610a44">
+      <Execution id="48db79a5-897a-4133-aaeb-e9fa09b26687" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.CurrentUserSessionTests" name="Changed_EventFiredOnSignIn" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_CandidateCanOnlySearchOwnResumes" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="67fd6895-627f-d618-6023-f7ba3688774e">
+      <Execution id="32bddf06-eeb2-473f-86d5-e4275cda34b4" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.RagServiceTests" name="SearchAsync_CandidateCanOnlySearchOwnResumes" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_RespectLimitParameter" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="38e5db1e-fcea-d760-0f45-a36c89809547">
+      <Execution id="a83f9136-1ba7-41e2-837e-f01cf225bde7" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.RagServiceTests" name="SearchAsync_RespectLimitParameter" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignIn_DefaultRoleIsCandidateWhenNotSpecified" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="386fa5a3-2d51-1bcd-ea28-75699e6db06b">
+      <Execution id="268e7514-c816-4275-bef7-98f6e367e540" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.CurrentUserSessionTests" name="SignIn_DefaultRoleIsCandidateWhenNotSpecified" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_LogsQuestion" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="c79ed235-6088-852f-d4a0-6676c7eca7cf">
+      <Execution id="b566eab3-6e55-448c-836a-f0cbcc49d4f7" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AgentServiceTests" name="AnswerQuestionAsync_LogsQuestion" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.AgentServiceTests.AnswerQuestionAsync_CandidateUsesFirstPersonPrompt" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="87490d1a-e3d2-e1bb-3b6c-9f4a057529a5">
+      <Execution id="1ee9f04f-a7d5-4794-bf4a-610d197a3248" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.AgentServiceTests" name="AnswerQuestionAsync_CandidateUsesFirstPersonPrompt" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.CurrentUserSessionTests.InterviewerLogin_GeneratesUniqueAnonymousSession" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="4eeb18b6-879f-46bf-2039-8e3fef748dd5">
+      <Execution id="22f8d3df-a805-435e-852a-f9e37d32ee72" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.CurrentUserSessionTests" name="InterviewerLogin_GeneratesUniqueAnonymousSession" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.RagServiceTests.CreateEmbeddingPayloadAsync_CallsEmbeddingService" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="715dfa34-8935-c3af-9945-05518dc91ec5">
+      <Execution id="19362da5-213e-4114-bf85-0f31c80cb693" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.RagServiceTests" name="CreateEmbeddingPayloadAsync_CallsEmbeddingService" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_InterviewerCanSearchAllResumes" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="4369afb1-30d2-a021-2111-036f509ab3f1">
+      <Execution id="e3ca521f-3492-4352-8b1c-f0ef911a4470" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Services.RagServiceTests" name="SearchAsync_InterviewerCanSearchAllResumes" />
+    </UnitTest>
+    <UnitTest name="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.ResumeEntry_OrderByCreatedAt" storage="c:\source\repos\biotwin_ai\tests\biotwin_ai.tests\bin\debug\net10.0\biotwin_ai.tests.dll" id="40fec132-9689-0aaf-bbc8-e970385073b4">
+      <Execution id="a0f9d0d1-09cb-4b87-9af5-c41dcab0cdd8" />
+      <TestMethod codeBase="C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\bin\Debug\net10.0\BioTwin_AI.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests" name="ResumeEntry_OrderByCreatedAt" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="8d8bfb68-ae59-761b-fb59-5c71abd1a620" executionId="9ced5446-4505-454f-84f1-92f605413d74" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="162451ae-dcc8-a136-aa55-a88f72afd155" executionId="773ad43d-5144-4109-ae4e-2364e2c2c693" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="386fa5a3-2d51-1bcd-ea28-75699e6db06b" executionId="268e7514-c816-4275-bef7-98f6e367e540" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9162d907-4011-f8de-5ee0-345250c64078" executionId="3d4d7569-b495-4c30-9586-62a6e2fbdfe9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="715dfa34-8935-c3af-9945-05518dc91ec5" executionId="19362da5-213e-4114-bf85-0f31c80cb693" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2fc3f0c2-5c44-9dc3-7a8d-4ff2b68a38a1" executionId="3d434821-90c2-4a88-a0b9-4ba18b566a3a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="38e5db1e-fcea-d760-0f45-a36c89809547" executionId="a83f9136-1ba7-41e2-837e-f01cf225bde7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6b558ee7-297c-3458-8519-0a8f8dbad6f6" executionId="b5b24238-c197-44d0-8df5-deb4f53f106b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="169e923f-682f-3846-4cfd-30bfb4f6c187" executionId="4c77a6fd-be35-46d5-b10e-8229d0bacd84" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="18c42583-74cc-11c3-d277-ad6c308d87b8" executionId="0bd4d02b-1754-40b1-8acc-14a97987d5be" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="cccb1625-b39c-7bd9-2233-0bbf12428dcf" executionId="4038c504-7cf7-4cdd-be99-4c3078a17952" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="67fd6895-627f-d618-6023-f7ba3688774e" executionId="32bddf06-eeb2-473f-86d5-e4275cda34b4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="40fec132-9689-0aaf-bbc8-e970385073b4" executionId="a0f9d0d1-09cb-4b87-9af5-c41dcab0cdd8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c6b8c57a-77e6-a8e1-d40d-0a49284b503d" executionId="b82d9eed-fd37-45ac-9517-a4c2192d20fe" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f8388b8e-7013-91dc-bcb2-3641bc193a07" executionId="814319a2-4f32-4bea-a7bb-dceeab8d5a8f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4369afb1-30d2-a021-2111-036f509ab3f1" executionId="e3ca521f-3492-4352-8b1c-f0ef911a4470" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3fe3c835-ec4b-6fc3-2af0-17ca8fc51bf2" executionId="65eef124-67d6-436a-82ad-8da3b9a1663e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c79ed235-6088-852f-d4a0-6676c7eca7cf" executionId="b566eab3-6e55-448c-836a-f0cbcc49d4f7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4eeb18b6-879f-46bf-2039-8e3fef748dd5" executionId="22f8d3df-a805-435e-852a-f9e37d32ee72" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="77e1babc-a811-79ab-253f-0129b3247fba" executionId="43040d5c-2940-4422-b530-ecf0debda1cc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1f6a112c-84ef-7358-8166-a568457da070" executionId="5a4d3007-4778-4973-9b26-1b5bb15796d5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e186668a-4087-180c-4549-e46e837d1d98" executionId="36a6b225-8905-4fe6-8c59-9ea242f1b68e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d51fd7c0-0c6c-76fb-4521-87dbe7c51ab8" executionId="c2687cf6-c30d-4219-854b-198746a00ea9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="87490d1a-e3d2-e1bb-3b6c-9f4a057529a5" executionId="1ee9f04f-a7d5-4794-bf4a-610d197a3248" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b3784af2-7d06-c30c-96b4-a3e9870693b2" executionId="9b4e9c11-04c2-4a51-bf9a-099aaf4259cc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f8998a57-c59f-2202-64a0-79b07a610a44" executionId="48db79a5-897a-4133-aaeb-e9fa09b26687" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1f26a6eb-c8ba-4748-366b-66e2124bdc24" executionId="cffe73f1-e236-48e9-a87d-d3b9b7a3ec19" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4c40ac2f-d47f-e102-5efc-2de583eb12e2" executionId="35c4821c-f465-4540-8095-a8cf7e1f6755" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="67f6b468-ff36-21d4-b4a8-e928dfb2f764" executionId="c4004256-dc8b-4e04-b662-9938118b4024" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a3acd63a-623e-03f9-0caa-b47b4617f6c3" executionId="ad9ac677-5f25-4596-9809-8ab7855c98f9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="30" executed="30" passed="23" failed="7" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.0+6438bb880a (64-bit .NET 10.0.7)&#xD;
+[xUnit.net 00:00:00.11]   Discovering: BioTwin_AI.Tests&#xD;
+[xUnit.net 00:00:00.16]   Discovered:  BioTwin_AI.Tests&#xD;
+[xUnit.net 00:00:00.16]   Starting:    BioTwin_AI.Tests&#xD;
+[xUnit.net 00:00:00.29]       Assert.False() Failure&#xD;
+[xUnit.net 00:00:00.29]       Expected: False&#xD;
+[xUnit.net 00:00:00.29]       Actual:   True&#xD;
+[xUnit.net 00:00:00.29]       Stack Trace:&#xD;
+[xUnit.net 00:00:00.29]         C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\CurrentUserSessionTests.cs(77,0): at BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignOut_ClearsSessionState()&#xD;
+[xUnit.net 00:00:00.29]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:00.29]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:00.79]       System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+[xUnit.net 00:00:00.79]       Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.&#xD;
+[xUnit.net 00:00:00.79]       Stack Trace:&#xD;
+[xUnit.net 00:00:00.79]         /_/src/Moq/Guard.cs(99,0): at Moq.Guard.IsOverridable(MethodInfo method, Expression expression)&#xD;
+[xUnit.net 00:00:00.79]         /_/src/Moq/MethodExpectation.cs(236,0): at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable)&#xD;
+[xUnit.net 00:00:00.79]         /_/src/Moq/ExpressionExtensions.cs(240,0): at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:00.79]         /_/src/Moq/ExpressionExtensions.cs(170,0): at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:00.79]         /_/src/Moq/Mock.cs(728,0): at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:00.79]         /_/src/Moq/Mock.cs(562,0): at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition)&#xD;
+[xUnit.net 00:00:00.79]         /_/src/Moq/Mock`1.cs(645,0): at Moq.Mock`1.Setup[TResult](Expression`1 expression)&#xD;
+[xUnit.net 00:00:00.79]         C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs(140,0): at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_RespectLimitParameter()&#xD;
+[xUnit.net 00:00:00.79]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:00.85]       System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+[xUnit.net 00:00:00.85]       Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.&#xD;
+[xUnit.net 00:00:00.85]       Stack Trace:&#xD;
+[xUnit.net 00:00:00.85]         /_/src/Moq/Guard.cs(99,0): at Moq.Guard.IsOverridable(MethodInfo method, Expression expression)&#xD;
+[xUnit.net 00:00:00.85]         /_/src/Moq/MethodExpectation.cs(236,0): at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable)&#xD;
+[xUnit.net 00:00:00.85]         /_/src/Moq/ExpressionExtensions.cs(240,0): at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:00.85]         /_/src/Moq/ExpressionExtensions.cs(170,0): at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:00.85]         /_/src/Moq/Mock.cs(728,0): at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:00.85]         /_/src/Moq/Mock.cs(562,0): at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition)&#xD;
+[xUnit.net 00:00:00.85]         /_/src/Moq/Mock`1.cs(645,0): at Moq.Mock`1.Setup[TResult](Expression`1 expression)&#xD;
+[xUnit.net 00:00:00.85]         C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs(184,0): at BioTwin_AI.Tests.Services.RagServiceTests.CreateEmbeddingPayloadAsync_CallsEmbeddingService()&#xD;
+[xUnit.net 00:00:00.85]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.05]       System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+[xUnit.net 00:00:01.05]       Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.&#xD;
+[xUnit.net 00:00:01.05]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Guard.cs(99,0): at Moq.Guard.IsOverridable(MethodInfo method, Expression expression)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/MethodExpectation.cs(236,0): at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/ExpressionExtensions.cs(240,0): at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/ExpressionExtensions.cs(170,0): at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Mock.cs(728,0): at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Mock.cs(562,0): at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Mock`1.cs(645,0): at Moq.Mock`1.Setup[TResult](Expression`1 expression)&#xD;
+[xUnit.net 00:00:01.05]         C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs(31,0): at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_CandidateCanOnlySearchOwnResumes()&#xD;
+[xUnit.net 00:00:01.05]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.05]       System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+[xUnit.net 00:00:01.05]       Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.&#xD;
+[xUnit.net 00:00:01.05]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Guard.cs(99,0): at Moq.Guard.IsOverridable(MethodInfo method, Expression expression)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/MethodExpectation.cs(236,0): at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/ExpressionExtensions.cs(240,0): at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/ExpressionExtensions.cs(170,0): at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Mock.cs(728,0): at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Mock.cs(562,0): at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition)&#xD;
+[xUnit.net 00:00:01.05]         /_/src/Moq/Mock`1.cs(645,0): at Moq.Mock`1.Setup[TResult](Expression`1 expression)&#xD;
+[xUnit.net 00:00:01.05]         C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs(109,0): at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_ReturnsEmptyListWhenNoMatches()&#xD;
+[xUnit.net 00:00:01.05]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.06]       System.NotSupportedException : Unsupported expression: x =&gt; x.GetEmbeddingAsync(It.IsAny&lt;string&gt;(), It.IsAny&lt;int&gt;())&#xD;
+[xUnit.net 00:00:01.06]       Non-overridable members (here: EmbeddingService.GetEmbeddingAsync) may not be used in setup / verification expressions.&#xD;
+[xUnit.net 00:00:01.06]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.06]         /_/src/Moq/Guard.cs(99,0): at Moq.Guard.IsOverridable(MethodInfo method, Expression expression)&#xD;
+[xUnit.net 00:00:01.06]         /_/src/Moq/MethodExpectation.cs(236,0): at Moq.MethodExpectation..ctor(LambdaExpression expression, MethodInfo method, IReadOnlyList`1 arguments, Boolean exactGenericTypeArguments, Boolean skipMatcherInitialization, Boolean allowNonOverridable)&#xD;
+[xUnit.net 00:00:01.06]         /_/src/Moq/ExpressionExtensions.cs(240,0): at Moq.ExpressionExtensions.&lt;Split&gt;g__Split|5_0(Expression e, Expression&amp; r, MethodExpectation&amp; p, Boolean assignment, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.06]         /_/src/Moq/ExpressionExtensions.cs(170,0): at Moq.ExpressionExtensions.Split(LambdaExpression expression, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.06]         /_/src/Moq/Mock.cs(728,0): at Moq.Mock.SetupRecursive[TSetup](Mock mock, LambdaExpression expression, Func`4 setupLast, Boolean allowNonOverridableLastProperty)&#xD;
+[xUnit.net 00:00:01.06]         /_/src/Moq/Mock.cs(562,0): at Moq.Mock.Setup(Mock mock, LambdaExpression expression, Condition condition)&#xD;
+[xUnit.net 00:00:01.06]         /_/src/Moq/Mock`1.cs(645,0): at Moq.Mock`1.Setup[TResult](Expression`1 expression)&#xD;
+[xUnit.net 00:00:01.06]         C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Services\RagServiceTests.cs(70,0): at BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_InterviewerCanSearchAllResumes()&#xD;
+[xUnit.net 00:00:01.06]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.11]       Assert.Throws() Failure: No exception was thrown&#xD;
+[xUnit.net 00:00:01.11]       Expected: typeof(System.Exception)&#xD;
+[xUnit.net 00:00:01.11]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.11]         C:\Source\Repos\BioTwin_AI\tests\BioTwin_AI.Tests\Integration\MultiTenantIntegrationTests.cs(75,0): at BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.UserAccount_UniqueUsernameConstraint()&#xD;
+[xUnit.net 00:00:01.11]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.28]   Finished:    BioTwin_AI.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="LNGSHAL-569" outcome="Error" timestamp="2026-05-08T17:46:06.5553429+08:00">
+        <Text>[xUnit.net 00:00:00.29]     BioTwin_AI.Tests.Services.CurrentUserSessionTests.SignOut_ClearsSessionState [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="LNGSHAL-569" outcome="Error" timestamp="2026-05-08T17:46:07.0093497+08:00">
+        <Text>[xUnit.net 00:00:00.79]     BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_RespectLimitParameter [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="LNGSHAL-569" outcome="Error" timestamp="2026-05-08T17:46:07.0712178+08:00">
+        <Text>[xUnit.net 00:00:00.85]     BioTwin_AI.Tests.Services.RagServiceTests.CreateEmbeddingPayloadAsync_CallsEmbeddingService [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="LNGSHAL-569" outcome="Error" timestamp="2026-05-08T17:46:07.2708007+08:00">
+        <Text>[xUnit.net 00:00:01.05]     BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_CandidateCanOnlySearchOwnResumes [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="LNGSHAL-569" outcome="Error" timestamp="2026-05-08T17:46:07.2737343+08:00">
+        <Text>[xUnit.net 00:00:01.05]     BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_ReturnsEmptyListWhenNoMatches [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="LNGSHAL-569" outcome="Error" timestamp="2026-05-08T17:46:07.2784130+08:00">
+        <Text>[xUnit.net 00:00:01.06]     BioTwin_AI.Tests.Services.RagServiceTests.SearchAsync_InterviewerCanSearchAllResumes [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="LNGSHAL-569" outcome="Error" timestamp="2026-05-08T17:46:07.3293512+08:00">
+        <Text>[xUnit.net 00:00:01.11]     BioTwin_AI.Tests.Integration.MultiTenantIntegrationTests.UserAccount_UniqueUsernameConstraint [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

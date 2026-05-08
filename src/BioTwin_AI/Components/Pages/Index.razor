@@ -1,0 +1,65 @@
+@page "/"
+@page "/chat"
+@using BioTwin_AI.Components
+@rendermode InteractiveServer
+@inject BioTwin_AI.Services.CurrentUserSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@if (!_sessionResolved)
+{
+    <div class="container mt-5">
+        <div class="alert alert-secondary">Loading session...</div>
+    </div>
+}
+else if (!Session.IsAuthenticated)
+{
+    <div class="container mt-5">
+        <div class="alert alert-warning">Please sign in to access chat and resume data.</div>
+        <a class="btn btn-primary" href="/login">Go to Login</a>
+    </div>
+}
+else
+{
+    <div class="biotwin-container">
+        <div class="chat-column">
+            <ChatInterfaceComponent />
+        </div>
+    </div>
+}
+
+<style>
+    .biotwin-container {
+        display: flex;
+        height: 100vh;
+        background: white;
+    }
+
+    .chat-column {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+</style>
+
+@code {
+    private bool _sessionResolved;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Session.RestoreAsync(JS);
+        _sessionResolved = true;
+        StateHasChanged();
+
+        if (!Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+}

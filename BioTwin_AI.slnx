@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src\BioTwin_AI\BioTwin_AI.csproj" />
+  <Project Path="tests\BioTwin_AI.Tests\BioTwin_AI.Tests.csproj" />
+</Solution>

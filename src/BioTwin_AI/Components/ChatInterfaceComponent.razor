@@ -1,11 +1,12 @@
 @using BioTwin_AI.Services
 @rendermode InteractiveServer
 @inject AgentService AgentService
+@inject CurrentUserSession Session
 
 <div class="chat-container">
     <div class="chat-header">
-        <h5>Interview Assistant</h5>
-        <small class="text-muted">Ask me about my experience</small>
+        <h5>@(Session.IsInterviewer ? "Resume Search" : "Interview Assistant")</h5>
+        <small class="text-muted">@(Session.IsInterviewer ? "Search across all candidate resumes" : "Ask me about my experience")</small>
     </div>
 
     <div class="chat-messages" @ref="chatMessagesContainer">
@@ -38,7 +39,7 @@
         }
 
         <div class="input-group">
-            <input type="text" class="form-control" placeholder="Ask me a question..." @bind="currentQuestion"
+            <input type="text" class="form-control" placeholder="@(Session.IsInterviewer ? "Search candidate resumes..." : "Ask me a question...")" @bind="currentQuestion"
                    @onkeydown="HandleKeyDown" disabled="@isStreaming" />
             <button class="btn btn-primary" @onclick="SendQuestion"
                     disabled="@(string.IsNullOrWhiteSpace(currentQuestion) || isStreaming)">

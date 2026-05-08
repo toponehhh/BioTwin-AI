@@ -1,27 +1,29 @@
 using BioTwin_AI.Data;
+using BioTwin_AI.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace BioTwin_AI.Services
 {
     /// <summary>
     /// Service for managing RAG (Retrieval-Augmented Generation) operations
-    /// using EF Core only.
+    /// using LLM-based embeddings from AgentService.
     /// </summary>
     public class RagService : IRagService
     {
         private readonly BioTwinDbContext _dbContext;
         private readonly ILogger<RagService> _logger;
         private readonly CurrentUserSession _session;
-        private const int VECTOR_SIZE = 128;
+        private readonly IEmbeddingService _embeddingService;
+        private readonly int _vectorSize;
 
-        public RagService(BioTwinDbContext dbContext, ILogger<RagService> logger, CurrentUserSession session)
+        public RagService(BioTwinDbContext dbContext, ILogger<RagService> logger, CurrentUserSession session, IEmbeddingService embeddingService, IConfiguration config)
         {
             _dbContext = dbContext;
             _logger = logger;
             _session = session;
+            _embeddingService = embeddingService;
+            _vectorSize = config.GetValue("Rag:EmbeddingSize", 768);
         }
 
         private string? GetTenantIdOrNull()
@@ -46,20 +48,19 @@ namespace BioTwin_AI.Services
         }
 
         /// <summary>
-        /// Create a serialized embedding payload from text content.
+        /// Create a serialized embedding payload from text content using LLM.
         /// </summary>
         public async Task<string> CreateEmbeddingPayloadAsync(string content, Dictionary<string, string> metadata)
         {
             try
             {
                 _ = metadata;
-                var embedding = GenerateDeterministicEmbedding(content);
+                var embedding = await _embeddingService.GetEmbeddingAsync(content, _vectorSize);
                 var embeddingJson = SerializeVector(embedding);
 
-                // Keep this API to avoid changing callers. The returned value is persisted
-                // by the caller into ResumeEntry.EmbeddingPayload.
-                _logger.LogInformation("Generated deterministic embedding payload");
-                return await Task.FromResult(embeddingJson);
+                // The returned value is persisted by the caller into ResumeEntry.EmbeddingPayload.
+                _logger.LogInformation("Generated LLM-based embedding payload");
+                return embeddingJson;
             }
             catch (Exception ex)
             {
@@ -69,7 +70,8 @@ namespace BioTwin_AI.Services
         }
 
         /// <summary>
-        /// Search for similar resume entries based on query
+        /// Search for similar resume entries based on query using LLM embeddings.
+        /// Interviewers can search all resumes; candidates can only search their own.
         /// </summary>
         public async Task<List<(string Content, double Score)>> SearchAsync(string query, int limit = 5)
         {
@@ -83,11 +85,27 @@ namespace BioTwin_AI.Services
                     return new List<(string, double)>();
                 }
 
-                var queryEmbedding = GenerateDeterministicEmbedding(query);
-                var candidates = await _dbContext.ResumeEntries
-                    .AsNoTracking()
-                    .Where(e => e.TenantId == tenantId && e.EmbeddingPayload != null && e.EmbeddingPayload != string.Empty)
-                    .Select(e => new { e.Content, e.EmbeddingPayload })
+                var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query, _vectorSize);
+
+                // Interviewers search all resumes; candidates search only their own
+                IQueryable<ResumeEntry> query_base;
+                if (_session.IsInterviewer)
+                {
+                    // Interviewer: search all resumes from all tenants
+                    query_base = _dbContext.ResumeEntries
+                        .AsNoTracking()
+                        .Where(e => e.EmbeddingPayload != null && e.EmbeddingPayload != string.Empty);
+                }
+                else
+                {
+                    // Candidate: search only their own resumes
+                    query_base = _dbContext.ResumeEntries
+                        .AsNoTracking()
+                        .Where(e => e.TenantId == tenantId && e.EmbeddingPayload != null && e.EmbeddingPayload != string.Empty);
+                }
+
+                var candidates = await query_base
+                    .Select(e => new { e.Content, e.EmbeddingPayload, e.TenantId, e.Title })
                     .ToListAsync();
 
                 var ranked = new List<(string Content, double Score)>();
@@ -100,7 +118,11 @@ namespace BioTwin_AI.Services
                     }
 
                     var score = CosineSimilarity(queryEmbedding, vector);
-                    ranked.Add((candidate.Content, score));
+                    // Include tenant info for interviewer context
+                    var contentWithContext = _session.IsInterviewer
+                        ? $"[{candidate.TenantId} - {candidate.Title}]\n{candidate.Content}"
+                        : candidate.Content;
+                    ranked.Add((contentWithContext, score));
                 }
 
                 return ranked
@@ -147,60 +169,17 @@ namespace BioTwin_AI.Services
             }
         }
 
-        private static float[] GenerateDeterministicEmbedding(string text)
-        {
-            var vector = new float[VECTOR_SIZE];
-            var tokens = text
-                .ToLowerInvariant()
-                .Split(new[] { ' ', '\r', '\n', '\t', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}', '"', '\'' },
-                    StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var token in tokens)
-            {
-                var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-                var index = BitConverter.ToInt32(hash, 0) % VECTOR_SIZE;
-                if (index < 0)
-                {
-                    index += VECTOR_SIZE;
-                }
-
-                var sign = (hash[4] & 1) == 0 ? 1f : -1f;
-                var magnitude = (hash[5] / 255f) + 0.01f;
-                vector[index] += sign * magnitude;
-            }
-
-            Normalize(vector);
-            return vector;
-        }
-
-        private static void Normalize(float[] vector)
-        {
-            double sum = 0;
-            for (var i = 0; i < vector.Length; i++)
-            {
-                sum += vector[i] * vector[i];
-            }
-
-            if (sum <= double.Epsilon)
-            {
-                return;
-            }
-
-            var norm = (float)Math.Sqrt(sum);
-            for (var i = 0; i < vector.Length; i++)
-            {
-                vector[i] /= norm;
-            }
-        }
+        // LLM-based embeddings are now generated by AgentService.GetEmbeddingAsync()
+        // Previously used deterministic SHA256 hashing, now using actual LLM embedding models.
 
         private static string SerializeVector(float[] vector)
         {
             return "[" + string.Join(",", vector.Select(v => v.ToString("G9", CultureInfo.InvariantCulture))) + "]";
         }
 
-        private static bool TryParseVector(string serialized, out float[] vector)
+        private bool TryParseVector(string serialized, out float[] vector)
         {
-            vector = new float[VECTOR_SIZE];
+            vector = new float[_vectorSize];
 
             if (string.IsNullOrWhiteSpace(serialized))
             {
@@ -215,7 +194,7 @@ namespace BioTwin_AI.Services
 
             var body = trimmed.Substring(1, trimmed.Length - 2);
             var parts = body.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length != VECTOR_SIZE)
+            if (parts.Length != _vectorSize)
             {
                 return false;
             }

@@ -13,6 +13,7 @@ namespace BioTwin_AI.Services
         private readonly IRagService _ragService;
         private readonly ILogger<AgentService> _logger;
         private readonly HttpClient _httpClient;
+        private readonly CurrentUserSession _session;
         private readonly string _provider;
         private readonly string _llmBaseUrl;
         private readonly string _model;
@@ -24,11 +25,13 @@ namespace BioTwin_AI.Services
             IRagService ragService,
             ILogger<AgentService> logger,
             IConfiguration config,
-            HttpClient httpClient)
+            HttpClient httpClient,
+            CurrentUserSession session)
         {
             _ragService = ragService;
             _logger = logger;
             _httpClient = httpClient;
+            _session = session;
             _provider = config["LLM:Provider"] ?? "Ollama";
             _llmBaseUrl = config["LLM:BaseUrl"] ?? "http://localhost:11434";
             _model = config["LLM:Model"] ?? "qwen2.5:7b";
@@ -49,13 +52,27 @@ namespace BioTwin_AI.Services
                 var relevantContent = await _ragService.SearchAsync(question, limit: 3);
                 var context = BuildContext(relevantContent);
 
-                var systemPrompt = """
+                string systemPrompt;
+                if (_session.IsInterviewer)
+                {
+                    systemPrompt = """
+You are an interview assistant helping the interviewer review candidate resumes.
+Analyze the provided resume context from one or more candidates and answer questions about them.
+When referencing a candidate, use the name/username shown in the context (e.g. "[username - title]").
+Provide objective, factual summaries based solely on the resume data provided.
+If context is insufficient, clearly state that the information is not available.
+""";
+                }
+                else
+                {
+                    systemPrompt = """
 You are a professional interview candidate assistant.
 Answer in first-person as the candidate.
 Only use the provided resume context when answering factual experience questions.
 If context is insufficient, honestly say you do not have enough information.
 Keep answers concise and interview-friendly.
 """;
+                }
 
                 var userPrompt = $"""
 Question:

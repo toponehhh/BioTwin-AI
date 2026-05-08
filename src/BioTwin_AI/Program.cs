@@ -21,6 +21,11 @@ builder.Services.AddDbContext<BioTwinDbContext>(options =>
 // Configure RAG Service
 builder.Services.AddScoped<IRagService, RagService>();
 
+// Configure Embedding Service
+builder.Services.AddHttpClient<EmbeddingService>();
+builder.Services.AddScoped<IEmbeddingService>(provider =>
+    provider.GetRequiredService<EmbeddingService>());
+
 // Configure lightweight auth/session services
 builder.Services.AddScoped<CurrentUserSession>();
 builder.Services.AddScoped<AuthService>();

@@ -23,29 +23,47 @@
             }
 
             <div class="mode-switcher">
-                <button class="mode-btn @(!isRegister ? "active" : "")" @onclick="() => isRegister = false">
+                <button class="mode-btn @(!isRegister && !isInterviewer ? "active" : "")" @onclick="() => { isRegister = false; isInterviewer = false; }">
                     <span class="mode-icon">→</span>
                     <span>Sign In</span>
                 </button>
-                <button class="mode-btn @(isRegister ? "active" : "")" @onclick="() => isRegister = true">
+                <button class="mode-btn @(isRegister && !isInterviewer ? "active" : "")" @onclick="() => { isRegister = true; isInterviewer = false; }">
                     <span class="mode-icon">+</span>
                     <span>Register</span>
                 </button>
+                <button class="mode-btn @(isInterviewer ? "active" : "")" @onclick="() => { isInterviewer = true; isRegister = false; }">
+                    <span class="mode-icon">🔍</span>
+                    <span>Interviewer</span>
+                </button>
             </div>
 
-            <EditForm Model="loginModel" OnValidSubmit="HandleSubmit">
-                <div class="form-group">
-                    <label class="form-label">Username</label>
-                    <input class="form-input" @bind="loginModel.Username" placeholder="Enter username" required />
+            @if (!isInterviewer)
+            {
+                <EditForm Model="loginModel" OnValidSubmit="HandleSubmit">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input class="form-input" @bind="loginModel.Username" placeholder="Enter username" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input class="form-input" type="password" @bind="loginModel.Password" placeholder="Enter password" required />
+                    </div>
+                    <button class="btn-submit" type="submit">
+                        @(isRegister ? "Create Account" : "Sign In")
+                    </button>
+                </EditForm>
+            }
+            else
+            {
+                <div class="interviewer-info">
+                    <div class="info-icon">🔍</div>
+                    <h3>Interview Mode</h3>
+                    <p>Browse and search all candidate resumes</p>
+                    <button class="btn-submit" @onclick="HandleInterviewerLogin">
+                        Enter as Interviewer
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Password</label>
-                    <input class="form-input" type="password" @bind="loginModel.Password" placeholder="Enter password" required />
-                </div>
-                <button class="btn-submit" type="submit">
-                    @(isRegister ? "Create Account" : "Sign In")
-                </button>
-            </EditForm>
+            }
         </div>
     </div>
 </div>
@@ -261,6 +279,32 @@
 .btn-submit:active {
     transform: translateY(0);
 }
+
+.interviewer-info {
+    text-align: center;
+    padding: 20px;
+    background: rgba(0, 212, 255, 0.1);
+    border-radius: 12px;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.info-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.interviewer-info h3 {
+    margin: 12px 0 8px 0;
+    font-size: 18px;
+    color: #1d1d1f;
+}
+
+.interviewer-info p {
+    margin: 0 0 20px 0;
+    font-size: 13px;
+    color: #86868b;
+}
 </style>
 
 @code {
@@ -268,6 +312,7 @@
     private string message = string.Empty;
     private bool isError;
     private bool isRegister;
+    private bool isInterviewer;
 
     private sealed class LoginModel
     {
@@ -310,5 +355,12 @@
             await Session.PersistAsync(JS);
             Navigation.NavigateTo("/chat");
         }
+    }
+
+    private async Task HandleInterviewerLogin()
+    {
+        Session.InterviewerLogin();
+        await Session.PersistAsync(JS);
+        Navigation.NavigateTo("/chat");
     }
 }
