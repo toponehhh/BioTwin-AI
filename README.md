@@ -1,220 +1,217 @@
 # BioTwin_AI - AI-Powered Digital Twin Interview Assistant
 
-一个基于 Blazor Server + RAG + 向量数据库的智能面试助手系统，让面试官与求职者进行互动对话，系统基于简历信息进行回答。
+An intelligent interview assistant built with Blazor Server + RAG + vector database technologies. It enables interactive conversations between interviewers and candidates, with answers grounded in resume content.
 
-## 🏗️ 架构概述
+## 🏗️ Architecture Overview
 
-### 技术栈
-- **前端**: Blazor Server (Interactive Server Components)
-- **后端**: ASP.NET Core 10.0
-- **数据存储**: 
-  - SQLite (简历文档存储)
-  - Qdrant (向量数据库)
-- **文件转换**: All2MD API (将上传文件转换为 Markdown)
-- **AI Agent Framework**: Microsoft Agent Framework (集成了 LLM 交互)
+### Tech Stack
+- **Frontend**: Blazor Server (Interactive Server Components)
+- **Backend**: ASP.NET Core 10.0
+- **Data Storage**:
+  - SQLite (resume document storage)
+  - Qdrant (vector database)
+- **File Conversion**: All2MD API (converts uploaded files into Markdown)
+- **AI Agent Framework**: Microsoft Agent Framework (integrated LLM interaction)
 
-### 系统流程
-1. **上传简历** → 文件转换为 Markdown（调用 All2MD 服务）
-2. **存储数据** → 内容保存到 SQLite
-3. **向量化** → 将简历内容存入 Qdrant
-4. **检索增强** → 面试官提问时，从向量数据库检索相关内容
-5. **生成回答** → Agent 结合 RAG 上下文生成面试回答
+### System Flow
+1. **Upload Resume** -> Convert files to Markdown (via All2MD service)
+2. **Store Data** -> Save content into SQLite
+3. **Vectorize** -> Store resume embeddings in Qdrant
+4. **Retrieval Augmentation** -> Retrieve relevant content from the vector database when a question is asked
+5. **Answer Generation** -> Agent generates interview responses using RAG context
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 前置条件
+### Prerequisites
 - .NET 10.0 SDK
-- Docker & Docker Compose (用于 Qdrant)
-- All2MD 服务 (运行在 http://localhost:8000)
+- Docker & Docker Compose (for Qdrant)
+- All2MD service (running at http://localhost:8000)
 
-### 1. 启动 Qdrant 向量数据库
+### 1. Start the Qdrant Vector Database
 
 ```bash
 cd C:\Source\Repos\BioTwin_AI
 docker-compose up -d
 ```
 
-验证 Qdrant 是否正常运行：
+Verify Qdrant is running:
 ```bash
 curl http://localhost:6333/health
 ```
 
-### 2. 启动 All2MD 文件转换服务（如果未运行）
+### 2. Start the All2MD File Conversion Service (if not running)
 
 ```bash
-# 在另一个终端
+# In another terminal
 cd C:\Source\Repos\All2MD
 uv run uvicorn all2md.server:app --port 8000
 ```
 
-### 3. 构建并运行 BioTwin_AI
+### 3. Build and Run BioTwin_AI
 
 ```bash
 cd C:\Source\Repos\BioTwin_AI
 
-# 构建
+# Build
 dotnet build
 
-# 运行
+# Run
 dotnet run
 ```
 
-应用将在 `http://localhost:5000` 启动
+The app will start at `http://localhost:5000`.
 
-## 📱 功能使用
+## 📱 Features and Usage
 
-### 主界面
-- **左侧边栏**: 显示已上传的简历各个板块
-- **右侧聊天区**: 面试官提问和 AI 回答区域
-- **顶部按钮**: 上传新的简历部分
+### Main Interface
+- **Left Sidebar**: Displays uploaded resume sections
+- **Right Chat Area**: Interviewer questions and AI responses
+- **Top Button**: Upload a new resume section
 
-### 上传简历
-1. 点击 "+ Add Section" 按钮
-2. 输入板块标题（如 "Education", "Experience", "Skills"）
-3. 选择文件（PDF, DOCX, PPTX, HTML, TXT）
-4. 点击 "Upload & Convert"
-5. 系统自动转换为 Markdown 并索引
+### Upload Resume
+1. Click the "+ Add Section" button
+2. Enter a section title (for example, "Education", "Experience", "Skills")
+3. Select a file (PDF, DOCX, PPTX, HTML, TXT)
+4. Click "Upload & Convert"
+5. The system automatically converts content to Markdown and indexes it
 
-### 聊天对话
-1. 在输入框输入问题
-2. 按 Enter 或点击 Send
-3. 系统从 RAG 检索相关简历内容
-4. Agent 生成基于简历的回答
+### Chat Conversation
+1. Enter a question in the input box
+2. Press Enter or click Send
+3. The system retrieves relevant resume content via RAG
+4. The Agent generates a resume-grounded response
 
-## 🏗️ 项目结构
+## 🏗️ Project Structure
 
 ```
 BioTwin_AI/
-├── Components/          # Blazor 组件
-│   ├── Pages/
-│   │   ├── Index.razor             # 主聊天页面
-│   │   └── ResumeUpload.razor      # 上传页面
-│   ├── ResumeSidebarComponent.razor # 左侧简历列表
-│   └── ChatInterfaceComponent.razor # 聊天界面
-├── Data/
-│   └── BioTwinDbContext.cs         # EF Core DbContext
-├── Models/
-│   └── ResumeEntry.cs              # 简历条目模型
-├── Services/
-│   ├── RagService.cs               # 向量检索服务
-│   ├── AgentService.cs             # AI Agent 服务
-│   └── ResumeUploadService.cs      # 文件上传和转换服务
-├── Program.cs                       # 依赖注入配置
-├── appsettings.json                # 配置文件
-└── docker-compose.yml              # Qdrant 容器配置
+├── src/
+│   └── BioTwin_AI/
+│       ├── Components/             # Blazor components
+│       ├── Data/                   # EF Core DbContext
+│       ├── Models/                 # Domain models
+│       ├── Services/               # RagService, AgentService, Upload service, etc.
+│       ├── Program.cs              # Dependency injection and app startup
+│       ├── appsettings.json        # Runtime configuration
+│       └── appsettings.Development.json
+├── tests/
+│   └── BioTwin_AI.Tests/           # xUnit test project
+├── database/                       # SQLite database files
+├── docker-compose.yml              # Container services (for local dependencies)
+└── BioTwin_AI.slnx                 # Solution file
 ```
 
-## 🔧 配置文件 (appsettings.json)
+## 🔧 Configuration File (appsettings.json)
 
 ```json
 {
   "Qdrant": {
-    "Url": "http://localhost:6333"  // Qdrant 服务地址
+    "Url": "http://localhost:6333"  // Qdrant service URL
   },
   "All2MD": {
-    "ApiUrl": "http://localhost:8000"  // All2MD 服务地址
+    "ApiUrl": "http://localhost:8000"  // All2MD service URL
   }
 }
 ```
 
-## 🧠 RAG 工作流程
+## 🧠 RAG Workflow
 
-1. **检索** (Retrieval)
-   - 用户提问时，使用查询文本生成 embedding
-   - 在 Qdrant 向量数据库中进行相似度搜索
-   - 返回 Top-5 最相关的简历片段
+1. **Retrieval**
+   - Generate embeddings from user questions
+   - Perform similarity search in Qdrant
+   - Return top-5 most relevant resume chunks
 
-2. **增强** (Augmentation)
-   - 将检索到的相关简历内容作为 Context
-   - 组织成格式化的提示词
+2. **Augmentation**
+   - Use retrieved resume content as context
+   - Build formatted prompts
 
-3. **生成** (Generation)
-   - Agent 结合 Context 和查询生成回答
-   - 当前使用原型响应生成器，可扩展为真实 LLM API
+3. **Generation**
+   - Agent generates answers using context + query
+   - Currently uses a prototype response generator, and can be extended to real LLM APIs
 
-## 🔌 集成点
+## 🔌 Integration Points
 
-### All2MD 服务
-- **端点**: POST `/convert/json`
-- **输入**: 多部分表单数据（文件）
-- **输出**: JSON 格式 Markdown 内容
+### All2MD Service
+- **Endpoint**: POST `/convert/json`
+- **Input**: Multipart form data (file)
+- **Output**: Markdown content in JSON format
 
-### Qdrant 向量数据库
-- **地址**: http://localhost:6333
-- **集合**: resume_embeddings
-- **向量大小**: 384 维
+### Qdrant Vector Database
+- **URL**: http://localhost:6333
+- **Collection**: resume_embeddings
+- **Vector Size**: 384 dimensions
 
 ### Agent Service
-- 当前是原型实现，支持简单的关键词匹配
-- 可升级为真实 LLM API（Azure OpenAI、Claude 等）
+- Currently a prototype implementation with basic keyword matching
+- Can be upgraded to real LLM APIs (Azure OpenAI, Claude, etc.)
 
-## 📊 数据库架构
+## 📊 Database Schema
 
 ### SQLite (biotwin.db)
 ```sql
 ResumeEntries {
   Id: int (PK),
-  Title: string,           -- 简历部分标题
-  Content: string,         -- Markdown 内容
-  SourceFileName: string,  -- 原始文件名
+  Title: string,           -- Resume section title
+  Content: string,         -- Markdown content
+  SourceFileName: string,  -- Original file name
   CreatedAt: datetime,
-  VectorId: string         -- Qdrant 向量 ID
+  VectorId: string         -- Qdrant vector ID
 }
 ```
 
-## 🚨 故障排查
+## 🚨 Troubleshooting
 
-### Qdrant 连接失败
+### Qdrant Connection Failure
 ```bash
-# 检查 Qdrant 状态
+# Check Qdrant status
 docker ps | grep qdrant
 docker logs qdrant_biotwin
 
-# 重启 Qdrant
+# Restart Qdrant
 docker-compose restart
 ```
 
-### All2MD 连接失败
+### All2MD Connection Failure
 ```bash
-# 确保 All2MD 服务正在运行
+# Ensure All2MD service is running
 curl http://localhost:8000/health
 ```
 
-### 数据库迁移错误
+### Database Migration Error
 ```bash
-# 删除旧数据库并重新创建
+# Remove old database and recreate
 rm biotwin.db
 dotnet run
 ```
 
-## 🔮 后续改进
+## 🔮 Future Improvements
 
-- [ ] 集成真实 LLM API（Azure OpenAI, Claude）
-- [ ] 改进向量化模型（使用真实的 embedding 模型）
-- [ ] 添加多语言支持
-- [ ] 实现流式输出（Streaming）
-- [ ] 添加音频输入（语音面试）
-- [ ] 支持多用户会话
-- [ ] 添加面试报告生成
-- [ ] 性能优化和缓存
+- [ ] Integrate real LLM APIs (Azure OpenAI, Claude)
+- [ ] Improve vectorization model (use real embedding models)
+- [ ] Add multilingual support
+- [ ] Implement streaming output
+- [ ] Add audio input (voice interview)
+- [ ] Support multi-user sessions
+- [ ] Add interview report generation
+- [ ] Performance optimization and caching
 
-## 📝 许可证
+## 📝 License
 
 MIT License
 
-## 👨‍💻 开发
+## 👨‍💻 Development
 
-所有组件使用 Blazor Server 渲染模式，C# 编写。
+All components use Blazor Server rendering mode and are written in C#.
 
 ```bash
-# 开发模式运行
+# Run in development mode
 dotnet run --configuration Debug
 
-# 构建生产版本
+# Build production artifacts
 dotnet build --configuration Release
 dotnet publish --configuration Release
 ```
 
-## 📞 支持
+## 📞 Support
 
-有问题？检查日志文件或查看源代码文档。
+Need help? Check the logs or review the source code documentation.

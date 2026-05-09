@@ -6,3 +6,6 @@ obj/
 *.cache
 *.db-shm
 *.db-wal
+TestResults/
+TestReport*.md
+TestReport*.html
