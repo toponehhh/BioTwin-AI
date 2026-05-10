@@ -34,7 +34,7 @@ namespace BioTwin_AI.Services
             _session = session;
             _provider = config["LLM:Provider"] ?? "Ollama";
             _llmBaseUrl = config["LLM:BaseUrl"] ?? "http://localhost:11434";
-            _model = config["LLM:Model"] ?? "qwen2.5:7b";
+            _model = config["LLM:Model"] ?? "gemma4:e2b";
             _apiKey = config["LLM:ApiKey"];
             _temperature = config.GetValue("LLM:Temperature", 0.2);
             _maxTokens = config.GetValue("LLM:MaxTokens", 800);

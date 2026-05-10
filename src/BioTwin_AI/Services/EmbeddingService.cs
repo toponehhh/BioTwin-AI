@@ -26,8 +26,8 @@ namespace BioTwin_AI.Services
             _httpClient = httpClient;
             _provider = config["LLM:Provider"] ?? "Ollama";
             _llmBaseUrl = config["LLM:BaseUrl"] ?? "http://localhost:11434";
-            // Use dedicated embedding model if configured, otherwise fall back to main model
-            _embeddingModel = config["LLM:EmbeddingModel"] ?? config["LLM:Model"] ?? "nomic-embed-text";
+            // Use a dedicated embedding model for Ollama; do not fall back to the chat model.
+            _embeddingModel = config["LLM:EmbeddingModel"] ?? "nomic-embed-text";
             _apiKey = config["LLM:ApiKey"];
         }
 

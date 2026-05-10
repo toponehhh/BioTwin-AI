@@ -57,8 +57,8 @@ namespace BioTwin_AI.Tests.Services
             Assert.NotEqual(session1.Username, session2.Username); // Each should have unique ID
             Assert.True(session1.IsInterviewer);
             Assert.True(session2.IsInterviewer);
-            Assert.True(session1.Username!.StartsWith("interviewer_"));
-            Assert.True(session2.Username!.StartsWith("interviewer_"));
+            Assert.StartsWith("interviewer_", session1.Username!);
+            Assert.StartsWith("interviewer_", session2.Username!);
         }
 
         [Fact]

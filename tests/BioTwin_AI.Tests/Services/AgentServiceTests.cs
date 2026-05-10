@@ -115,7 +115,7 @@ namespace BioTwin_AI.Tests.Services
                 x => x.Log(
                     LogLevel.Information,
                     It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Processing question: Test question?")),
+                    It.Is<It.IsAnyType>((v, t) => v != null && v.ToString() != null && v.ToString()!.Contains("Processing question: Test question?")),
                     It.IsAny<Exception>(),
                     It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
                 Times.Once);
@@ -158,9 +158,8 @@ namespace BioTwin_AI.Tests.Services
         {
             var handlerMock = new Mock<HttpMessageHandler>();
 
-            var mockResponse = new HttpResponseMessage
+            var mockResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
             {
-                StatusCode = System.Net.HttpStatusCode.OK,
                 Content = new StringContent($@"{{
                     ""message"": {{
                         ""content"": ""{responseContent}""
