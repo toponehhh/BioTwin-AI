@@ -22,7 +22,12 @@ builder.Services.AddDbContext<BioTwinDbContext>(options =>
 builder.Services.AddScoped<IRagService, RagService>();
 
 // Configure Embedding Service
-builder.Services.AddHttpClient<EmbeddingService>();
+builder.Services.AddHttpClient<EmbeddingService>((provider, client) =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    var timeoutSeconds = configuration.GetValue("LLM:EmbeddingTimeoutSeconds", 300);
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
 builder.Services.AddScoped<IEmbeddingService>(provider =>
     provider.GetRequiredService<EmbeddingService>());
 
@@ -31,7 +36,12 @@ builder.Services.AddScoped<CurrentUserSession>();
 builder.Services.AddScoped<AuthService>();
 
 // Configure Agent Service
-builder.Services.AddHttpClient<AgentService>();
+builder.Services.AddHttpClient<AgentService>((provider, client) =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    var timeoutSeconds = configuration.GetValue("LLM:ChatTimeoutSeconds", 300);
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
 
 // Configure Resume Upload Service
 builder.Services.AddScoped<ResumeUploadService>();

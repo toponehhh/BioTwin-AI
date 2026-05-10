@@ -55,6 +55,35 @@ namespace BioTwin_AI.Tests.Services
             Assert.Equal("candidate experience", requestJson.RootElement.GetProperty("input").GetString());
         }
 
+        [Fact]
+        public async Task GetEmbeddingAsync_LongMarkdown_SplitsIntoChunksForOllama()
+        {
+            // Arrange
+            var handler = new ChunkAwareHandler(maxInputLength: 8000);
+            var httpClient = new HttpClient(handler);
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "LLM:Provider", "Ollama" },
+                    { "LLM:BaseUrl", "http://localhost:11434" }
+                })
+                .Build();
+
+            var loggerMock = new Mock<ILogger<EmbeddingService>>();
+            var service = new EmbeddingService(loggerMock.Object, config, httpClient);
+
+            var longMarkdown = string.Join("\n\n", Enumerable.Repeat(new string('中', 3000), 4));
+
+            // Act
+            var embedding = await service.GetEmbeddingAsync(longMarkdown, 768);
+
+            // Assert
+            Assert.Equal(768, embedding.Length);
+            Assert.True(handler.RequestInputs.Count >= 2);
+            Assert.All(handler.RequestInputs, input => Assert.True(input.Length <= 8000));
+        }
+
         private sealed class RecordingHandler : HttpMessageHandler
         {
             private readonly string _responseJson;
@@ -75,6 +104,39 @@ namespace BioTwin_AI.Tests.Services
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent(_responseJson, Encoding.UTF8, "application/json")
+                };
+            }
+        }
+
+        private sealed class ChunkAwareHandler : HttpMessageHandler
+        {
+            private readonly int _maxInputLength;
+
+            public ChunkAwareHandler(int maxInputLength)
+            {
+                _maxInputLength = maxInputLength;
+            }
+
+            public List<string> RequestInputs { get; } = new();
+
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                var body = request.Content is null ? "{}" : await request.Content.ReadAsStringAsync(cancellationToken);
+                using var json = JsonDocument.Parse(body);
+                var input = json.RootElement.GetProperty("input").GetString() ?? string.Empty;
+                RequestInputs.Add(input);
+
+                if (input.Length > _maxInputLength)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest)
+                    {
+                        Content = new StringContent("{\"error\":\"the input length exceeds the context length\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"embeddings\":[[0.1,0.2,0.3]],\"model\":\"nomic-embed-text\"}", Encoding.UTF8, "application/json")
                 };
             }
         }

@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
@@ -20,6 +21,10 @@ namespace BioTwin_AI.Services
         private readonly string? _apiKey;
         private readonly double _temperature;
         private readonly int _maxTokens;
+        private readonly int _maxContextChars;
+        private readonly int _maxSnippetChars;
+        private readonly int _chatNumPredict;
+        private readonly int _chatNumCtx;
 
         public AgentService(
             IRagService ragService,
@@ -38,6 +43,10 @@ namespace BioTwin_AI.Services
             _apiKey = config["LLM:ApiKey"];
             _temperature = config.GetValue("LLM:Temperature", 0.2);
             _maxTokens = config.GetValue("LLM:MaxTokens", 800);
+            _maxContextChars = config.GetValue("LLM:MaxContextChars", 6000);
+            _maxSnippetChars = config.GetValue("LLM:MaxSnippetChars", 2000);
+            _chatNumPredict = config.GetValue("LLM:ChatNumPredict", 256);
+            _chatNumCtx = config.GetValue("LLM:ChatNumCtx", 2048);
         }
 
         /// <summary>
@@ -47,42 +56,16 @@ namespace BioTwin_AI.Services
         {
             try
             {
-                _logger.LogInformation("Processing question: {Question}", question);
+                var builder = new StringBuilder();
 
-                var relevantContent = await _ragService.SearchAsync(question, limit: 3);
-                var context = BuildContext(relevantContent);
-
-                string systemPrompt;
-                if (_session.IsInterviewer)
+                await foreach (var chunk in StreamAnswerQuestionAsync(question))
                 {
-                    systemPrompt = """
-You are an interview assistant helping the interviewer review candidate resumes.
-Analyze the provided resume context from one or more candidates and answer questions about them.
-When referencing a candidate, use the name/username shown in the context (e.g. "[username - title]").
-Provide objective, factual summaries based solely on the resume data provided.
-If context is insufficient, clearly state that the information is not available.
-""";
-                }
-                else
-                {
-                    systemPrompt = """
-You are a professional interview candidate assistant.
-Answer in first-person as the candidate.
-Only use the provided resume context when answering factual experience questions.
-If context is insufficient, honestly say you do not have enough information.
-Keep answers concise and interview-friendly.
-""";
+                    builder.Append(chunk);
                 }
 
-                var userPrompt = $"""
-Question:
-{question}
-
-Resume Context:
-{context}
-""";
-
-                return await CallLlmAsync(systemPrompt, userPrompt);
+                return builder.Length == 0
+                    ? "The model returned an empty response."
+                    : builder.ToString();
             }
             catch (Exception ex)
             {
@@ -91,29 +74,107 @@ Resume Context:
             }
         }
 
-        private static string BuildContext(IEnumerable<(string content, double score)> relevantContent)
+        /// <summary>
+        /// Stream answer chunks for the provided question.
+        /// </summary>
+        public async IAsyncEnumerable<string> StreamAnswerQuestionAsync(
+            string question,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            _logger.LogInformation("Processing question: {Question}", question);
+
+            var relevantContent = await _ragService.SearchAsync(question, limit: 3);
+            var context = BuildContext(relevantContent);
+
+            var (systemPrompt, userPrompt) = BuildPrompts(question, context);
+
+            if (string.Equals(_provider, "Ollama", StringComparison.OrdinalIgnoreCase))
+            {
+                await foreach (var chunk in StreamOllamaAsync(systemPrompt, userPrompt, cancellationToken))
+                {
+                    yield return chunk;
+                }
+            }
+            else
+            {
+                yield return await CallOpenAiCompatibleAsync(systemPrompt, userPrompt);
+            }
+        }
+
+        private string BuildContext(IEnumerable<(string content, double score)> relevantContent)
         {
             var contextBuilder = new StringBuilder();
             contextBuilder.AppendLine("Top matched resume snippets:");
+            var remaining = _maxContextChars;
 
             foreach (var (content, score) in relevantContent)
             {
+                if (remaining <= 0)
+                {
+                    break;
+                }
+
+                var snippet = content;
+                if (snippet.Length > _maxSnippetChars)
+                {
+                    snippet = snippet[.._maxSnippetChars] + "\n...[truncated]";
+                }
+
+                if (snippet.Length > remaining)
+                {
+                    if (remaining > 64)
+                    {
+                        snippet = snippet[..remaining] + "\n...[truncated]";
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
                 contextBuilder.AppendLine($"- Relevance: {score:P0}");
-                contextBuilder.AppendLine(content);
+                contextBuilder.AppendLine(snippet);
                 contextBuilder.AppendLine();
+
+                remaining = _maxContextChars - contextBuilder.Length;
             }
 
             return contextBuilder.ToString();
         }
 
-        private async Task<string> CallLlmAsync(string systemPrompt, string userPrompt)
+        private (string SystemPrompt, string UserPrompt) BuildPrompts(string question, string context)
         {
-            if (string.Equals(_provider, "Ollama", StringComparison.OrdinalIgnoreCase))
+            string systemPrompt;
+            if (_session.IsInterviewer)
             {
-                return await CallOllamaAsync(systemPrompt, userPrompt);
+                systemPrompt = """
+You are an interview assistant helping the interviewer review candidate resumes.
+Analyze the provided resume context from one or more candidates and answer questions about them.
+When referencing a candidate, use the name/username shown in the context (e.g. "[username - title]").
+Provide objective, factual summaries based solely on the resume data provided.
+If context is insufficient, clearly state that the information is not available.
+""";
+            }
+            else
+            {
+                systemPrompt = """
+You are a professional interview candidate assistant.
+Answer in first-person as the candidate.
+Only use the provided resume context when answering factual experience questions.
+If context is insufficient, honestly say you do not have enough information.
+Keep answers concise and interview-friendly.
+""";
             }
 
-            return await CallOpenAiCompatibleAsync(systemPrompt, userPrompt);
+            var userPrompt = $"""
+Question:
+{question}
+
+Resume Context:
+{context}
+""";
+
+            return (systemPrompt, userPrompt);
         }
 
         private async Task<string> CallOllamaAsync(string systemPrompt, string userPrompt)
@@ -125,7 +186,9 @@ Resume Context:
                 stream = false,
                 options = new
                 {
-                    temperature = _temperature
+                    temperature = _temperature,
+                    num_predict = _chatNumPredict,
+                    num_ctx = _chatNumCtx
                 },
                 messages = new object[]
                 {
@@ -153,6 +216,111 @@ Resume Context:
             return string.IsNullOrWhiteSpace(content)
                 ? "The model returned an empty response."
                 : content;
+        }
+
+        private async IAsyncEnumerable<string> StreamOllamaAsync(
+            string systemPrompt,
+            string userPrompt,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var url = $"{_llmBaseUrl.TrimEnd('/')}/api/chat";
+            var payload = new
+            {
+                model = _model,
+                stream = true,
+                options = new
+                {
+                    temperature = _temperature,
+                    num_predict = _chatNumPredict,
+                    num_ctx = _chatNumCtx
+                },
+                messages = new object[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user", content = userPrompt }
+                }
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            };
+
+            using var response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var rawError = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new InvalidOperationException($"Ollama request failed ({(int)response.StatusCode}): {rawError}");
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(stream);
+            var buffer = new StringBuilder();
+
+            while (true)
+            {
+                var line = await reader.ReadLineAsync(cancellationToken);
+                if (line is null)
+                {
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (buffer.Length > 0)
+                {
+                    buffer.AppendLine();
+                }
+
+                buffer.Append(line);
+
+                JsonDocument? document = null;
+                try
+                {
+                    document = JsonDocument.Parse(buffer.ToString());
+                    buffer.Clear();
+                }
+                catch (JsonException)
+                {
+                    // Keep buffering until we have a complete JSON object.
+                    continue;
+                }
+
+                var root = document.RootElement;
+
+                if (root.TryGetProperty("error", out var errorNode))
+                {
+                    document.Dispose();
+                    throw new InvalidOperationException($"Ollama stream error: {errorNode.GetString()}");
+                }
+
+                if (root.TryGetProperty("message", out var messageNode)
+                    && messageNode.TryGetProperty("content", out var contentNode))
+                {
+                    var piece = contentNode.GetString();
+                    if (!string.IsNullOrEmpty(piece))
+                    {
+                        document.Dispose();
+                        yield return piece;
+                        continue;
+                    }
+                }
+
+                if (root.TryGetProperty("done", out var doneNode) && doneNode.GetBoolean())
+                {
+                    document.Dispose();
+                    yield break;
+                }
+
+                document.Dispose();
+            }
         }
 
         private async Task<string> CallOpenAiCompatibleAsync(string systemPrompt, string userPrompt)
