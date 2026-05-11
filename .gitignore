@@ -9,3 +9,4 @@ obj/
 TestResults/
 TestReport*.md
 TestReport*.html
+.local-logs/
