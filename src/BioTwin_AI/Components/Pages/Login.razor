@@ -77,7 +77,7 @@
     background: transparent;
     position: relative;
     overflow: hidden;
-    padding: 20px;
+    padding: clamp(24px, 4vw, 48px);
 }
 
 .login-container::before {
@@ -101,8 +101,8 @@
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: 420px;
-    padding: 20px;
+    max-width: 560px;
+    padding: 0;
 }
 
 .login-card {
@@ -110,7 +110,7 @@
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 24px;
-    padding: 48px 32px;
+    padding: clamp(36px, 5vw, 56px) clamp(28px, 5vw, 44px);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -128,7 +128,7 @@
 
 .login-header {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 36px;
 }
 
 .login-title {
@@ -186,14 +186,16 @@
 }
 
 .mode-switcher {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(128px, 1.15fr);
+    gap: 10px;
+    margin-bottom: 36px;
 }
 
 .mode-btn {
-    flex: 1;
-    padding: 12px 16px;
+    min-width: 0;
+    min-height: 48px;
+    padding: 12px 18px;
     border: none;
     border-radius: 12px;
     background: #f5f5f7;
@@ -205,7 +207,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
+    white-space: nowrap;
 }
 
 .mode-btn:hover {
@@ -223,7 +226,7 @@
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 22px;
 }
 
 .form-label {
@@ -259,7 +262,8 @@
 
 .btn-submit {
     width: 100%;
-    padding: 14px 24px;
+    min-height: 50px;
+    padding: 14px 28px;
     border: none;
     border-radius: 12px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -269,6 +273,7 @@
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
     box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+    white-space: nowrap;
 }
 
 .btn-submit:hover {
@@ -282,7 +287,7 @@
 
 .interviewer-info {
     text-align: center;
-    padding: 20px;
+    padding: 28px;
     background: rgba(0, 212, 255, 0.1);
     border-radius: 12px;
     border: 1px solid rgba(0, 212, 255, 0.2);
@@ -305,6 +310,20 @@
     font-size: 13px;
     color: #86868b;
 }
+@@media (max-width: 520px) {
+    .login-container {
+        align-items: flex-start;
+    }
+
+    .mode-switcher {
+        grid-template-columns: 1fr;
+    }
+
+    .mode-btn {
+        justify-content: center;
+    }
+}
+
 </style>
 
 @code {
