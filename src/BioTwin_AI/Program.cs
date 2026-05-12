@@ -43,11 +43,13 @@ builder.Services.AddHttpClient<AgentService>((provider, client) =>
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
-// Configure Resume Upload Service
-builder.Services.AddScoped<ResumeUploadService>();
-
 // Configure HTTP client for All2MD service
-builder.Services.AddHttpClient<ResumeUploadService>();
+builder.Services.AddHttpClient<ResumeUploadService>((provider, client) =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    var timeoutSeconds = configuration.GetValue("All2MD:TimeoutSeconds", 600);
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
 
 // Add logging
 builder.Logging.AddConsole();
@@ -60,7 +62,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<BioTwinDbContext>();
     dbContext.Database.EnsureCreated();
 
-    // Patch existing DB to multi-tenant schema (DB-first friendly, idempotent).
+    // Patch existing DB to the current resume/file + sections schema (DB-first friendly, idempotent).
     await EnsureMultiTenantSchemaAsync(dbContext);
 }
 
@@ -97,17 +99,75 @@ static async Task EnsureMultiTenantSchemaAsync(BioTwinDbContext dbContext)
         await connection.OpenAsync();
     }
 
-    await using var checkCommand = connection.CreateCommand();
-    checkCommand.CommandText = "SELECT COUNT(1) FROM pragma_table_info('ResumeEntries') WHERE name = 'TenantId';";
-    var tenantColumnExists = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
-
-    if (!tenantColumnExists)
+    async Task<bool> ColumnExistsAsync(string tableName, string columnName)
     {
-        await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE ResumeEntries ADD COLUMN TenantId TEXT NOT NULL DEFAULT 'default';");
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(1) FROM pragma_table_info('{tableName}') WHERE name = $columnName;";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$columnName";
+        parameter.Value = columnName;
+        command.Parameters.Add(parameter);
+
+        return Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
     }
 
+    var hasLegacyTitle = await ColumnExistsAsync("ResumeEntries", "Title");
+    var hasLegacyContent = await ColumnExistsAsync("ResumeEntries", "Content");
+
+    if (hasLegacyTitle && hasLegacyContent)
+    {
+        // Resume data can be discarded during this schema redesign. Keep user accounts,
+        // but reset resume tables instead of carrying old section data forward.
+        await dbContext.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys=OFF;");
+        await dbContext.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS ResumeSections;");
+        await dbContext.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS ResumeEntries;");
+        await dbContext.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys=ON;");
+    }
+
+    await dbContext.Database.ExecuteSqlRawAsync(@"
+        CREATE TABLE IF NOT EXISTS ResumeEntries (
+            Id INTEGER NOT NULL CONSTRAINT PK_ResumeEntries PRIMARY KEY AUTOINCREMENT,
+            SourceFileName TEXT NOT NULL,
+            SourceFileContent BLOB NULL,
+            SourceContentType TEXT NULL,
+            SourceFileSize INTEGER NULL,
+            CreatedAt TEXT NOT NULL,
+            TenantId TEXT NOT NULL DEFAULT 'default'
+        );
+    ");
     await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeEntries_TenantId ON ResumeEntries(TenantId);");
     await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeEntries_TenantId_CreatedAt ON ResumeEntries(TenantId, CreatedAt);");
+
+    await dbContext.Database.ExecuteSqlRawAsync(@"
+        CREATE TABLE IF NOT EXISTS ResumeSections (
+            Id INTEGER NOT NULL CONSTRAINT PK_ResumeSections PRIMARY KEY AUTOINCREMENT,
+            ResumeEntryId INTEGER NOT NULL,
+            ParentSectionId INTEGER NULL,
+            HeadingLevel INTEGER NOT NULL DEFAULT 2,
+            Title TEXT NOT NULL,
+            Content TEXT NOT NULL,
+            SortOrder INTEGER NOT NULL DEFAULT 0,
+            CreatedAt TEXT NOT NULL,
+            TenantId TEXT NOT NULL DEFAULT 'default',
+            VectorId TEXT NULL,
+            CONSTRAINT FK_ResumeSections_ResumeEntries_ResumeEntryId FOREIGN KEY (ResumeEntryId) REFERENCES ResumeEntries (Id) ON DELETE CASCADE,
+            CONSTRAINT FK_ResumeSections_ResumeSections_ParentSectionId FOREIGN KEY (ParentSectionId) REFERENCES ResumeSections (Id) ON DELETE SET NULL
+        );
+    ");
+    if (!await ColumnExistsAsync("ResumeSections", "ParentSectionId"))
+    {
+        await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE ResumeSections ADD COLUMN ParentSectionId INTEGER NULL;");
+    }
+
+    if (!await ColumnExistsAsync("ResumeSections", "HeadingLevel"))
+    {
+        await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE ResumeSections ADD COLUMN HeadingLevel INTEGER NOT NULL DEFAULT 2;");
+    }
+
+    await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeSections_TenantId ON ResumeSections(TenantId);");
+    await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeSections_TenantId_CreatedAt ON ResumeSections(TenantId, CreatedAt);");
+    await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeSections_ResumeEntryId_SortOrder ON ResumeSections(ResumeEntryId, SortOrder);");
+    await dbContext.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResumeSections_ParentSectionId ON ResumeSections(ParentSectionId);");
 
     await dbContext.Database.ExecuteSqlRawAsync(@"
         CREATE TABLE IF NOT EXISTS UserAccounts (

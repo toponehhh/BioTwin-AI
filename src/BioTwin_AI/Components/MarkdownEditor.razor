@@ -1,0 +1,232 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="markdown-editor-shell">
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <div class="markdown-editor-header">
+            <label class="form-label mb-0" for="@_editorId">@Label</label>
+            <span class="markdown-editor-meta">@LineCount lines / @CharacterCount chars</span>
+        </div>
+    }
+
+    <textarea id="@_editorId"
+              class="markdown-editor-fallback"
+              rows="@Rows"
+              placeholder="@Placeholder"
+              readonly="@ReadOnly">@_currentValue</textarea>
+</div>
+
+<style>
+    .markdown-editor-shell {
+        width: 100%;
+        max-width: none;
+        border: 1px solid #d5d5d7;
+        border-radius: 10px;
+        background: #fff;
+        overflow: visible;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .markdown-editor-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        background: #f7f7f9;
+    }
+
+    .markdown-editor-meta {
+        color: #686870;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .markdown-editor-fallback {
+        width: 100%;
+        min-height: 260px;
+        padding: 16px;
+        border: 0;
+        outline: none;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        line-height: 1.55;
+    }
+
+    .markdown-editor-shell .EasyMDEContainer {
+        width: 100%;
+        border: 0;
+    }
+
+    .markdown-editor-shell .editor-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        border: 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 0;
+        background: #fbfbfd;
+        opacity: 1;
+        padding: 8px 10px;
+    }
+
+    .markdown-editor-shell .editor-toolbar button {
+        min-width: 32px;
+        width: 32px;
+        height: 32px;
+        margin: 0;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        color: #2f3137 !important;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1;
+        background: transparent;
+    }
+
+    .markdown-editor-shell .editor-toolbar button:hover,
+    .markdown-editor-shell .editor-toolbar button.active {
+        border-color: #cfd4dc;
+        background: #fff;
+    }
+
+    .markdown-editor-shell .editor-toolbar i.separator {
+        width: 1px;
+        height: 22px;
+        margin: 0 4px;
+        border-left: 1px solid #d5d5d7;
+        border-right: 0;
+    }
+
+    .markdown-editor-shell .CodeMirror {
+        width: 100%;
+        border: 0;
+        border-radius: 0;
+        min-height: 260px;
+        color: #1d1d1f;
+        font-size: 14px;
+        line-height: 1.55;
+    }
+
+    .markdown-editor-shell .CodeMirror-focused {
+        box-shadow: inset 0 0 0 3px rgba(13, 110, 253, 0.09);
+    }
+
+    .markdown-editor-shell .editor-statusbar {
+        color: #686870;
+        border-top: 1px solid rgba(0, 0, 0, 0.06);
+        padding: 6px 12px;
+    }
+
+    .markdown-editor-shell .editor-preview,
+    .markdown-editor-shell .editor-preview-side {
+        background: #fff;
+        color: #1d1d1f;
+        padding: 16px;
+    }
+
+    .markdown-editor-shell .CodeMirror-fullscreen,
+    .markdown-editor-shell .editor-toolbar.fullscreen,
+    .markdown-editor-shell .editor-preview-side {
+        z-index: 1050;
+    }
+
+    @@media (max-width: 576px) {
+        .markdown-editor-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .markdown-editor-shell .editor-toolbar {
+            white-space: normal;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Markdown Content";
+    [Parameter] public string Placeholder { get; set; } = "Write Markdown here...";
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public int Rows { get; set; } = 14;
+    [Parameter] public bool ReadOnly { get; set; }
+
+    private readonly string _editorId = $"markdown-editor-{Guid.NewGuid():N}";
+    private DotNetObjectReference<MarkdownEditor>? _dotNetReference;
+    private bool _initialized;
+    private string _currentValue = string.Empty;
+
+    private int CharacterCount => _currentValue?.Length ?? 0;
+
+    private int LineCount => string.IsNullOrEmpty(_currentValue)
+        ? 0
+        : _currentValue.Replace("\r\n", "\n").Split('\n').Length;
+
+    protected override void OnParametersSet()
+    {
+        var incomingValue = Value ?? string.Empty;
+        if (incomingValue != _currentValue)
+        {
+            _currentValue = incomingValue;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetReference = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync(
+                "bioTwinMarkdownEditor.init",
+                _editorId,
+                _dotNetReference,
+                new
+                {
+                    value = _currentValue,
+                    placeholder = Placeholder,
+                    readOnly = ReadOnly,
+                    rows = Rows
+                });
+            _initialized = true;
+            return;
+        }
+
+        if (_initialized)
+        {
+            await JS.InvokeVoidAsync("bioTwinMarkdownEditor.setOptions", _editorId, new
+            {
+                value = _currentValue,
+                readOnly = ReadOnly
+            });
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnEditorValueChanged(string value)
+    {
+        _currentValue = value;
+        await ValueChanged.InvokeAsync(value);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("bioTwinMarkdownEditor.dispose", _editorId);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        _dotNetReference?.Dispose();
+    }
+}

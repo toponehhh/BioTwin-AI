@@ -5,9 +5,18 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<div class="top-row ps-3 navbar navbar-dark">
+<div class="top-row navbar navbar-dark @(Collapsed ? "nav-collapsed" : "")">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">BioTwin_AI</a>
+        <a class="navbar-brand" href="" title="BioTwin_AI">
+            <span class="brand-short">BT</span>
+            <span class="nav-label">BioTwin_AI</span>
+        </a>
+        <button type="button"
+                class="collapse-toggle"
+                title="@(Collapsed ? "Expand navigation" : "Collapse navigation")"
+                @onclick="ToggleCollapsed">
+            <span class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")" aria-hidden="true"></span>
+        </button>
     </div>
 </div>
 
@@ -20,16 +29,18 @@
             <div class="nav-item px-3 text-white-50 small">
                 @if (Session.IsInterviewer)
                 {
-                    <span>🔍 <strong>Interviewer Mode</strong></span>
+                    <span class="nav-label">Interviewer Mode</span>
+                    <span class="nav-mini" title="Interviewer Mode">I</span>
                 }
                 else
                 {
-                    <span>Candidate: <strong>@Session.Username</strong></span>
+                    <span class="nav-label">Candidate: <strong>@Session.Username</strong></span>
+                    <span class="nav-mini" title="@Session.Username">C</span>
                 }
             </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="chat" Match="NavLinkMatch.All">
-                    <span class="bi bi-chat-dots-fill" aria-hidden="true"></span> AI Chat
+                    <span class="bi bi-chat-dots-fill" aria-hidden="true"></span><span class="nav-label">AI Chat</span>
                 </NavLink>
             </div>
             
@@ -38,24 +49,24 @@
             {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="resume/upload">
-                        <span class="bi bi-cloud-upload-fill" aria-hidden="true"></span> Resume Upload
+                        <span class="bi bi-cloud-upload-fill" aria-hidden="true"></span><span class="nav-label">Resume Upload</span>
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="resume/edit">
-                        <span class="bi bi-pencil-square" aria-hidden="true"></span> Resume Edit
+                        <span class="bi bi-pencil-square" aria-hidden="true"></span><span class="nav-label">Resume Edit</span>
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="resume/export">
-                        <span class="bi bi-download" aria-hidden="true"></span> Export Resume
+                        <span class="bi bi-download" aria-hidden="true"></span><span class="nav-label">Export Resume</span>
                     </NavLink>
                 </div>
             }
             
             <div class="nav-item px-3">
                 <button class="btn btn-link nav-link text-start" @onclick="LogoutAsync">
-                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
+                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span><span class="nav-label">Logout</span>
                 </button>
             </div>
         }
@@ -63,7 +74,7 @@
         {
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="login">
-                    <span class="bi bi-person-circle" aria-hidden="true"></span> Login
+                    <span class="bi bi-person-circle" aria-hidden="true"></span><span class="nav-label">Login</span>
                 </NavLink>
             </div>
         }
@@ -71,6 +82,9 @@
 </div>
 
 @code {
+    [Parameter] public bool Collapsed { get; set; }
+    [Parameter] public EventCallback<bool> CollapsedChanged { get; set; }
+
     protected override void OnInitialized()
     {
         Session.Changed += OnSessionChanged;
@@ -92,6 +106,12 @@
         AuthService.Logout();
         await Session.ClearPersistedAsync(JS);
         Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private async Task ToggleCollapsed()
+    {
+        Collapsed = !Collapsed;
+        await CollapsedChanged.InvokeAsync(Collapsed);
     }
 
     private void OnSessionChanged()

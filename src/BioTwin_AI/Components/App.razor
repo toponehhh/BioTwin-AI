@@ -7,6 +7,8 @@
     <base href="/" />
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+    <link rel="stylesheet" href="@Assets["lib/font-awesome/css/font-awesome.min.css"]" />
+    <link rel="stylesheet" href="@Assets["lib/easymde/easymde.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["BioTwin_AI.styles.css"]" />
     <ImportMap />
@@ -17,6 +19,8 @@
 <body>
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
+    <script src="@Assets["lib/easymde/easymde.min.js"]"></script>
+    <script src="@Assets["js/easymde-blazor.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

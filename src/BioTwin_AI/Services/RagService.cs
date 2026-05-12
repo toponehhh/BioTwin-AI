@@ -38,8 +38,8 @@ namespace BioTwin_AI.Services
         {
             try
             {
-                var count = await _dbContext.ResumeEntries.CountAsync();
-                _logger.LogInformation("RAG initialized with {Count} total indexed entries", count);
+                var count = await _dbContext.ResumeSections.CountAsync();
+                _logger.LogInformation("RAG initialized with {Count} total indexed resume sections", count);
             }
             catch (Exception ex)
             {
@@ -58,7 +58,7 @@ namespace BioTwin_AI.Services
                 var embedding = await _embeddingService.GetEmbeddingAsync(content, _vectorSize);
                 var embeddingJson = SerializeVector(embedding);
 
-                // The returned value is persisted by the caller into ResumeEntry.EmbeddingPayload.
+                // The returned value is persisted by the caller into ResumeSection.EmbeddingPayload.
                 _logger.LogInformation("Generated LLM-based embedding payload");
                 return embeddingJson;
             }
@@ -88,18 +88,18 @@ namespace BioTwin_AI.Services
                 var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query, _vectorSize);
 
                 // Interviewers search all resumes; candidates search only their own
-                IQueryable<ResumeEntry> query_base;
+                IQueryable<ResumeSection> query_base;
                 if (_session.IsInterviewer)
                 {
                     // Interviewer: search all resumes from all tenants
-                    query_base = _dbContext.ResumeEntries
+                    query_base = _dbContext.ResumeSections
                         .AsNoTracking()
                         .Where(e => e.EmbeddingPayload != null && e.EmbeddingPayload != string.Empty);
                 }
                 else
                 {
                     // Candidate: search only their own resumes
-                    query_base = _dbContext.ResumeEntries
+                    query_base = _dbContext.ResumeSections
                         .AsNoTracking()
                         .Where(e => e.TenantId == tenantId && e.EmbeddingPayload != null && e.EmbeddingPayload != string.Empty);
                 }
@@ -150,7 +150,7 @@ namespace BioTwin_AI.Services
                     return;
                 }
 
-                var entries = await _dbContext.ResumeEntries
+                var entries = await _dbContext.ResumeSections
                     .Where(e => e.TenantId == tenantId && e.EmbeddingPayload != null)
                     .ToListAsync();
 

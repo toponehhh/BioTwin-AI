@@ -78,8 +78,11 @@ else
 
     private async Task LoadMarkdownAsync()
     {
-        var entries = await DbContext.ResumeEntries
-            .OrderBy(x => x.CreatedAt)
+        var entries = await DbContext.ResumeSections
+            .Include(x => x.ResumeEntry)
+            .Where(x => Session.IsInterviewer || x.TenantId == Session.Username)
+            .OrderBy(x => x.ResumeEntry != null ? x.ResumeEntry.CreatedAt : x.CreatedAt)
+            .ThenBy(x => x.SortOrder)
             .ToListAsync();
 
         if (entries.Count == 0)
@@ -94,7 +97,7 @@ else
 
         foreach (var item in entries)
         {
-            sb.AppendLine($"## {item.Title}");
+            sb.AppendLine($"{new string('#', Math.Clamp(item.HeadingLevel, 1, 6))} {item.Title}");
             sb.AppendLine();
             sb.AppendLine(item.Content);
             sb.AppendLine();

@@ -5,6 +5,7 @@
 @using Microsoft.EntityFrameworkCore
 @rendermode InteractiveServer
 @inject BioTwinDbContext DbContext
+@inject IRagService RagService
 @inject CurrentUserSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -24,59 +25,421 @@ else if (!Session.IsAuthenticated)
 }
 else
 {
-    <div class="container-fluid mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="mb-0">Resume Edit</h2>
-            <a class="btn btn-outline-primary" href="/resume/upload">Upload New Section</a>
-        </div>
+    <div class="resume-builder">
+        <aside class="section-sidebar">
+            <div class="section-sidebar-header">
+                <div>
+                    <h2>Resume Builder</h2>
+                    <span>@_resumeEntries.Count resume@(_resumeEntries.Count == 1 ? "" : "s") - @_entries.Count section@(_entries.Count == 1 ? "" : "s")</span>
+                </div>
+                <button class="icon-action" title="Add section" @onclick="CreateSection">
+                    +
+                </button>
+            </div>
 
-        @if (!string.IsNullOrWhiteSpace(_message))
-        {
-            <div class="alert alert-success">@_message</div>
-        }
+            <div class="section-actions">
+                <button class="btn btn-primary" @onclick="CreateSection">New Section</button>
+                <a class="btn btn-outline-primary" href="/resume/upload">Upload File</a>
+            </div>
 
-        @if (!string.IsNullOrWhiteSpace(_error))
-        {
-            <div class="alert alert-danger">@_error</div>
-        }
-
-        @if (_entries.Count == 0)
-        {
-            <div class="alert alert-info">No resume sections found. Please upload one first.</div>
-        }
-        else
-        {
-            @foreach (var entry in _entries)
+            @if (_resumeEntries.Count > 0)
             {
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <div class="mb-2 text-muted small">Created: @entry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Title</label>
-                            <input class="form-control" @bind="entry.Title" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Markdown Content</label>
-                            <textarea class="form-control" rows="8" @bind="entry.Content"></textarea>
-                        </div>
-
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-primary" @onclick="() => SaveEntryAsync(entry)">Save</button>
-                            <button class="btn btn-outline-danger" @onclick="() => DeleteEntryAsync(entry)">Delete</button>
-                        </div>
-                    </div>
+                <div class="resume-picker">
+                    <div class="sidebar-kicker">Resume</div>
+                    <select class="form-select resume-select"
+                            aria-label="Select resume"
+                            value="@GetSelectedResumeIndex()"
+                            @onchange="OnResumeChanged">
+                        @for (var index = 0; index < _resumeEntries.Count; index++)
+                        {
+                            var resume = _resumeEntries[index];
+                            <option value="@index">@GetResumeTitle(resume) (@GetResumeSummary(resume))</option>
+                        }
+                    </select>
                 </div>
             }
-        }
+
+            @if (_resumeEntries.Count == 0)
+            {
+                <div class="empty-sections">
+                    <strong>No resumes yet</strong>
+                    <span>Upload a resume file or create a manual section to get started.</span>
+                </div>
+            }
+            else if (_selectedResumeEntry is null)
+            {
+                <div class="empty-sections">
+                    <strong>Select a resume</strong>
+                    <span>Choose which resume you want to edit.</span>
+                </div>
+            }
+            else if (_entries.Count == 0)
+            {
+                <div class="empty-sections">
+                    <strong>No sections in this resume</strong>
+                    <span>Create a section for @GetResumeTitle(_selectedResumeEntry).</span>
+                </div>
+            }
+            else
+            {
+                <div class="sidebar-kicker">Sections</div>
+                <div class="section-list" role="list" aria-label="Resume sections">
+                    @foreach (var entry in _entries)
+                    {
+                        <button type="button"
+                                class="section-list-item @(ReferenceEquals(_selectedEntry, entry) ? "active" : "")"
+                                style="padding-left: @(GetTreeIndent(entry))px"
+                                @onclick="() => SelectEntry(entry)">
+                            <span class="section-title">
+                                <span class="heading-level-badge">H@entry.HeadingLevel</span>
+                                @entry.Title
+                            </span>
+                            <span class="section-meta">@GetEntrySummary(entry)</span>
+                        </button>
+                    }
+                </div>
+            }
+        </aside>
+
+        <main class="section-editor">
+            <div class="editor-topbar">
+                <a class="btn btn-secondary" href="/chat">Back to Chat</a>
+                <div class="editor-actions">
+                    @if (_selectedEntry is not null)
+                    {
+                        <button class="btn btn-outline-secondary" @onclick="DuplicateSelectedAsync" disabled="@_isSaving">Duplicate</button>
+                        <button class="btn btn-outline-danger" @onclick="DeleteSelectedAsync" disabled="@_isSaving">Delete</button>
+                        <button class="btn btn-primary" @onclick="SaveSelectedAsync" disabled="@_isSaving">
+                            @(_isSaving ? "Saving..." : "Save Section")
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="alert alert-success">@_message</div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert alert-danger">@_error</div>
+            }
+
+            @if (_selectedEntry is null)
+            {
+                <div class="editor-empty-state">
+                    <h3>@(_selectedResumeEntry is null ? "Select a resume" : "Select a section")</h3>
+                    <p>@(_selectedResumeEntry is null ? "Choose a resume file from the left panel before editing sections." : "Choose a section from the left panel or create a new one.")</p>
+                    <button class="btn btn-primary" @onclick="CreateSection">Create Section</button>
+                </div>
+            }
+            else
+            {
+                <section class="section-workspace">
+                    <div class="builder-workspace-grid">
+                        <div class="section-edit-pane">
+                            <div class="section-meta-row">
+                                <span>@(_selectedEntry.Id == 0 ? "Draft section" : $"Created {_selectedEntry.CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm}")</span>
+                                <span>@GetWordCount(_selectedEntry.Content) words</span>
+                                <span>Editing @GetResumeTitle(_selectedResumeEntry ?? _selectedEntry.ResumeEntry)</span>
+                                @if (!string.IsNullOrWhiteSpace(GetSourceFileName(_selectedEntry)) && GetSourceFileName(_selectedEntry) != ManualSourceName)
+                                {
+                                    <span>Imported from @GetSourceFileName(_selectedEntry)</span>
+                                }
+                            </div>
+
+                            <MarkdownEditor @bind-Value="_selectedEntry.Content"
+                                            Label="Markdown"
+                                            Placeholder="Write this resume section in Markdown..."
+                                            Rows="22" />
+                        </div>
+                    </div>
+                </section>
+            }
+        </main>
     </div>
 }
 
+<style>
+    .resume-builder {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+        background: #f5f5f7;
+    }
+
+    .section-sidebar {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 24px;
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(255, 255, 255, 0.84);
+        backdrop-filter: blur(18px);
+    }
+
+    .section-sidebar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .section-sidebar-header h2 {
+        margin: 0;
+        color: #1d1d1f;
+        font-size: 22px;
+        font-weight: 750;
+    }
+
+    .section-sidebar-header span,
+    .section-meta-row,
+    .section-meta {
+        color: #86868b;
+        font-size: 12px;
+    }
+
+    .icon-action {
+        width: 40px;
+        height: 40px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 24px;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.28);
+    }
+
+    .section-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .section-actions .btn {
+        white-space: nowrap;
+    }
+
+    .sidebar-kicker {
+        color: #6e6e73;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .resume-picker {
+        display: grid;
+        gap: 8px;
+    }
+
+    .resume-select {
+        width: 100%;
+        min-height: 42px;
+        padding: 8px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 10px;
+        background-color: rgba(255, 255, 255, 0.82);
+        color: #1d1d1f;
+        font-size: 13px;
+        font-weight: 650;
+    }
+
+    .resume-select:focus {
+        border-color: rgba(102, 126, 234, 0.52);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+    }
+
+    .section-list {
+        display: grid;
+        gap: 8px;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .section-list-item {
+        width: 100%;
+        display: grid;
+        gap: 4px;
+        padding: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.76);
+        color: #1d1d1f;
+        text-align: left;
+        transition: all 0.2s ease;
+    }
+
+    .section-list-item:hover,
+    .section-list-item.active {
+        border-color: rgba(102, 126, 234, 0.48);
+        background: white;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.14);
+        transform: translateY(-1px);
+    }
+
+    .section-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .heading-level-badge {
+        flex: 0 0 auto;
+        min-width: 28px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: #eef2ff;
+        color: #4754b8;
+        font-size: 11px;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .empty-sections {
+        display: grid;
+        gap: 6px;
+        padding: 18px;
+        border: 1px dashed #c7c7cc;
+        border-radius: 12px;
+        color: #686870;
+        background: rgba(255, 255, 255, 0.5);
+    }
+
+    .section-editor {
+        min-width: 0;
+        padding: 24px 32px 40px;
+        overflow-y: auto;
+    }
+
+    .editor-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+
+    .editor-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .section-workspace {
+        width: 100%;
+        max-width: none;
+    }
+
+    .builder-workspace-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        width: 100%;
+        gap: 20px;
+        align-items: start;
+    }
+
+    .section-edit-pane {
+        display: grid;
+        gap: 16px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .section-meta-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .editor-empty-state {
+        display: grid;
+        gap: 8px;
+        max-width: 520px;
+        margin-top: 72px;
+        padding: 28px;
+        border: 1px dashed #c7c7cc;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.72);
+    }
+
+    .editor-empty-state h3 {
+        margin: 0;
+        color: #1d1d1f;
+        font-size: 22px;
+        font-weight: 750;
+    }
+
+    .editor-empty-state p {
+        color: #686870;
+        margin: 0 0 8px;
+    }
+
+    @@media (max-width: 900px) {
+        .resume-builder {
+            grid-template-columns: 1fr;
+        }
+
+        .section-sidebar {
+            min-height: auto;
+            border-right: none;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .section-list {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+
+        .builder-workspace-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .section-editor,
+        .section-sidebar {
+            padding: 18px;
+        }
+
+        .editor-topbar {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .editor-actions {
+            justify-content: stretch;
+        }
+
+        .editor-actions .btn,
+        .section-actions .btn {
+            flex: 1;
+        }
+    }
+</style>
+
 @code {
-    private readonly List<ResumeEntry> _entries = [];
+    private const string ManualSourceName = "Manual section";
+
+    private readonly List<ResumeEntry> _resumeEntries = [];
+    private readonly List<ResumeSection> _entries = [];
+    private ResumeEntry? _selectedResumeEntry;
+    private ResumeSection? _selectedEntry;
     private bool _sessionResolved;
+    private bool _isSaving;
     private string _message = string.Empty;
     private string _error = string.Empty;
 
@@ -102,36 +465,456 @@ else
 
     private async Task LoadEntriesAsync()
     {
+        _resumeEntries.Clear();
         _entries.Clear();
-        var items = await DbContext.ResumeEntries
+        _selectedResumeEntry = null;
+        _selectedEntry = null;
+
+        var itemsQuery = DbContext.ResumeEntries
+            .Include(x => x.Sections)
+            .AsQueryable();
+        if (!Session.IsInterviewer)
+        {
+            itemsQuery = itemsQuery.Where(x => x.TenantId == Session.Username);
+        }
+
+        var items = await itemsQuery
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
-        _entries.AddRange(items);
+
+        _resumeEntries.AddRange(items);
+        SelectResume(_resumeEntries.FirstOrDefault());
     }
 
-    private async Task SaveEntryAsync(ResumeEntry entry)
+    private void SelectResume(ResumeEntry? resumeEntry)
     {
         _message = string.Empty;
         _error = string.Empty;
+        _selectedResumeEntry = resumeEntry;
+        _selectedEntry = null;
+        _entries.Clear();
 
-        if (string.IsNullOrWhiteSpace(entry.Title) || string.IsNullOrWhiteSpace(entry.Content))
+        if (resumeEntry is null)
         {
-            _error = "Title and content are required.";
             return;
         }
 
-        await DbContext.SaveChangesAsync();
-        _message = $"Saved section '{entry.Title}'.";
+        var sections = resumeEntry.Sections
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id)
+            .ToList();
+
+        foreach (var section in sections)
+        {
+            section.ResumeEntry = resumeEntry;
+        }
+
+        _entries.AddRange(sections);
+        _selectedEntry = _entries.FirstOrDefault();
     }
 
-    private async Task DeleteEntryAsync(ResumeEntry entry)
+    private void OnResumeChanged(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var index) ||
+            index < 0 ||
+            index >= _resumeEntries.Count)
+        {
+            SelectResume(null);
+            return;
+        }
+
+        SelectResume(_resumeEntries[index]);
+    }
+
+    private int GetSelectedResumeIndex()
+    {
+        if (_selectedResumeEntry is null)
+        {
+            return 0;
+        }
+
+        var index = _resumeEntries.IndexOf(_selectedResumeEntry);
+        return index < 0 ? 0 : index;
+    }
+
+    private void SelectEntry(ResumeSection entry)
+    {
+        _message = string.Empty;
+        _error = string.Empty;
+        _selectedEntry = entry;
+    }
+
+    private void CreateSection()
     {
         _message = string.Empty;
         _error = string.Empty;
 
-        DbContext.ResumeEntries.Remove(entry);
-        await DbContext.SaveChangesAsync();
+        var targetResume = _selectedResumeEntry ?? new ResumeEntry
+        {
+            SourceFileName = ManualSourceName,
+            CreatedAt = DateTime.UtcNow,
+            TenantId = Session.Username ?? "default"
+        };
+
+        if (_selectedResumeEntry is null)
+        {
+            _selectedResumeEntry = targetResume;
+            _resumeEntries.Insert(0, targetResume);
+        }
+
+        var draft = new ResumeSection
+        {
+            Title = "Untitled Section",
+            Content = "## Untitled Section\n\nDescribe your experience here.",
+            HeadingLevel = 2,
+            ResumeEntryId = targetResume.Id,
+            ResumeEntry = targetResume,
+            SortOrder = _entries.Count == 0 ? 0 : _entries.Max(entry => entry.SortOrder) + 1,
+            CreatedAt = DateTime.UtcNow,
+            TenantId = targetResume.TenantId
+        };
+
+        _entries.Insert(0, draft);
+        targetResume.Sections.Add(draft);
+        _selectedEntry = draft;
+    }
+
+    private async Task SaveSelectedAsync()
+    {
+        if (_selectedEntry is null)
+        {
+            return;
+        }
+
+        _message = string.Empty;
+        _error = string.Empty;
+
+        SyncSelectedTitleFromMarkdown();
+
+        try
+        {
+            _isSaving = true;
+            _selectedEntry.HeadingLevel = Math.Clamp(_selectedEntry.HeadingLevel, 1, 6);
+
+            if (_selectedEntry.Id == 0)
+            {
+                _selectedEntry.CreatedAt = DateTime.UtcNow;
+                _selectedEntry.TenantId = _selectedResumeEntry?.TenantId ?? Session.Username ?? "default";
+
+                if (_selectedResumeEntry is not null)
+                {
+                    _selectedEntry.ResumeEntry = _selectedResumeEntry;
+                    _selectedEntry.ResumeEntryId = _selectedResumeEntry.Id;
+                    if (!_selectedResumeEntry.Sections.Contains(_selectedEntry))
+                    {
+                        _selectedResumeEntry.Sections.Add(_selectedEntry);
+                    }
+                }
+
+                if (_selectedEntry.ResumeEntry is null)
+                {
+                    _selectedEntry.ResumeEntry = new ResumeEntry
+                    {
+                        SourceFileName = ManualSourceName,
+                        CreatedAt = _selectedEntry.CreatedAt,
+                        TenantId = _selectedEntry.TenantId
+                    };
+                }
+
+                DbContext.ResumeSections.Add(_selectedEntry);
+                await DbContext.SaveChangesAsync();
+
+                if (_selectedResumeEntry is null)
+                {
+                    _selectedResumeEntry = _selectedEntry.ResumeEntry;
+                    if (_selectedResumeEntry is not null && !_resumeEntries.Contains(_selectedResumeEntry))
+                    {
+                        _resumeEntries.Insert(0, _selectedResumeEntry);
+                    }
+                }
+            }
+
+            _selectedEntry.EmbeddingPayload = await CreateEmbeddingPayloadAsync(_selectedEntry);
+            await DbContext.SaveChangesAsync();
+
+            SortCurrentSections();
+            _message = $"Saved section '{_selectedEntry.Title}'.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task DuplicateSelectedAsync()
+    {
+        if (_selectedEntry is null)
+        {
+            return;
+        }
+
+        var targetResume = _selectedResumeEntry ?? _selectedEntry.ResumeEntry;
+        if (targetResume is null)
+        {
+            _error = "Select a resume before duplicating a section.";
+            return;
+        }
+
+        var duplicate = new ResumeSection
+        {
+            Title = $"{_selectedEntry.Title} Copy",
+            Content = _selectedEntry.Content,
+            ResumeEntryId = targetResume.Id,
+            ResumeEntry = targetResume,
+            ParentSectionId = _selectedEntry.ParentSectionId,
+            HeadingLevel = _selectedEntry.HeadingLevel,
+            SortOrder = _entries.Count == 0 ? 0 : _entries.Max(entry => entry.SortOrder) + 1,
+            CreatedAt = DateTime.UtcNow,
+            TenantId = targetResume.TenantId
+        };
+
+        _entries.Insert(0, duplicate);
+        targetResume.Sections.Add(duplicate);
+        _selectedEntry = duplicate;
+        await Task.CompletedTask;
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (_selectedEntry is null)
+        {
+            return;
+        }
+
+        _message = string.Empty;
+        _error = string.Empty;
+
+        var entry = _selectedEntry;
+
+        if (entry.Id != 0)
+        {
+            var resumeEntryId = entry.ResumeEntryId;
+            var children = await DbContext.ResumeSections
+                .Where(section => section.ParentSectionId == entry.Id)
+                .ToListAsync();
+            foreach (var child in children)
+            {
+                child.ParentSectionId = null;
+            }
+
+            DbContext.ResumeSections.Remove(entry);
+            await DbContext.SaveChangesAsync();
+
+            if (resumeEntryId != 0 && !await DbContext.ResumeSections.AnyAsync(section => section.ResumeEntryId == resumeEntryId))
+            {
+                var sourceEntry = await DbContext.ResumeEntries.FindAsync(resumeEntryId);
+                if (sourceEntry is not null)
+                {
+                    DbContext.ResumeEntries.Remove(sourceEntry);
+                    await DbContext.SaveChangesAsync();
+                    _resumeEntries.RemoveAll(resume => resume.Id == resumeEntryId);
+                }
+            }
+        }
+
+        entry.ResumeEntry?.Sections.Remove(entry);
         _entries.Remove(entry);
+        if (_selectedResumeEntry is not null && _selectedResumeEntry.Id == 0 && _selectedResumeEntry.Sections.Count == 0)
+        {
+            _resumeEntries.Remove(_selectedResumeEntry);
+            SelectResume(_resumeEntries.FirstOrDefault());
+        }
+        else if (_selectedResumeEntry is not null && !_resumeEntries.Contains(_selectedResumeEntry))
+        {
+            SelectResume(_resumeEntries.FirstOrDefault());
+        }
+        else
+        {
+            _selectedEntry = _entries.FirstOrDefault();
+        }
+
         _message = "Section deleted.";
     }
+
+    private Task<string> CreateEmbeddingPayloadAsync(ResumeSection entry)
+    {
+        return RagService.CreateEmbeddingPayloadAsync(
+            entry.Content,
+            new Dictionary<string, string>
+            {
+                { "title", entry.Title },
+                { "content", entry.Content },
+                { "db_id", entry.Id.ToString() },
+                { "resume_entry_id", entry.ResumeEntryId.ToString() },
+                { "source_file", GetSourceFileName(entry) },
+                { "tenant_id", entry.TenantId }
+            });
+    }
+
+    private static string GetEntrySummary(ResumeSection entry)
+    {
+        var source = string.IsNullOrWhiteSpace(GetSourceFileName(entry))
+            ? ManualSourceName
+            : GetSourceFileName(entry);
+
+        return source == ManualSourceName
+            ? $"{GetWordCount(entry.Content)} words"
+            : $"{source} - {GetWordCount(entry.Content)} words";
+    }
+
+    private static int GetWordCount(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return 0;
+        }
+
+        return text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    private static string GetSourceFileName(ResumeSection entry)
+    {
+        return entry.ResumeEntry?.SourceFileName ?? string.Empty;
+    }
+
+    private static string GetResumeTitle(ResumeEntry? resumeEntry)
+    {
+        if (resumeEntry is null)
+        {
+            return "No resume selected";
+        }
+
+        var primaryTitle = resumeEntry.Sections
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id)
+            .FirstOrDefault(section => section.HeadingLevel == 1 && !string.IsNullOrWhiteSpace(section.Title))
+            ?.Title;
+
+        if (!string.IsNullOrWhiteSpace(primaryTitle))
+        {
+            return primaryTitle.Trim();
+        }
+
+        var firstSectionTitle = resumeEntry.Sections
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id)
+            .FirstOrDefault(section => !string.IsNullOrWhiteSpace(section.Title))
+            ?.Title;
+
+        if (!string.IsNullOrWhiteSpace(firstSectionTitle))
+        {
+            return firstSectionTitle.Trim();
+        }
+
+        return resumeEntry.SourceFileName == ManualSourceName
+            ? "Manual Resume"
+            : $"Resume {resumeEntry.CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm}";
+    }
+
+    private static string GetResumeSummary(ResumeEntry resumeEntry)
+    {
+        var sectionCount = resumeEntry.Sections.Count;
+        var created = resumeEntry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+        return $"{sectionCount} section{(sectionCount == 1 ? "" : "s")} - {created}";
+    }
+
+    private void SyncSelectedTitleFromMarkdown()
+    {
+        if (_selectedEntry is null)
+        {
+            return;
+        }
+
+        var normalized = NormalizeSectionMarkdown(
+            _selectedEntry.Content,
+            _selectedEntry.Title,
+            _selectedEntry.HeadingLevel);
+
+        _selectedEntry.Title = normalized.Title;
+        _selectedEntry.HeadingLevel = normalized.HeadingLevel;
+        _selectedEntry.Content = normalized.Content;
+    }
+
+    private static (string Title, int HeadingLevel, string Content) NormalizeSectionMarkdown(
+        string? content,
+        string? fallbackTitle,
+        int fallbackHeadingLevel)
+    {
+        var normalizedContent = (content ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
+        var lines = normalizedContent.Split('\n').ToList();
+
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var line = lines[index];
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            if (!TryParseMarkdownHeading(line, out var title, out var headingLevel))
+            {
+                break;
+            }
+
+            lines.RemoveAt(index);
+            while (lines.Count > 0 && string.IsNullOrWhiteSpace(lines[0]))
+            {
+                lines.RemoveAt(0);
+            }
+
+            return (
+                string.IsNullOrWhiteSpace(title) ? "Untitled Section" : title,
+                headingLevel,
+                string.Join(Environment.NewLine, lines).Trim());
+        }
+
+        return (
+            string.IsNullOrWhiteSpace(fallbackTitle) ? "Untitled Section" : fallbackTitle.Trim(),
+            Math.Clamp(fallbackHeadingLevel, 1, 6),
+            normalizedContent.Trim());
+    }
+
+    private static bool TryParseMarkdownHeading(string line, out string title, out int headingLevel)
+    {
+        title = string.Empty;
+        headingLevel = 0;
+        var trimmed = line.TrimStart();
+
+        while (headingLevel < trimmed.Length && headingLevel < 6 && trimmed[headingLevel] == '#')
+        {
+            headingLevel++;
+        }
+
+        if (headingLevel == 0 ||
+            headingLevel >= trimmed.Length ||
+            !char.IsWhiteSpace(trimmed[headingLevel]))
+        {
+            return false;
+        }
+
+        title = trimmed[headingLevel..].Trim().TrimEnd('#').Trim();
+        return true;
+    }
+
+    private void SortCurrentSections()
+    {
+        _entries.Sort((left, right) =>
+        {
+            var order = left.SortOrder.CompareTo(right.SortOrder);
+            return order != 0 ? order : left.Id.CompareTo(right.Id);
+        });
+    }
+
+    private static int GetTreeIndent(ResumeSection entry)
+    {
+        var level = Math.Clamp(entry.HeadingLevel, 1, 6);
+        return 14 + ((level - 1) * 18);
+    }
+
 }

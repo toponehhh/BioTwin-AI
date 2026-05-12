@@ -1,6 +1,5 @@
 @page "/resume/upload"
 @using BioTwin_AI.Services
-@using BioTwin_AI.Data
 @using BioTwin_AI.Models
 @rendermode InteractiveServer
 @inject ResumeUploadService UploadService
@@ -26,19 +25,19 @@ else
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-md-8 mx-auto">
-                <h2>Upload Resume Section</h2>
-                
+                <h2>Upload Resume</h2>
+
                 <div class="alert alert-info" role="alert">
                     <strong>Supported formats:</strong> PDF, DOCX, PPTX, HTML, TXT
                 </div>
 
                 <div class="card">
                     <div class="card-body">
-                        <form @onsubmit="HandleFileUpload">
+                        <form @onsubmit="ConvertSelectedFileAsync" @onsubmit:preventDefault="true" novalidate>
                             <div class="mb-3">
-                                <label for="title" class="form-label">Section Title</label>
+                                <label for="title" class="form-label">Resume Title</label>
                                 <input type="text" class="form-control" id="title" @bind="sectionTitle"
-                                       placeholder="e.g., Education, Experience, Skills" required />
+                                       placeholder="Used when the converted Markdown has no section headings" />
                             </div>
 
                             <div class="mb-3">
@@ -63,10 +62,17 @@ else
                             }
                             else
                             {
-                                <button type="submit" class="btn btn-primary"
-                                        disabled="@string.IsNullOrEmpty(selectedFileName)">
-                                    Upload & Convert
+                                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                    Convert to Markdown
                                 </button>
+                            }
+
+                            @if (isSaving)
+                            {
+                                <div class="alert alert-secondary mt-3 d-flex align-items-center gap-3" role="status">
+                                    <div class="spinner-border spinner-border-sm" aria-hidden="true"></div>
+                                    <span>@statusMessage</span>
+                                </div>
                             }
 
                             @if (!string.IsNullOrEmpty(errorMessage))
@@ -79,12 +85,51 @@ else
                             @if (uploadSuccess)
                             {
                                 <div class="alert alert-success mt-3" role="alert">
-                                    <strong>Success!</strong> Resume section has been processed and indexed.
+                                    <strong>Success!</strong> Saved and indexed @savedSectionCount section@(savedSectionCount == 1 ? "" : "s").
                                 </div>
                             }
                         </form>
                     </div>
                 </div>
+
+                @if (!string.IsNullOrWhiteSpace(convertedMarkdown))
+                {
+                    <div class="card mt-4">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
+                                <div>
+                                    <h5 class="mb-1">Converted Markdown</h5>
+                                    <div class="text-muted small">
+                                        Review and edit the converted content. It will be saved as @estimatedSectionCount section@(estimatedSectionCount == 1 ? "" : "s") in a heading tree.
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" @onclick="SaveConvertedMarkdownAsync" disabled="@isSaving">
+                                    @(isSaving ? "Saving..." : "Save Sections & Index")
+                                </button>
+                            </div>
+
+                            @if (convertedSections.Count > 0)
+                            {
+                                <div class="section-tree-preview mb-3" aria-label="Detected Markdown section tree">
+                                    <div class="section-tree-title">Detected section tree</div>
+                                    @foreach (var section in convertedSections)
+                                    {
+                                        <div class="section-tree-item" style="padding-left: @(GetSectionTreeIndent(section))px">
+                                            <span class="section-tree-badge">H@(section.HeadingLevel)</span>
+                                            <span>@(section.Title)</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <MarkdownEditor Value="@convertedMarkdown"
+                                            ValueChanged="OnConvertedMarkdownChanged"
+                                            Label="Markdown Content"
+                                            Placeholder="Converted Markdown will appear here..."
+                                            Rows="18" />
+                        </div>
+                    </div>
+                }
 
                 <div class="mt-4">
                     <a href="/chat" class="btn btn-secondary">Back to Chat</a>
@@ -94,16 +139,63 @@ else
     </div>
 }
 
+<style>
+    .section-tree-preview {
+        display: grid;
+        gap: 6px;
+        padding: 12px;
+        border: 1px solid #d8dee8;
+        border-radius: 8px;
+        background: #f8fafc;
+    }
+
+    .section-tree-title {
+        color: #475569;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .section-tree-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 28px;
+        color: #1f2937;
+        font-size: 13px;
+    }
+
+    .section-tree-badge {
+        min-width: 28px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: #eef2ff;
+        color: #4754b8;
+        font-size: 11px;
+        font-weight: 800;
+        text-align: center;
+    }
+</style>
+
 @code {
     private InputFile? fileInput;
     private string sectionTitle = "";
     private string selectedFileName = "";
     private bool isUploading = false;
+    private bool isSaving = false;
     private string statusMessage = "";
     private string errorMessage = "";
     private bool uploadSuccess = false;
     private IBrowserFile? selectedFile;
+    private string convertedMarkdown = "";
+    private string convertedFileName = "";
+    private string convertedContentType = "";
+    private long? convertedFileSize;
+    private byte[]? convertedFileBytes;
     private bool _sessionResolved;
+    private int estimatedSectionCount = 1;
+    private int savedSectionCount;
+    private List<ResumeMarkdownSection> convertedSections = new();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -128,9 +220,18 @@ else
         selectedFileName = e.File.Name;
         errorMessage = "";
         uploadSuccess = false;
+        convertedMarkdown = "";
+        convertedFileName = "";
+        convertedContentType = "";
+        convertedFileSize = null;
+        convertedFileBytes = null;
+        estimatedSectionCount = 1;
+        savedSectionCount = 0;
+        convertedSections.Clear();
+        StateHasChanged();
     }
 
-    private async Task HandleFileUpload()
+    private async Task ConvertSelectedFileAsync()
     {
         errorMessage = "";
         uploadSuccess = false;
@@ -145,33 +246,118 @@ else
 
             if (string.IsNullOrWhiteSpace(sectionTitle))
             {
-                errorMessage = "Please enter a section title";
+                errorMessage = "Please enter a resume title";
                 return;
             }
 
             isUploading = true;
-            statusMessage = "Converting to Markdown...";
+            await UpdateStatusAsync("Preparing resume upload...");
 
-            await UploadService.ProcessResumeFileAsync(selectedFile, sectionTitle);
+            var convertedFile = await UploadService.ConvertResumeFileAsync(selectedFile, UpdateStatusAsync);
+            convertedMarkdown = convertedFile.MarkdownContent;
+            convertedFileName = convertedFile.FileName;
+            convertedContentType = convertedFile.ContentType;
+            convertedFileSize = convertedFile.Size;
+            convertedFileBytes = convertedFile.FileBytes;
+            UpdateConvertedSections();
 
-            statusMessage = "";
-            uploadSuccess = true;
-            selectedFileName = "";
-            selectedFile = null;
-            sectionTitle = "";
-            fileInput = null;
-
-            // Redirect after success
-            await Task.Delay(2000);
-            Navigation.NavigateTo("/chat");
+            await UpdateStatusAsync($"Markdown has been split into {estimatedSectionCount} section(s). Review it before saving.");
+        }
+        catch (TaskCanceledException ex)
+        {
+            errorMessage = $"Conversion failed: All2MD conversion timed out. Details: {ex.Message}";
         }
         catch (Exception ex)
         {
-            errorMessage = $"Upload failed: {ex.Message}";
+            errorMessage = $"Conversion failed: {ex.Message}";
         }
         finally
         {
             isUploading = false;
         }
+    }
+
+    private async Task SaveConvertedMarkdownAsync()
+    {
+        errorMessage = "";
+        uploadSuccess = false;
+
+        if (string.IsNullOrWhiteSpace(sectionTitle))
+        {
+            errorMessage = "Please enter a resume title";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(convertedMarkdown))
+        {
+            errorMessage = "Markdown content is required.";
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            await UpdateStatusAsync("Splitting, saving, and indexing Markdown sections...");
+
+            var savedEntries = await UploadService.SaveResumeMarkdownSectionsAsync(
+                sectionTitle,
+                convertedMarkdown,
+                convertedFileName,
+                convertedContentType,
+                convertedFileSize,
+                convertedFileBytes,
+                UpdateStatusAsync);
+
+            statusMessage = "";
+            uploadSuccess = true;
+            savedSectionCount = savedEntries.Count;
+            selectedFileName = "";
+            selectedFile = null;
+            sectionTitle = "";
+            convertedMarkdown = "";
+            convertedFileName = "";
+            convertedContentType = "";
+            convertedFileSize = null;
+            convertedFileBytes = null;
+            estimatedSectionCount = 1;
+            convertedSections.Clear();
+            fileInput = null;
+
+            await Task.Delay(1000);
+            Navigation.NavigateTo("/chat");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private Task OnConvertedMarkdownChanged(string value)
+    {
+        convertedMarkdown = value;
+        UpdateConvertedSections();
+        return Task.CompletedTask;
+    }
+
+    private async Task UpdateStatusAsync(string message)
+    {
+        statusMessage = message;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateConvertedSections()
+    {
+        convertedSections = ResumeUploadService.SplitResumeMarkdown(convertedMarkdown, sectionTitle);
+        estimatedSectionCount = convertedSections.Count;
+    }
+
+    private static int GetSectionTreeIndent(ResumeMarkdownSection section)
+    {
+        var level = Math.Clamp(section.HeadingLevel, 1, 6);
+        return (level - 1) * 18;
     }
 }

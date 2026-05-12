@@ -15,14 +15,14 @@
             <span class="visually-hidden">Loading...</span>
         </div>
     }
-    else if (resumeEntries?.Any() == true)
+    else if (resumeSections?.Any() == true)
     {
         <div class="resume-list">
-            @foreach (var entry in resumeEntries)
+            @foreach (var entry in resumeSections)
             {
-                <div class="resume-item" @onclick="() => SelectEntry(entry)">
+                <div class="resume-item" style="margin-left: @(GetTreeIndent(entry))px" @onclick="() => SelectEntry(entry)">
                     <div class="resume-item-header">
-                        <h6>@entry.Title</h6>
+                        <h6><span class="heading-level-badge">H@entry.HeadingLevel</span> @entry.Title</h6>
                         <small class="text-muted">@entry.CreatedAt.ToString("MMM dd, yyyy")</small>
                     </div>
                     <p class="resume-item-preview">
@@ -33,7 +33,7 @@
                         }
                         @preview
                     </p>
-                    <small class="text-secondary">@entry.SourceFileName</small>
+                    <small class="text-secondary">@entry.ResumeEntry?.SourceFileName</small>
                 </div>
             }
         </div>
@@ -95,6 +95,18 @@
         color: #212529;
     }
 
+    .heading-level-badge {
+        display: inline-block;
+        min-width: 28px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: #eef2ff;
+        color: #4754b8;
+        font-size: 11px;
+        font-weight: 800;
+        text-align: center;
+    }
+
     .resume-item-preview {
         margin: 8px 0;
         font-size: 0.875rem;
@@ -104,9 +116,9 @@
 
 @code {
     [Parameter]
-    public EventCallback<ResumeEntry> OnEntrySelected { get; set; }
+    public EventCallback<ResumeSection> OnEntrySelected { get; set; }
 
-    private List<ResumeEntry> resumeEntries = new();
+    private List<ResumeSection> resumeSections = new();
     private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
@@ -119,7 +131,7 @@
         try
         {
             isLoading = true;
-            resumeEntries = await UploadService.GetAllEntriesAsync();
+            resumeSections = await UploadService.GetAllSectionsAsync();
         }
         finally
         {
@@ -127,8 +139,14 @@
         }
     }
 
-    private async Task SelectEntry(ResumeEntry entry)
+    private async Task SelectEntry(ResumeSection entry)
     {
         await OnEntrySelected.InvokeAsync(entry);
+    }
+
+    private static int GetTreeIndent(ResumeSection entry)
+    {
+        var level = Math.Clamp(entry.HeadingLevel, 1, 6);
+        return (level - 1) * 14;
     }
 }

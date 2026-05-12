@@ -83,6 +83,12 @@ main {
         position: sticky;
         top: 0;
         overflow-y: auto;
+        transition: width 0.2s ease;
+    }
+
+    .page.nav-collapsed .sidebar {
+        width: 76px;
+        overflow-x: hidden;
     }
 
     .sidebar::-webkit-scrollbar {
