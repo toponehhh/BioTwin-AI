@@ -33,8 +33,8 @@ namespace BioTwin_AI.Tests.Services
 
             // Add test data
             dbContext.ResumeEntries.AddRange(
-                new ResumeEntry { TenantId = "candidate1", Title = "Candidate1 Resume", Content = "Experience in C#", EmbeddingPayload = "[" + string.Join(",", new float[768]) + "]" },
-                new ResumeEntry { TenantId = "candidate2", Title = "Candidate2 Resume", Content = "Experience in Python", EmbeddingPayload = "[" + string.Join(",", new float[768]) + "]" }
+                CreateResumeEntry("candidate1", "Candidate1 Resume", "Experience in C#"),
+                CreateResumeEntry("candidate2", "Candidate2 Resume", "Experience in Python")
             );
             await dbContext.SaveChangesAsync();
 
@@ -68,8 +68,8 @@ namespace BioTwin_AI.Tests.Services
 
             // Add test data
             dbContext.ResumeEntries.AddRange(
-                new ResumeEntry { TenantId = "candidate1", Title = "Candidate1 Resume", Content = "Experience in C#", EmbeddingPayload = "[" + string.Join(",", new float[768]) + "]" },
-                new ResumeEntry { TenantId = "candidate2", Title = "Candidate2 Resume", Content = "Experience in Python", EmbeddingPayload = "[" + string.Join(",", new float[768]) + "]" }
+                CreateResumeEntry("candidate1", "Candidate1 Resume", "Experience in C#"),
+                CreateResumeEntry("candidate2", "Candidate2 Resume", "Experience in Python")
             );
             await dbContext.SaveChangesAsync();
 
@@ -131,13 +131,7 @@ namespace BioTwin_AI.Tests.Services
             // Add test data - 10 resumes for candidate1
             for (int i = 0; i < 10; i++)
             {
-                dbContext.ResumeEntries.Add(new ResumeEntry
-                {
-                    TenantId = "candidate1",
-                    Title = $"Resume {i}",
-                    Content = $"Content {i}",
-                    EmbeddingPayload = "[" + string.Join(",", new float[768]) + "]"
-                });
+                dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", $"Resume {i}", $"Content {i}"));
             }
             await dbContext.SaveChangesAsync();
 
@@ -206,6 +200,25 @@ namespace BioTwin_AI.Tests.Services
                     It.IsAny<Exception>(),
                     It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
                 Times.Once);
+        }
+
+        private static ResumeEntry CreateResumeEntry(string tenantId, string title, string content)
+        {
+            return new ResumeEntry
+            {
+                TenantId = tenantId,
+                SourceFileName = $"{tenantId}.pdf",
+                Sections =
+                {
+                    new ResumeSection
+                    {
+                        TenantId = tenantId,
+                        Title = title,
+                        Content = content,
+                        EmbeddingPayload = "[" + string.Join(",", Enumerable.Repeat(1f, 768)) + "]"
+                    }
+                }
+            };
         }
     }
 }

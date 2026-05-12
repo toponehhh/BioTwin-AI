@@ -231,7 +231,7 @@ else {
 
     $bioTwinProcess = Start-LocalProcess `
         -FilePath $dotnetPath `
-        -ArgumentList @("run", "--project", $ProjectPath, "--no-launch-profile") `
+        -ArgumentList @("run", "--project", $ProjectPath, "-p:UseAppHost=false", "--no-launch-profile") `
         -WorkingDirectory $Root `
         -StdoutPath $bioTwinOut `
         -StderrPath $bioTwinErr

@@ -8,6 +8,11 @@ namespace BioTwin_AI.Models
         public int Id { get; set; }
 
         /// <summary>
+        /// User-facing title entered when this resume was imported or created.
+        /// </summary>
+        public string Title { get; set; } = string.Empty;
+
+        /// <summary>
         /// Original filename that was uploaded
         /// </summary>
         public string SourceFileName { get; set; } = string.Empty;
@@ -26,6 +31,11 @@ namespace BioTwin_AI.Models
         /// Original uploaded file size in bytes.
         /// </summary>
         public long? SourceFileSize { get; set; }
+
+        /// <summary>
+        /// SHA-256 hash of the original uploaded file bytes.
+        /// </summary>
+        public string? SourceFileHash { get; set; }
 
         /// <summary>
         /// Timestamp when this entry was created

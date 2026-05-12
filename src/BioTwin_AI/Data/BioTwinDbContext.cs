@@ -21,6 +21,11 @@ namespace BioTwin_AI.Data
                 .HasKey(r => r.Id);
 
             modelBuilder.Entity<ResumeEntry>()
+                .Property(r => r.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<ResumeEntry>()
                 .Property(r => r.TenantId)
                 .IsRequired()
                 .HasMaxLength(100);
@@ -30,6 +35,14 @@ namespace BioTwin_AI.Data
 
             modelBuilder.Entity<ResumeEntry>()
                 .HasIndex(r => new { r.TenantId, r.CreatedAt });
+
+            modelBuilder.Entity<ResumeEntry>()
+                .Property(r => r.SourceFileHash)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<ResumeEntry>()
+                .HasIndex(r => new { r.TenantId, r.SourceFileHash })
+                .IsUnique();
 
             modelBuilder.Entity<ResumeEntry>()
                 .Property(r => r.SourceFileContent);

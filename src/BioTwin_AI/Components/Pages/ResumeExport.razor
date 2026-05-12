@@ -25,36 +25,67 @@ else if (!Session.IsAuthenticated)
 else
 {
     <div class="container-fluid mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="mb-0">Export Resume</h2>
-            <button class="btn btn-primary" @onclick="CopyAllAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">Copy
-                Markdown</button>
+        <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
+            <div>
+                <h2 class="mb-1">Export Resume</h2>
+                <div class="text-muted small">Edit the generated Markdown before copying it out.</div>
             </div>
+            <button class="btn btn-primary" @onclick="CopyAllAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">
+                Copy Markdown
+            </button>
+        </div>
 
-            @if (!string.IsNullOrWhiteSpace(_message))
-            {
-                <div class="alert alert-success">@_message</div>
-            }
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="alert alert-success">@_message</div>
+        }
+
+        @if (_resumeOptions.Count == 0)
+        {
+            <div class="alert alert-info">No resumes found. Please upload content first.</div>
+        }
+        else
+        {
+            <div class="mb-3">
+                <label for="resumeEntry" class="form-label">Resume to export</label>
+                <select id="resumeEntry" class="form-select" value="@_selectedResumeEntryId" @onchange="OnResumeChangedAsync">
+                    @foreach (var resume in _resumeOptions)
+                    {
+                        <option value="@resume.Id">@resume.Label</option>
+                    }
+                </select>
+                @if (_selectedResume is not null)
+                {
+                    <div class="form-text">
+                        @_selectedResume.SectionCount section@(_selectedResume.SectionCount == 1 ? "" : "s")
+                        - uploaded @_selectedResume.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                    </div>
+                }
+            </div>
 
             @if (string.IsNullOrWhiteSpace(_markdown))
             {
-                <div class="alert alert-info">No resume sections found. Please upload content first.</div>
+                <div class="alert alert-info">No resume sections found for the selected resume.</div>
             }
             else
             {
-                <div class="card">
-                    <div class="card-body">
-                        <textarea class="form-control" rows="18" readonly>@_markdown</textarea>
-                    </div>
-                </div>
+                <MarkdownEditor Value="@_markdown"
+                                ValueChanged="OnMarkdownChanged"
+                                Label="Export Markdown"
+                                Placeholder="Resume Markdown will appear here..."
+                                Rows="22" />
             }
-        </div>
-    }
+        }
+    </div>
+}
 
 @code {
     private bool _sessionResolved;
     private string _markdown = string.Empty;
     private string _message = string.Empty;
+    private int? _selectedResumeEntryId;
+    private List<ResumeExportOption> _resumeOptions = new();
+    private ResumeExportOption? _selectedResume => _resumeOptions.FirstOrDefault(x => x.Id == _selectedResumeEntryId);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -72,30 +103,67 @@ else
             return;
         }
 
-        await LoadMarkdownAsync();
+        await LoadResumeOptionsAsync();
         StateHasChanged();
+    }
+
+    private async Task LoadResumeOptionsAsync()
+    {
+        var resumes = await DbContext.ResumeEntries
+            .AsNoTracking()
+            .Where(x => Session.IsInterviewer || x.TenantId == Session.Username)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.Title,
+                x.SourceFileName,
+                x.TenantId,
+                x.CreatedAt,
+                SectionCount = x.Sections.Count
+            })
+            .ToListAsync();
+
+        _resumeOptions = resumes
+            .Select(x => new ResumeExportOption(
+                x.Id,
+                x.Title,
+                x.SourceFileName,
+                BuildResumeLabel(x.Title, x.TenantId),
+                x.CreatedAt,
+                x.SectionCount))
+            .ToList();
+        _selectedResumeEntryId = _resumeOptions.FirstOrDefault()?.Id;
+        await LoadMarkdownAsync();
     }
 
     private async Task LoadMarkdownAsync()
     {
-        var entries = await DbContext.ResumeSections
-            .Include(x => x.ResumeEntry)
-            .Where(x => Session.IsInterviewer || x.TenantId == Session.Username)
-            .OrderBy(x => x.ResumeEntry != null ? x.ResumeEntry.CreatedAt : x.CreatedAt)
-            .ThenBy(x => x.SortOrder)
+        if (_selectedResumeEntryId is null)
+        {
+            _markdown = string.Empty;
+            return;
+        }
+
+        var sections = await DbContext.ResumeSections
+            .AsNoTracking()
+            .Where(x =>
+                x.ResumeEntryId == _selectedResumeEntryId.Value &&
+                (Session.IsInterviewer || x.TenantId == Session.Username))
+            .OrderBy(x => x.SortOrder)
             .ToListAsync();
 
-        if (entries.Count == 0)
+        if (sections.Count == 0)
         {
             _markdown = string.Empty;
             return;
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("# Resume");
+        sb.AppendLine($"# {GetSelectedResumeTitle()}");
         sb.AppendLine();
 
-        foreach (var item in entries)
+        foreach (var item in sections)
         {
             sb.AppendLine($"{new string('#', Math.Clamp(item.HeadingLevel, 1, 6))} {item.Title}");
             sb.AppendLine();
@@ -106,10 +174,41 @@ else
         _markdown = sb.ToString().Trim();
     }
 
+    private async Task OnResumeChangedAsync(ChangeEventArgs args)
+    {
+        _message = string.Empty;
+
+        if (int.TryParse(args.Value?.ToString(), out var resumeEntryId))
+        {
+            _selectedResumeEntryId = resumeEntryId;
+            await LoadMarkdownAsync();
+        }
+    }
+
     private async Task CopyAllAsync()
     {
         _message = string.Empty;
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", _markdown);
         _message = "Markdown copied to clipboard.";
     }
+
+    private Task OnMarkdownChanged(string value)
+    {
+        _markdown = value;
+        _message = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private string GetSelectedResumeTitle()
+    {
+        return _selectedResume?.Title ?? "Resume";
+    }
+
+    private string BuildResumeLabel(string title, string tenantId)
+    {
+        var label = string.IsNullOrWhiteSpace(title) ? "Untitled resume" : title;
+        return Session.IsInterviewer ? $"{label} ({tenantId})" : label;
+    }
+
+    private sealed record ResumeExportOption(int Id, string Title, string SourceFileName, string Label, DateTime CreatedAt, int SectionCount);
 }

@@ -19,17 +19,21 @@ namespace BioTwin_AI.Tests.Integration
             var candidate1Resume = new ResumeEntry
             {
                 TenantId = "candidate1",
-                Title = "C# Experience",
-                Content = "5 years C# development",
-                SourceFileName = "cv.pdf"
+                SourceFileName = "cv.pdf",
+                Sections =
+                {
+                    new ResumeSection { TenantId = "candidate1", Title = "C# Experience", Content = "5 years C# development" }
+                }
             };
 
             var candidate2Resume = new ResumeEntry
             {
                 TenantId = "candidate2",
-                Title = "Python Experience",
-                Content = "3 years Python development",
-                SourceFileName = "cv.pdf"
+                SourceFileName = "cv.pdf",
+                Sections =
+                {
+                    new ResumeSection { TenantId = "candidate2", Title = "Python Experience", Content = "3 years Python development" }
+                }
             };
 
             // Act
@@ -43,8 +47,8 @@ namespace BioTwin_AI.Tests.Integration
 
             Assert.Single(candidate1Entries);
             Assert.Single(candidate2Entries);
-            Assert.Equal("C# Experience", candidate1Entries[0].Title);
-            Assert.Equal("Python Experience", candidate2Entries[0].Title);
+            Assert.Equal("C# Experience", candidate1Entries[0].Sections[0].Title);
+            Assert.Equal("Python Experience", candidate2Entries[0].Sections[0].Title);
         }
 
         [Fact]
@@ -71,10 +75,17 @@ namespace BioTwin_AI.Tests.Integration
             var resumeEntry = new ResumeEntry
             {
                 TenantId = "candidate1",
-                Title = "Experience",
-                Content = "My experience",
-                EmbeddingPayload = embeddingPayload,
-                SourceFileName = "cv.pdf"
+                SourceFileName = "cv.pdf",
+                Sections =
+                {
+                    new ResumeSection
+                    {
+                        TenantId = "candidate1",
+                        Title = "Experience",
+                        Content = "My experience",
+                        EmbeddingPayload = embeddingPayload
+                    }
+                }
             };
 
             // Act
@@ -82,7 +93,7 @@ namespace BioTwin_AI.Tests.Integration
             await dbContext.SaveChangesAsync();
 
             // Assert
-            var retrieved = dbContext.ResumeEntries.First(e => e.Id == resumeEntry.Id);
+            var retrieved = dbContext.ResumeSections.First(e => e.ResumeEntryId == resumeEntry.Id);
             Assert.Equal(embeddingPayload, retrieved.EmbeddingPayload);
         }
 
@@ -92,8 +103,8 @@ namespace BioTwin_AI.Tests.Integration
             // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
 
-            var resume1 = new ResumeEntry { TenantId = "candidate1", Title = "Old Resume", Content = "Old", SourceFileName = "old.pdf", CreatedAt = DateTime.UtcNow.AddDays(-10) };
-            var resume2 = new ResumeEntry { TenantId = "candidate1", Title = "New Resume", Content = "New", SourceFileName = "new.pdf", CreatedAt = DateTime.UtcNow };
+            var resume1 = new ResumeEntry { TenantId = "candidate1", SourceFileName = "old.pdf", CreatedAt = DateTime.UtcNow.AddDays(-10) };
+            var resume2 = new ResumeEntry { TenantId = "candidate1", SourceFileName = "new.pdf", CreatedAt = DateTime.UtcNow };
 
             // Act
             dbContext.ResumeEntries.Add(resume1);
@@ -106,8 +117,8 @@ namespace BioTwin_AI.Tests.Integration
                 .OrderByDescending(e => e.CreatedAt)
                 .ToList();
 
-            Assert.Equal("New Resume", ordered[0].Title);
-            Assert.Equal("Old Resume", ordered[1].Title);
+            Assert.Equal("new.pdf", ordered[0].SourceFileName);
+            Assert.Equal("old.pdf", ordered[1].SourceFileName);
         }
     }
 }

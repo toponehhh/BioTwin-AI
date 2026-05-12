@@ -551,6 +551,7 @@ else
 
         var targetResume = _selectedResumeEntry ?? new ResumeEntry
         {
+            Title = "Manual Resume",
             SourceFileName = ManualSourceName,
             CreatedAt = DateTime.UtcNow,
             TenantId = Session.Username ?? "default"
@@ -615,6 +616,7 @@ else
                 {
                     _selectedEntry.ResumeEntry = new ResumeEntry
                     {
+                        Title = "Manual Resume",
                         SourceFileName = ManualSourceName,
                         CreatedAt = _selectedEntry.CreatedAt,
                         TenantId = _selectedEntry.TenantId

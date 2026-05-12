@@ -2,6 +2,8 @@ using BioTwin_AI.Data;
 using BioTwin_AI.Models;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -12,7 +14,10 @@ namespace BioTwin_AI.Services
         string FileName,
         string ContentType,
         long Size,
-        byte[] FileBytes);
+        byte[] FileBytes,
+        string FileHash,
+        bool IsDuplicate = false,
+        int? ExistingResumeEntryId = null);
 
     public sealed record ResumeMarkdownSection(
         string Title,
@@ -67,6 +72,12 @@ namespace BioTwin_AI.Services
             Func<string, Task>? progress = null)
         {
             var convertedFile = await ConvertResumeFileAsync(file, progress);
+            if (convertedFile.IsDuplicate && convertedFile.ExistingResumeEntryId is not null)
+            {
+                return await _dbContext.ResumeEntries
+                    .FirstAsync(entry => entry.Id == convertedFile.ExistingResumeEntryId.Value);
+            }
+
             var sections = await SaveResumeMarkdownSectionsAsync(
                 title,
                 convertedFile.MarkdownContent,
@@ -74,6 +85,7 @@ namespace BioTwin_AI.Services
                 convertedFile.ContentType,
                 convertedFile.Size,
                 convertedFile.FileBytes,
+                convertedFile.FileHash,
                 progress);
 
             return sections.First().ResumeEntry
@@ -107,6 +119,22 @@ namespace BioTwin_AI.Services
                 using var memoryStream = new MemoryStream();
                 await stream.CopyToAsync(memoryStream);
                 var fileBytes = memoryStream.ToArray();
+                var fileHash = ComputeFileHash(fileBytes);
+                var existingEntry = await FindExistingResumeByHashAsync(fileHash);
+                if (existingEntry is not null)
+                {
+                    await ReportProgressAsync(progress, $"This file already exists as {existingEntry.SourceFileName}. Skipping conversion and upload.");
+                    var existingMarkdown = await BuildMarkdownForEntryAsync(existingEntry.Id);
+                    return new ConvertedResumeFile(
+                        existingMarkdown,
+                        existingEntry.SourceFileName,
+                        existingEntry.SourceContentType ?? file.ContentType,
+                        existingEntry.SourceFileSize ?? file.Size,
+                        existingEntry.SourceFileContent ?? fileBytes,
+                        fileHash,
+                        true,
+                        existingEntry.Id);
+                }
 
                 await ReportProgressAsync(progress, $"Converting {GetFileKind(file.Name)} to Markdown. This can take a few minutes...");
                 var markdownContent = await ConvertToMarkdownAsync(file.Name, fileBytes, progress);
@@ -117,7 +145,8 @@ namespace BioTwin_AI.Services
                     file.Name,
                     file.ContentType,
                     file.Size,
-                    fileBytes);
+                    fileBytes,
+                    fileHash);
             }
             catch (Exception ex)
             {
@@ -131,7 +160,7 @@ namespace BioTwin_AI.Services
         /// </summary>
         public async Task<ResumeEntry> SaveResumeMarkdownAsync(string title, string markdownContent, string sourceFileName)
         {
-            return await SaveResumeMarkdownAsync(title, markdownContent, sourceFileName, null, null, null);
+            return await SaveResumeMarkdownAsync(title, markdownContent, sourceFileName, null, null, null, null);
         }
 
         /// <summary>
@@ -144,11 +173,22 @@ namespace BioTwin_AI.Services
             string? sourceContentType,
             long? sourceFileSize,
             byte[]? sourceFileContent,
+            string? sourceFileHash,
             Func<string, Task>? progress = null)
         {
             try
             {
                 var tenantId = GetTenantId();
+                if (!string.IsNullOrWhiteSpace(sourceFileHash))
+                {
+                    var existingSections = await LoadExistingSectionsByHashAsync(sourceFileHash, tenantId);
+                    if (existingSections.Count > 0)
+                    {
+                        await ReportProgressAsync(progress, "This file was already uploaded. Reusing the existing indexed resume.");
+                        return existingSections;
+                    }
+                }
+
                 await ReportProgressAsync(progress, "Splitting Markdown content into sections...");
                 var sections = SplitResumeMarkdown(markdownContent, fallbackTitle);
                 var createdAt = DateTime.UtcNow;
@@ -156,10 +196,12 @@ namespace BioTwin_AI.Services
 
                 var resumeEntry = new ResumeEntry
                 {
+                    Title = string.IsNullOrWhiteSpace(fallbackTitle) ? Path.GetFileNameWithoutExtension(sourceFileName) : fallbackTitle.Trim(),
                     SourceFileName = sourceFileName,
                     SourceContentType = sourceContentType,
                     SourceFileSize = sourceFileSize,
                     SourceFileContent = sourceFileContent,
+                    SourceFileHash = sourceFileHash,
                     CreatedAt = createdAt,
                     TenantId = tenantId
                 };
@@ -235,18 +277,30 @@ namespace BioTwin_AI.Services
             string sourceFileName,
             string? sourceContentType,
             long? sourceFileSize,
-            byte[]? sourceFileContent)
+            byte[]? sourceFileContent,
+            string? sourceFileHash = null)
         {
             try
             {
                 var tenantId = GetTenantId();
+                if (!string.IsNullOrWhiteSpace(sourceFileHash))
+                {
+                    var existingEntry = await FindExistingResumeByHashAsync(sourceFileHash);
+                    if (existingEntry is not null)
+                    {
+                        return existingEntry;
+                    }
+                }
+
                 var createdAt = DateTime.UtcNow;
                 var entry = new ResumeEntry
                 {
+                    Title = string.IsNullOrWhiteSpace(title) ? Path.GetFileNameWithoutExtension(sourceFileName) : title.Trim(),
                     SourceFileName = sourceFileName,
                     SourceContentType = sourceContentType,
                     SourceFileSize = sourceFileSize,
                     SourceFileContent = sourceFileContent,
+                    SourceFileHash = sourceFileHash,
                     CreatedAt = createdAt,
                     TenantId = tenantId
                 };
@@ -294,6 +348,52 @@ namespace BioTwin_AI.Services
                 _logger.LogError(ex, "Failed to process resume file");
                 throw;
             }
+        }
+
+        private async Task<ResumeEntry?> FindExistingResumeByHashAsync(string fileHash)
+        {
+            var tenantId = GetTenantId();
+            return await _dbContext.ResumeEntries
+                .AsNoTracking()
+                .FirstOrDefaultAsync(entry => entry.TenantId == tenantId && entry.SourceFileHash == fileHash);
+        }
+
+        private async Task<List<ResumeSection>> LoadExistingSectionsByHashAsync(string fileHash, string tenantId)
+        {
+            return await _dbContext.ResumeSections
+                .Include(section => section.ResumeEntry)
+                .Where(section =>
+                    section.TenantId == tenantId &&
+                    section.ResumeEntry != null &&
+                    section.ResumeEntry.SourceFileHash == fileHash)
+                .OrderBy(section => section.SortOrder)
+                .ToListAsync();
+        }
+
+        private async Task<string> BuildMarkdownForEntryAsync(int resumeEntryId)
+        {
+            var tenantId = GetTenantId();
+            var sections = await _dbContext.ResumeSections
+                .AsNoTracking()
+                .Where(section => section.TenantId == tenantId && section.ResumeEntryId == resumeEntryId)
+                .OrderBy(section => section.SortOrder)
+                .ToListAsync();
+
+            var markdown = new StringBuilder();
+            foreach (var section in sections)
+            {
+                markdown.AppendLine($"{new string('#', Math.Clamp(section.HeadingLevel, 1, 6))} {section.Title}");
+                markdown.AppendLine();
+                markdown.AppendLine(section.Content);
+                markdown.AppendLine();
+            }
+
+            return markdown.ToString().Trim();
+        }
+
+        private static string ComputeFileHash(byte[] fileBytes)
+        {
+            return Convert.ToHexString(SHA256.HashData(fileBytes)).ToLowerInvariant();
         }
 
         /// <summary>
