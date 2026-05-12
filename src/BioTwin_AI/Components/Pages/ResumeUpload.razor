@@ -23,15 +23,17 @@ else if (!Session.IsAuthenticated)
 else
 {
     <div class="container-fluid mt-4">
-        <div class="row">
-            <div class="col-md-8 mx-auto">
-                <h2>Upload Resume</h2>
+        <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+            <div>
+                <h2 class="mb-1">Upload Resume</h2>
+                <div class="text-muted small">Supported formats: PDF, DOCX, PPTX, HTML, TXT</div>
+            </div>
+            <a href="/chat" class="btn btn-secondary">Back to Chat</a>
+        </div>
 
-                <div class="alert alert-info" role="alert">
-                    <strong>Supported formats:</strong> PDF, DOCX, PPTX, HTML, TXT
-                </div>
-
-                <div class="card">
+        <div class="row g-4 upload-workspace">
+            <div class="col-lg-4">
+                <div class="card upload-panel">
                     <div class="card-body">
                         <form @onsubmit="ConvertSelectedFileAsync" @onsubmit:preventDefault="true" novalidate>
                             <div class="mb-3">
@@ -62,7 +64,7 @@ else
                             }
                             else
                             {
-                                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@isSaving">
                                     Convert to Markdown
                                 </button>
                             }
@@ -99,50 +101,40 @@ else
                     </div>
                 </div>
 
-                @if (!string.IsNullOrWhiteSpace(convertedMarkdown))
+                @if (convertedSections.Count > 0)
                 {
-                    <div class="card mt-4">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
-                                <div>
-                                    <h5 class="mb-1">Converted Markdown</h5>
-                                    <div class="text-muted small">
-                                        @MarkdownPreviewSummary
-                                    </div>
-                                </div>
-                                @if (!isDuplicateUpload)
-                                {
-                                    <button class="btn btn-primary" @onclick="SaveConvertedMarkdownAsync" disabled="@isSaving">
-                                        @(isSaving ? "Saving..." : "Save Sections & Index")
-                                    </button>
-                                }
+                    <div class="section-tree-preview mt-3" aria-label="Detected Markdown section tree">
+                        <div class="section-tree-title">Detected section tree</div>
+                        @foreach (var section in convertedSections)
+                        {
+                            <div class="section-tree-item" style="padding-left: @(GetSectionTreeIndent(section))px">
+                                <span class="section-tree-badge">H@(section.HeadingLevel)</span>
+                                <span>@(section.Title)</span>
                             </div>
-
-                            @if (convertedSections.Count > 0)
-                            {
-                                <div class="section-tree-preview mb-3" aria-label="Detected Markdown section tree">
-                                    <div class="section-tree-title">Detected section tree</div>
-                                    @foreach (var section in convertedSections)
-                                    {
-                                        <div class="section-tree-item" style="padding-left: @(GetSectionTreeIndent(section))px">
-                                            <span class="section-tree-badge">H@(section.HeadingLevel)</span>
-                                            <span>@(section.Title)</span>
-                                        </div>
-                                    }
-                                </div>
-                            }
-
-                            <MarkdownEditor Value="@convertedMarkdown"
-                                            ValueChanged="OnConvertedMarkdownChanged"
-                                            Label="Markdown Content"
-                                            Placeholder="Converted Markdown will appear here..."
-                                            Rows="18" />
-                        </div>
+                        }
                     </div>
                 }
+            </div>
 
-                <div class="mt-4">
-                    <a href="/chat" class="btn btn-secondary">Back to Chat</a>
+            <div class="col-lg-8">
+                <div class="card markdown-panel">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
+                            <div>
+                                <h5 class="mb-1">Converted Markdown</h5>
+                                <div class="text-muted small">@MarkdownPreviewSummary</div>
+                            </div>
+                            <button class="btn btn-primary" @onclick="SaveConvertedMarkdownAsync" disabled="@(isSaving || string.IsNullOrWhiteSpace(convertedMarkdown))">
+                                @(isSaving ? "Saving..." : isDuplicateUpload ? "Update Sections & Re-index" : "Save Sections & Index")
+                            </button>
+                        </div>
+
+                        <MarkdownEditor Value="@convertedMarkdown"
+                                        ValueChanged="OnConvertedMarkdownChanged"
+                                        Label="Markdown Content"
+                                        Placeholder="Converted Markdown will appear here..."
+                                        Rows="24" />
+                    </div>
                 </div>
             </div>
         </div>
@@ -185,6 +177,15 @@ else
         font-weight: 800;
         text-align: center;
     }
+
+    .upload-workspace {
+        align-items: flex-start;
+    }
+
+    .upload-panel,
+    .markdown-panel {
+        border-radius: 8px;
+    }
 </style>
 
 @code {
@@ -212,7 +213,7 @@ else
     private List<ResumeMarkdownSection> convertedSections = new();
 
     private string MarkdownPreviewSummary => isDuplicateUpload
-        ? "This file is already saved and indexed. The existing Markdown is shown for reference."
+        ? "This file is already saved. Edit the Markdown and update its sections when ready."
         : $"Review and edit the converted content. It will be saved as {estimatedSectionCount} section{(estimatedSectionCount == 1 ? "" : "s")} in a heading tree.";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -266,12 +267,6 @@ else
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(sectionTitle))
-            {
-                errorMessage = "Please enter a resume title";
-                return;
-            }
-
             isUploading = true;
             await UpdateStatusAsync("Preparing resume upload...");
 
@@ -284,11 +279,21 @@ else
             convertedFileHash = convertedFile.FileHash;
             isDuplicateUpload = convertedFile.IsDuplicate;
             existingResumeEntryId = convertedFile.ExistingResumeEntryId;
+
+            if (isDuplicateUpload && !string.IsNullOrWhiteSpace(convertedFile.ExistingResumeTitle))
+            {
+                sectionTitle = convertedFile.ExistingResumeTitle;
+            }
+            else if (string.IsNullOrWhiteSpace(sectionTitle))
+            {
+                sectionTitle = System.IO.Path.GetFileNameWithoutExtension(convertedFile.FileName);
+            }
+
             UpdateConvertedSections();
 
             if (isDuplicateUpload)
             {
-                duplicateMessage = $"The selected file matches existing resume #{existingResumeEntryId}. Conversion and upload were skipped.";
+                duplicateMessage = $"The selected file matches existing resume #{existingResumeEntryId}. Its saved title and Markdown were loaded for editing.";
                 await UpdateStatusAsync("Duplicate file detected. Existing resume was reused.");
             }
             else
@@ -327,26 +332,28 @@ else
             return;
         }
 
-        if (isDuplicateUpload)
-        {
-            errorMessage = "This file has already been uploaded and indexed.";
-            return;
-        }
-
         try
         {
             isSaving = true;
-            await UpdateStatusAsync("Splitting, saving, and indexing Markdown sections...");
+            await UpdateStatusAsync(isDuplicateUpload
+                ? "Updating existing resume sections and rebuilding embeddings..."
+                : "Splitting, saving, and indexing Markdown sections...");
 
-            var savedEntries = await UploadService.SaveResumeMarkdownSectionsAsync(
-                sectionTitle,
-                convertedMarkdown,
-                convertedFileName,
-                convertedContentType,
-                convertedFileSize,
-                convertedFileBytes,
-                convertedFileHash,
-                UpdateStatusAsync);
+            var savedEntries = isDuplicateUpload && existingResumeEntryId is not null
+                ? await UploadService.ReplaceResumeMarkdownSectionsAsync(
+                    existingResumeEntryId.Value,
+                    sectionTitle,
+                    convertedMarkdown,
+                    UpdateStatusAsync)
+                : await UploadService.SaveResumeMarkdownSectionsAsync(
+                    sectionTitle,
+                    convertedMarkdown,
+                    convertedFileName,
+                    convertedContentType,
+                    convertedFileSize,
+                    convertedFileBytes,
+                    convertedFileHash,
+                    UpdateStatusAsync);
 
             statusMessage = "";
             uploadSuccess = true;

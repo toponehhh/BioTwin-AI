@@ -1,7 +1,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="markdown-editor-shell">
+<div class="markdown-editor-shell" style="@EditorShellStyle">
     @if (!string.IsNullOrWhiteSpace(Label))
     {
         <div class="markdown-editor-header">
@@ -46,11 +46,14 @@
 
     .markdown-editor-fallback {
         width: 100%;
+        height: var(--markdown-editor-body-height);
         min-height: 260px;
+        max-height: var(--markdown-editor-body-height);
         padding: 16px;
         border: 0;
         outline: none;
         resize: vertical;
+        overflow-y: auto;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         font-size: 14px;
         line-height: 1.55;
@@ -62,6 +65,9 @@
     }
 
     .markdown-editor-shell .editor-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 12;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -105,12 +111,23 @@
 
     .markdown-editor-shell .CodeMirror {
         width: 100%;
+        height: var(--markdown-editor-body-height);
         border: 0;
         border-radius: 0;
-        min-height: 260px;
+        min-height: 0;
         color: #1d1d1f;
         font-size: 14px;
         line-height: 1.55;
+    }
+
+    .markdown-editor-shell .CodeMirror-scroll {
+        min-height: 0;
+        max-height: var(--markdown-editor-body-height);
+        overflow-y: auto !important;
+    }
+
+    .markdown-editor-shell .CodeMirror-sizer {
+        min-height: var(--markdown-editor-body-height) !important;
     }
 
     .markdown-editor-shell .CodeMirror-focused {
@@ -134,6 +151,15 @@
     .markdown-editor-shell .editor-toolbar.fullscreen,
     .markdown-editor-shell .editor-preview-side {
         z-index: 1050;
+    }
+
+    .markdown-editor-shell .CodeMirror-fullscreen {
+        height: auto;
+        max-height: none;
+    }
+
+    .markdown-editor-shell .CodeMirror-fullscreen .CodeMirror-scroll {
+        max-height: none;
     }
 
     @@media (max-width: 576px) {
@@ -160,6 +186,8 @@
     private DotNetObjectReference<MarkdownEditor>? _dotNetReference;
     private bool _initialized;
     private string _currentValue = string.Empty;
+
+    private string EditorShellStyle => $"--markdown-editor-body-height: {Math.Max(260, Rows * 28)}px;";
 
     private int CharacterCount => _currentValue?.Length ?? 0;
 

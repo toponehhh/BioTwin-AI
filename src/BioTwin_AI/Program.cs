@@ -42,6 +42,14 @@ builder.Services.AddHttpClient<AgentService>((provider, client) =>
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
+// Configure resume Markdown refinement service
+builder.Services.AddHttpClient<ResumeMarkdownRefinementService>((provider, client) =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    var timeoutSeconds = configuration.GetValue("ResumeMarkdownRefinement:TimeoutSeconds", 300);
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
+
 // Configure HTTP client for All2MD service
 builder.Services.AddHttpClient<ResumeUploadService>((provider, client) =>
 {

@@ -31,7 +31,9 @@ else
 <style>
     .biotwin-container {
         display: flex;
-        height: 100vh;
+        height: calc(100dvh - 4.6rem);
+        min-height: 0;
+        overflow: hidden;
         background: white;
     }
 
@@ -39,6 +41,7 @@ else
         flex: 1;
         display: flex;
         flex-direction: column;
+        min-height: 0;
         overflow: hidden;
     }
 </style>

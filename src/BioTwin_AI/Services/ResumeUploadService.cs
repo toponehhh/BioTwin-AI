@@ -17,7 +17,8 @@ namespace BioTwin_AI.Services
         byte[] FileBytes,
         string FileHash,
         bool IsDuplicate = false,
-        int? ExistingResumeEntryId = null);
+        int? ExistingResumeEntryId = null,
+        string? ExistingResumeTitle = null);
 
     public sealed record ResumeMarkdownSection(
         string Title,
@@ -32,6 +33,7 @@ namespace BioTwin_AI.Services
     {
         private readonly BioTwinDbContext _dbContext;
         private readonly IRagService _ragService;
+        private readonly ResumeMarkdownRefinementService _markdownRefinementService;
         private readonly HttpClient _httpClient;
         private readonly ILogger<ResumeUploadService> _logger;
         private readonly string _all2mdApiUrl;
@@ -40,6 +42,7 @@ namespace BioTwin_AI.Services
         public ResumeUploadService(
             BioTwinDbContext dbContext,
             IRagService ragService,
+            ResumeMarkdownRefinementService markdownRefinementService,
             HttpClient httpClient,
             ILogger<ResumeUploadService> logger,
             CurrentUserSession session,
@@ -47,6 +50,7 @@ namespace BioTwin_AI.Services
         {
             _dbContext = dbContext;
             _ragService = ragService;
+            _markdownRefinementService = markdownRefinementService;
             _httpClient = httpClient;
             _logger = logger;
             _all2mdApiUrl = config["All2MD:ApiUrl"] ?? "http://localhost:8000";
@@ -133,12 +137,17 @@ namespace BioTwin_AI.Services
                         existingEntry.SourceFileContent ?? fileBytes,
                         fileHash,
                         true,
-                        existingEntry.Id);
+                        existingEntry.Id,
+                        existingEntry.Title);
                 }
 
                 await ReportProgressAsync(progress, $"Converting {GetFileKind(file.Name)} to Markdown. This can take a few minutes...");
                 var markdownContent = await ConvertToMarkdownAsync(file.Name, fileBytes, progress);
-                await ReportProgressAsync(progress, "Markdown conversion completed. Preparing preview...");
+                await ReportProgressAsync(progress, "Markdown conversion completed. Refining section structure...");
+                markdownContent = await _markdownRefinementService.RefineAsync(
+                    markdownContent,
+                    Path.GetFileNameWithoutExtension(file.Name),
+                    progress);
 
                 return new ConvertedResumeFile(
                     markdownContent,
@@ -184,7 +193,10 @@ namespace BioTwin_AI.Services
                     var existingSections = await LoadExistingSectionsByHashAsync(sourceFileHash, tenantId);
                     if (existingSections.Count > 0)
                     {
-                        await ReportProgressAsync(progress, "This file was already uploaded. Reusing the existing indexed resume.");
+                        await ReportProgressAsync(progress, "This file was already uploaded. Checking existing section embeddings...");
+                        await EnsureSectionEmbeddingsAsync(existingSections, sourceFileName, progress);
+                        await _dbContext.SaveChangesAsync();
+                        await ReportProgressAsync(progress, "Reusing the existing indexed resume.");
                         return existingSections;
                     }
                 }
@@ -238,23 +250,7 @@ namespace BioTwin_AI.Services
 
                 await _dbContext.SaveChangesAsync();
 
-                for (var i = 0; i < sectionEntries.Count; i++)
-                {
-                    var sectionEntry = sectionEntries[i];
-                    await ReportProgressAsync(progress, $"Processing section {i + 1} / {sectionEntries.Count}: {sectionEntry.Title}");
-                    sectionEntry.EmbeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(
-                        sectionEntry.Content,
-                        new Dictionary<string, string>
-                        {
-                            { "title", sectionEntry.Title },
-                            { "content", sectionEntry.Content },
-                            { "db_id", sectionEntry.Id.ToString() },
-                            { "resume_entry_id", resumeEntry.Id.ToString() },
-                            { "source_file", sourceFileName },
-                            { "tenant_id", tenantId }
-                        });
-                }
-
+                await EnsureSectionEmbeddingsAsync(sectionEntries, sourceFileName, progress);
                 await _dbContext.SaveChangesAsync();
 
                 await ReportProgressAsync(progress, $"Done. Saved and indexed {sectionEntries.Count} section(s).");
@@ -264,6 +260,82 @@ namespace BioTwin_AI.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to save resume sections");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Replace an existing resume's editable sections with reviewed Markdown and rebuild embeddings.
+        /// </summary>
+        public async Task<List<ResumeSection>> ReplaceResumeMarkdownSectionsAsync(
+            int resumeEntryId,
+            string fallbackTitle,
+            string markdownContent,
+            Func<string, Task>? progress = null)
+        {
+            try
+            {
+                var tenantId = GetTenantId();
+                var resumeEntry = await _dbContext.ResumeEntries
+                    .Include(entry => entry.Sections)
+                    .FirstOrDefaultAsync(entry => entry.Id == resumeEntryId && entry.TenantId == tenantId);
+
+                if (resumeEntry is null)
+                {
+                    throw new InvalidOperationException("The selected resume could not be found.");
+                }
+
+                await ReportProgressAsync(progress, "Splitting updated Markdown content into sections...");
+                var sections = SplitResumeMarkdown(markdownContent, fallbackTitle);
+                var createdAt = DateTime.UtcNow;
+
+                resumeEntry.Title = string.IsNullOrWhiteSpace(fallbackTitle)
+                    ? resumeEntry.Title
+                    : fallbackTitle.Trim();
+
+                await ReportProgressAsync(progress, "Replacing existing sections...");
+                _dbContext.ResumeSections.RemoveRange(resumeEntry.Sections);
+                await _dbContext.SaveChangesAsync();
+                resumeEntry.Sections.Clear();
+
+                var sectionEntries = sections
+                    .Select((section, index) => new ResumeSection
+                    {
+                        ResumeEntryId = resumeEntry.Id,
+                        ResumeEntry = resumeEntry,
+                        Title = section.Title,
+                        Content = section.Content,
+                        HeadingLevel = section.HeadingLevel,
+                        SortOrder = index,
+                        CreatedAt = createdAt.AddTicks(index),
+                        TenantId = tenantId
+                    })
+                    .ToList();
+
+                _dbContext.ResumeSections.AddRange(sectionEntries);
+                await _dbContext.SaveChangesAsync();
+
+                for (var i = 0; i < sections.Count; i++)
+                {
+                    var parentIndex = sections[i].ParentIndex;
+                    if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                    {
+                        sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                    }
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                await EnsureSectionEmbeddingsAsync(sectionEntries, resumeEntry.SourceFileName, progress);
+                await _dbContext.SaveChangesAsync();
+
+                await ReportProgressAsync(progress, $"Done. Updated and indexed {sectionEntries.Count} section(s).");
+                _logger.LogInformation("Replaced {Count} resume sections for entry {ResumeEntryId}", sectionEntries.Count, resumeEntry.Id);
+                return sectionEntries;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to replace resume sections");
                 throw;
             }
         }
@@ -368,6 +440,34 @@ namespace BioTwin_AI.Services
                     section.ResumeEntry.SourceFileHash == fileHash)
                 .OrderBy(section => section.SortOrder)
                 .ToListAsync();
+        }
+
+        private async Task EnsureSectionEmbeddingsAsync(
+            IReadOnlyList<ResumeSection> sectionEntries,
+            string sourceFileName,
+            Func<string, Task>? progress)
+        {
+            for (var i = 0; i < sectionEntries.Count; i++)
+            {
+                var sectionEntry = sectionEntries[i];
+                if (!string.IsNullOrWhiteSpace(sectionEntry.EmbeddingPayload))
+                {
+                    continue;
+                }
+
+                await ReportProgressAsync(progress, $"Processing section {i + 1} / {sectionEntries.Count}: {sectionEntry.Title}");
+                sectionEntry.EmbeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(
+                    sectionEntry.Content,
+                    new Dictionary<string, string>
+                    {
+                        { "title", sectionEntry.Title },
+                        { "content", sectionEntry.Content },
+                        { "db_id", sectionEntry.Id.ToString() },
+                        { "resume_entry_id", sectionEntry.ResumeEntryId.ToString() },
+                        { "source_file", sourceFileName },
+                        { "tenant_id", sectionEntry.TenantId }
+                    });
+            }
         }
 
         private async Task<string> BuildMarkdownForEntryAsync(int resumeEntryId)

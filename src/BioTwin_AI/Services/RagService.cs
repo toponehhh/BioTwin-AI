@@ -54,8 +54,14 @@ namespace BioTwin_AI.Services
         {
             try
             {
-                _ = metadata;
-                var embedding = await _embeddingService.GetEmbeddingAsync(content, _vectorSize);
+                var embeddingInput = BuildEmbeddingInput(content, metadata);
+                if (string.IsNullOrWhiteSpace(embeddingInput))
+                {
+                    _logger.LogWarning("Skipping embedding generation for an empty resume section.");
+                    return SerializeVector(new float[_vectorSize]);
+                }
+
+                var embedding = await _embeddingService.GetEmbeddingAsync(embeddingInput, _vectorSize);
                 var embeddingJson = SerializeVector(embedding);
 
                 // The returned value is persisted by the caller into ResumeSection.EmbeddingPayload.
@@ -67,6 +73,23 @@ namespace BioTwin_AI.Services
                 _logger.LogError(ex, "Failed to create embedding payload");
                 throw;
             }
+        }
+
+        private static string BuildEmbeddingInput(string content, Dictionary<string, string> metadata)
+        {
+            metadata.TryGetValue("title", out var title);
+
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return content;
+            }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return title;
+            }
+
+            return $"{title}\n\n{content}";
         }
 
         /// <summary>
@@ -119,9 +142,12 @@ namespace BioTwin_AI.Services
 
                     var score = CosineSimilarity(queryEmbedding, vector);
                     // Include tenant info for interviewer context
+                    var title = string.IsNullOrWhiteSpace(candidate.Title)
+                        ? "Untitled section"
+                        : candidate.Title;
                     var contentWithContext = _session.IsInterviewer
-                        ? $"[{candidate.TenantId} - {candidate.Title}]\n{candidate.Content}"
-                        : candidate.Content;
+                        ? $"[{candidate.TenantId} - {title}]\n{candidate.Content}"
+                        : $"[{title}]\n{candidate.Content}";
                     ranked.Add((contentWithContext, score));
                 }
 

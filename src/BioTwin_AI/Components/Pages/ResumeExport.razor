@@ -30,9 +30,17 @@ else
                 <h2 class="mb-1">Export Resume</h2>
                 <div class="text-muted small">Edit the generated Markdown before copying it out.</div>
             </div>
-            <button class="btn btn-primary" @onclick="CopyAllAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">
-                Copy Markdown
-            </button>
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-outline-secondary" @onclick="CopyAllAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">
+                    Copy Markdown
+                </button>
+                <button class="btn btn-primary" @onclick="DownloadMarkdownAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">
+                    Download Markdown
+                </button>
+                <button class="btn btn-outline-primary" @onclick="DownloadOriginalFileAsync" disabled="@(_selectedResume?.HasOriginalFile != true)">
+                    Download Original File
+                </button>
+            </div>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(_message))
@@ -118,8 +126,10 @@ else
                 x.Id,
                 x.Title,
                 x.SourceFileName,
+                x.SourceContentType,
                 x.TenantId,
                 x.CreatedAt,
+                HasOriginalFile = x.SourceFileContent != null,
                 SectionCount = x.Sections.Count
             })
             .ToListAsync();
@@ -129,8 +139,10 @@ else
                 x.Id,
                 x.Title,
                 x.SourceFileName,
+                x.SourceContentType,
                 BuildResumeLabel(x.Title, x.TenantId),
                 x.CreatedAt,
+                x.HasOriginalFile,
                 x.SectionCount))
             .ToList();
         _selectedResumeEntryId = _resumeOptions.FirstOrDefault()?.Id;
@@ -192,6 +204,60 @@ else
         _message = "Markdown copied to clipboard.";
     }
 
+    private async Task DownloadMarkdownAsync()
+    {
+        _message = string.Empty;
+        var fileName = $"{BuildSafeFileName(GetSelectedResumeTitle())}.md";
+        await DownloadBytesAsync(fileName, "text/markdown;charset=utf-8", Encoding.UTF8.GetBytes(_markdown));
+        _message = "Markdown download started.";
+    }
+
+    private async Task DownloadOriginalFileAsync()
+    {
+        _message = string.Empty;
+
+        if (_selectedResumeEntryId is null)
+        {
+            return;
+        }
+
+        var originalFile = await DbContext.ResumeEntries
+            .AsNoTracking()
+            .Where(x =>
+                x.Id == _selectedResumeEntryId.Value &&
+                (Session.IsInterviewer || x.TenantId == Session.Username))
+            .Select(x => new
+            {
+                x.SourceFileName,
+                x.SourceContentType,
+                x.SourceFileContent
+            })
+            .FirstOrDefaultAsync();
+
+        if (originalFile?.SourceFileContent is not { Length: > 0 } fileBytes)
+        {
+            _message = "No original uploaded file is stored for this resume.";
+            return;
+        }
+
+        var fileName = string.IsNullOrWhiteSpace(originalFile.SourceFileName)
+            ? $"{BuildSafeFileName(GetSelectedResumeTitle())}.bin"
+            : originalFile.SourceFileName;
+        var contentType = string.IsNullOrWhiteSpace(originalFile.SourceContentType)
+            ? "application/octet-stream"
+            : originalFile.SourceContentType;
+
+        await DownloadBytesAsync(fileName, contentType, fileBytes);
+        _message = "Original file download started.";
+    }
+
+    private async Task DownloadBytesAsync(string fileName, string contentType, byte[] fileBytes)
+    {
+        using var stream = new MemoryStream(fileBytes);
+        using var streamReference = new DotNetStreamReference(stream);
+        await JS.InvokeVoidAsync("bioTwinDownloads.downloadFileFromStream", fileName, contentType, streamReference);
+    }
+
     private Task OnMarkdownChanged(string value)
     {
         _markdown = value;
@@ -210,5 +276,19 @@ else
         return Session.IsInterviewer ? $"{label} ({tenantId})" : label;
     }
 
-    private sealed record ResumeExportOption(int Id, string Title, string SourceFileName, string Label, DateTime CreatedAt, int SectionCount);
+    private static string BuildSafeFileName(string value)
+    {
+        var safeName = string.Join("_", value.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+        return string.IsNullOrWhiteSpace(safeName) ? "resume" : safeName;
+    }
+
+    private sealed record ResumeExportOption(
+        int Id,
+        string Title,
+        string SourceFileName,
+        string? SourceContentType,
+        string Label,
+        DateTime CreatedAt,
+        bool HasOriginalFile,
+        int SectionCount);
 }

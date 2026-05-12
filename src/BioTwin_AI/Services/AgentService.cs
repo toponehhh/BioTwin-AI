@@ -5,6 +5,12 @@ using System.Text.Json;
 
 namespace BioTwin_AI.Services
 {
+    public sealed record AgentStreamChunk(string Kind, string Content)
+    {
+        public const string Answer = "answer";
+        public const string Thinking = "thinking";
+    }
+
     /// <summary>
     /// Service for AI agent interaction with LLM using RAG context.
     /// Supports Ollama and OpenAI-compatible chat endpoints.
@@ -25,6 +31,7 @@ namespace BioTwin_AI.Services
         private readonly int _maxSnippetChars;
         private readonly int _chatNumPredict;
         private readonly int _chatNumCtx;
+        private readonly bool _ollamaThink;
 
         public AgentService(
             IRagService ragService,
@@ -47,6 +54,7 @@ namespace BioTwin_AI.Services
             _maxSnippetChars = config.GetValue("LLM:MaxSnippetChars", 2000);
             _chatNumPredict = config.GetValue("LLM:ChatNumPredict", 256);
             _chatNumCtx = config.GetValue("LLM:ChatNumCtx", 2048);
+            _ollamaThink = config.GetValue("LLM:Think", false);
         }
 
         /// <summary>
@@ -81,6 +89,22 @@ namespace BioTwin_AI.Services
             string question,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            await foreach (var chunk in StreamAnswerQuestionChunksAsync(question, cancellationToken))
+            {
+                if (chunk.Kind == AgentStreamChunk.Answer)
+                {
+                    yield return chunk.Content;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Stream answer and thinking chunks for the provided question.
+        /// </summary>
+        public async IAsyncEnumerable<AgentStreamChunk> StreamAnswerQuestionChunksAsync(
+            string question,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
             _logger.LogInformation("Processing question: {Question}", question);
 
             var relevantContent = await _ragService.SearchAsync(question, limit: 3);
@@ -90,14 +114,29 @@ namespace BioTwin_AI.Services
 
             if (string.Equals(_provider, "Ollama", StringComparison.OrdinalIgnoreCase))
             {
-                await foreach (var chunk in StreamOllamaAsync(systemPrompt, userPrompt, cancellationToken))
+                var emittedAnswer = false;
+                await foreach (var chunk in StreamOllamaAsync(systemPrompt, userPrompt, _ollamaThink, _chatNumPredict, _chatNumCtx, cancellationToken))
                 {
+                    if (chunk.Kind == AgentStreamChunk.Answer)
+                    {
+                        emittedAnswer = true;
+                    }
+
                     yield return chunk;
+                }
+
+                if (!emittedAnswer && _ollamaThink && !cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Ollama returned no visible content with thinking enabled. Retrying once with thinking disabled.");
+                    await foreach (var chunk in StreamOllamaAsync(systemPrompt, userPrompt, false, _chatNumPredict, _chatNumCtx, cancellationToken))
+                    {
+                        yield return chunk;
+                    }
                 }
             }
             else
             {
-                yield return await CallOpenAiCompatibleAsync(systemPrompt, userPrompt);
+                yield return new AgentStreamChunk(AgentStreamChunk.Answer, await CallOpenAiCompatibleAsync(systemPrompt, userPrompt));
             }
         }
 
@@ -184,6 +223,7 @@ Resume Context:
             {
                 model = _model,
                 stream = false,
+                think = _ollamaThink,
                 options = new
                 {
                     temperature = _temperature,
@@ -218,9 +258,12 @@ Resume Context:
                 : content;
         }
 
-        private async IAsyncEnumerable<string> StreamOllamaAsync(
+        private async IAsyncEnumerable<AgentStreamChunk> StreamOllamaAsync(
             string systemPrompt,
             string userPrompt,
+            bool think,
+            int numPredict,
+            int numCtx,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var url = $"{_llmBaseUrl.TrimEnd('/')}/api/chat";
@@ -228,11 +271,12 @@ Resume Context:
             {
                 model = _model,
                 stream = true,
+                think,
                 options = new
                 {
                     temperature = _temperature,
-                    num_predict = _chatNumPredict,
-                    num_ctx = _chatNumCtx
+                    num_predict = numPredict,
+                    num_ctx = numCtx
                 },
                 messages = new object[]
                 {
@@ -302,13 +346,25 @@ Resume Context:
                 }
 
                 if (root.TryGetProperty("message", out var messageNode)
+                    && messageNode.TryGetProperty("thinking", out var thinkingNode))
+                {
+                    var piece = thinkingNode.GetString();
+                    if (!string.IsNullOrEmpty(piece))
+                    {
+                        document.Dispose();
+                        yield return new AgentStreamChunk(AgentStreamChunk.Thinking, piece);
+                        continue;
+                    }
+                }
+
+                if (root.TryGetProperty("message", out messageNode)
                     && messageNode.TryGetProperty("content", out var contentNode))
                 {
                     var piece = contentNode.GetString();
                     if (!string.IsNullOrEmpty(piece))
                     {
                         document.Dispose();
-                        yield return piece;
+                        yield return new AgentStreamChunk(AgentStreamChunk.Answer, piece);
                         continue;
                     }
                 }

@@ -3,6 +3,7 @@
 @using BioTwin_AI.Models
 @using BioTwin_AI.Services
 @using Microsoft.EntityFrameworkCore
+@using System.Text
 @rendermode InteractiveServer
 @inject BioTwinDbContext DbContext
 @inject IRagService RagService
@@ -83,19 +84,32 @@ else
             else
             {
                 <div class="sidebar-kicker">Sections</div>
-                <div class="section-list" role="list" aria-label="Resume sections">
-                    @foreach (var entry in _entries)
+                <div class="section-tree" role="tree" aria-label="Resume section tree">
+                    @foreach (var node in GetVisibleSectionNodes())
                     {
-                        <button type="button"
-                                class="section-list-item @(ReferenceEquals(_selectedEntry, entry) ? "active" : "")"
-                                style="padding-left: @(GetTreeIndent(entry))px"
-                                @onclick="() => SelectEntry(entry)">
-                            <span class="section-title">
-                                <span class="heading-level-badge">H@entry.HeadingLevel</span>
-                                @entry.Title
-                            </span>
-                            <span class="section-meta">@GetEntrySummary(entry)</span>
-                        </button>
+                        <div class="section-tree-row @(ReferenceEquals(_selectedEntry, node.Entry) ? "active" : "")"
+                             style="--tree-depth: @node.Depth"
+                             role="treeitem"
+                             aria-level="@(node.Depth + 1)"
+                             aria-selected="@ReferenceEquals(_selectedEntry, node.Entry)"
+                             aria-expanded="@GetSectionAriaExpanded(node)">
+                            <button type="button"
+                                    class="section-tree-toggle"
+                                    disabled="@(!node.HasChildren)"
+                                    aria-label="@(IsSectionCollapsed(node.Entry) ? "Expand section" : "Collapse section")"
+                                    @onclick="() => ToggleSectionNode(node.Entry)"
+                                    @onclick:stopPropagation="true">
+                                @if (node.HasChildren)
+                                {
+                                    <span>@(IsSectionCollapsed(node.Entry) ? ">" : "v")</span>
+                                }
+                            </button>
+                            <button type="button"
+                                    class="section-tree-title"
+                                    @onclick="() => SelectEntry(node.Entry)">
+                                <span class="section-heading-text">@GetSectionDisplayTitle(node.Entry)</span>
+                            </button>
+                        </div>
                     }
                 </div>
             }
@@ -104,13 +118,35 @@ else
         <main class="section-editor">
             <div class="editor-topbar">
                 <a class="btn btn-secondary" href="/chat">Back to Chat</a>
+                <div class="editor-tabs" role="tablist" aria-label="Resume editor mode">
+                    <button type="button"
+                            class="editor-tab @GetEditorTabClass(ResumeEditorTab.Sections)"
+                            role="tab"
+                            aria-selected="@(_activeEditorTab == ResumeEditorTab.Sections)"
+                            @onclick="() => SwitchEditorTab(ResumeEditorTab.Sections)">
+                        Sections
+                    </button>
+                    <button type="button"
+                            class="editor-tab @GetEditorTabClass(ResumeEditorTab.FullMarkdown)"
+                            role="tab"
+                            aria-selected="@(_activeEditorTab == ResumeEditorTab.FullMarkdown)"
+                            @onclick="() => SwitchEditorTab(ResumeEditorTab.FullMarkdown)">
+                        Full Markdown
+                    </button>
+                </div>
                 <div class="editor-actions">
-                    @if (_selectedEntry is not null)
+                    @if (_activeEditorTab == ResumeEditorTab.Sections && _selectedEntry is not null)
                     {
                         <button class="btn btn-outline-secondary" @onclick="DuplicateSelectedAsync" disabled="@_isSaving">Duplicate</button>
                         <button class="btn btn-outline-danger" @onclick="DeleteSelectedAsync" disabled="@_isSaving">Delete</button>
                         <button class="btn btn-primary" @onclick="SaveSelectedAsync" disabled="@_isSaving">
                             @(_isSaving ? "Saving..." : "Save Section")
+                        </button>
+                    }
+                    else if (_activeEditorTab == ResumeEditorTab.FullMarkdown && _selectedResumeEntry is not null)
+                    {
+                        <button class="btn btn-primary" @onclick="SaveWholeResumeAsync" disabled="@(_isSaving || string.IsNullOrWhiteSpace(_wholeResumeMarkdown))">
+                            @(_isSaving ? "Saving..." : "Save Resume")
                         </button>
                     }
                 </div>
@@ -126,7 +162,34 @@ else
                 <div class="alert alert-danger">@_error</div>
             }
 
-            @if (_selectedEntry is null)
+            @if (_activeEditorTab == ResumeEditorTab.FullMarkdown)
+            {
+                @if (_selectedResumeEntry is null)
+                {
+                    <div class="editor-empty-state">
+                        <h3>Select a resume</h3>
+                        <p>Choose a resume from the left panel before editing the full Markdown.</p>
+                    </div>
+                }
+                else
+                {
+                    <section class="section-workspace">
+                        <div class="section-edit-pane">
+                            <div class="section-meta-row">
+                                <span>Editing @GetResumeTitle(_selectedResumeEntry)</span>
+                                <span>@_entries.Count section@(_entries.Count == 1 ? "" : "s")</span>
+                                <span>@GetWordCount(_wholeResumeMarkdown) words</span>
+                            </div>
+
+                            <MarkdownEditor @bind-Value="_wholeResumeMarkdown"
+                                            Label="Full Resume Markdown"
+                                            Placeholder="Edit the whole resume in Markdown..."
+                                            Rows="28" />
+                        </div>
+                    </section>
+                }
+            }
+            else if (_selectedEntry is null)
             {
                 <div class="editor-empty-state">
                     <h3>@(_selectedResumeEntry is null ? "Select a resume" : "Select a section")</h3>
@@ -256,43 +319,77 @@ else
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
     }
 
-    .section-list {
+    .section-tree {
         display: grid;
-        gap: 8px;
+        gap: 2px;
         overflow-y: auto;
         padding-right: 4px;
     }
 
-    .section-list-item {
+    .section-tree-row {
         width: 100%;
         display: grid;
-        gap: 4px;
-        padding: 14px;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.76);
+        grid-template-columns: 26px minmax(0, 1fr);
+        align-items: center;
+        min-height: 34px;
+        padding-left: calc(var(--tree-depth) * 18px);
+        border-radius: 8px;
         color: #1d1d1f;
-        text-align: left;
-        transition: all 0.2s ease;
     }
 
-    .section-list-item:hover,
-    .section-list-item.active {
-        border-color: rgba(102, 126, 234, 0.48);
-        background: white;
-        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.14);
-        transform: translateY(-1px);
+    .section-tree-row:hover,
+    .section-tree-row.active {
+        background: rgba(102, 126, 234, 0.1);
     }
 
-    .section-title {
+    .section-tree-toggle,
+    .section-tree-title {
+        border: 0;
+        background: transparent;
+        color: #1d1d1f;
+    }
+
+    .section-tree-toggle {
+        width: 26px;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #6e6e73;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1;
+        border-radius: 6px;
+    }
+
+    .section-tree-toggle:not(:disabled):hover {
+        background: rgba(102, 126, 234, 0.14);
+        color: #4c4ac4;
+    }
+
+    .section-tree-toggle:disabled {
+        cursor: default;
+        opacity: 0.28;
+    }
+
+    .section-tree-title {
+        min-width: 0;
+        min-height: 30px;
         display: flex;
         align-items: center;
         gap: 8px;
-        font-size: 14px;
-        font-weight: 700;
+        padding: 5px 8px 5px 2px;
+        text-align: left;
+        border-radius: 7px;
+    }
+
+    .section-heading-text {
+        min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        font-size: 14px;
+        font-weight: 700;
     }
 
     .heading-level-badge {
@@ -329,6 +426,34 @@ else
         justify-content: space-between;
         gap: 16px;
         margin-bottom: 18px;
+    }
+
+    .editor-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.72);
+    }
+
+    .editor-tab {
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: #5f6068;
+        font-size: 13px;
+        font-weight: 750;
+        white-space: nowrap;
+    }
+
+    .editor-tab.active {
+        background: white;
+        color: #4c4ac4;
+        box-shadow: 0 4px 14px rgba(102, 126, 234, 0.16);
     }
 
     .editor-actions {
@@ -400,10 +525,6 @@ else
             border-bottom: 1px solid rgba(0, 0, 0, 0.08);
         }
 
-        .section-list {
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        }
-
         .builder-workspace-grid {
             grid-template-columns: 1fr;
         }
@@ -420,6 +541,14 @@ else
             flex-direction: column;
         }
 
+        .editor-tabs {
+            width: 100%;
+        }
+
+        .editor-tab {
+            flex: 1;
+        }
+
         .editor-actions {
             justify-content: stretch;
         }
@@ -434,12 +563,23 @@ else
 @code {
     private const string ManualSourceName = "Manual section";
 
+    private enum ResumeEditorTab
+    {
+        Sections,
+        FullMarkdown
+    }
+
+    private sealed record SectionTreeNode(ResumeSection Entry, int Depth, bool HasChildren);
+
     private readonly List<ResumeEntry> _resumeEntries = [];
     private readonly List<ResumeSection> _entries = [];
+    private readonly HashSet<string> _collapsedSectionKeys = [];
     private ResumeEntry? _selectedResumeEntry;
     private ResumeSection? _selectedEntry;
+    private ResumeEditorTab _activeEditorTab = ResumeEditorTab.Sections;
     private bool _sessionResolved;
     private bool _isSaving;
+    private string _wholeResumeMarkdown = string.Empty;
     private string _message = string.Empty;
     private string _error = string.Empty;
 
@@ -469,6 +609,7 @@ else
         _entries.Clear();
         _selectedResumeEntry = null;
         _selectedEntry = null;
+        _wholeResumeMarkdown = string.Empty;
 
         var itemsQuery = DbContext.ResumeEntries
             .Include(x => x.Sections)
@@ -493,6 +634,7 @@ else
         _selectedResumeEntry = resumeEntry;
         _selectedEntry = null;
         _entries.Clear();
+        _collapsedSectionKeys.Clear();
 
         if (resumeEntry is null)
         {
@@ -511,6 +653,7 @@ else
 
         _entries.AddRange(sections);
         _selectedEntry = _entries.FirstOrDefault();
+        RefreshWholeResumeMarkdown();
     }
 
     private void OnResumeChanged(ChangeEventArgs args)
@@ -542,12 +685,14 @@ else
         _message = string.Empty;
         _error = string.Empty;
         _selectedEntry = entry;
+        _activeEditorTab = ResumeEditorTab.Sections;
     }
 
     private void CreateSection()
     {
         _message = string.Empty;
         _error = string.Empty;
+        _activeEditorTab = ResumeEditorTab.Sections;
 
         var targetResume = _selectedResumeEntry ?? new ResumeEntry
         {
@@ -578,6 +723,7 @@ else
         _entries.Insert(0, draft);
         targetResume.Sections.Add(draft);
         _selectedEntry = draft;
+        RefreshWholeResumeMarkdown();
     }
 
     private async Task SaveSelectedAsync()
@@ -640,6 +786,7 @@ else
             await DbContext.SaveChangesAsync();
 
             SortCurrentSections();
+            RefreshWholeResumeMarkdown();
             _message = $"Saved section '{_selectedEntry.Title}'.";
         }
         catch (Exception ex)
@@ -682,6 +829,7 @@ else
         _entries.Insert(0, duplicate);
         targetResume.Sections.Add(duplicate);
         _selectedEntry = duplicate;
+        RefreshWholeResumeMarkdown();
         await Task.CompletedTask;
     }
 
@@ -740,6 +888,113 @@ else
         }
 
         _message = "Section deleted.";
+        RefreshWholeResumeMarkdown();
+    }
+
+    private async Task SaveWholeResumeAsync()
+    {
+        if (_selectedResumeEntry is null)
+        {
+            _error = "Select a resume before saving the full Markdown.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_wholeResumeMarkdown))
+        {
+            _error = "Full resume Markdown is required.";
+            return;
+        }
+
+        _message = string.Empty;
+        _error = string.Empty;
+
+        try
+        {
+            _isSaving = true;
+            var resumeEntry = _selectedResumeEntry;
+            var tenantId = string.IsNullOrWhiteSpace(resumeEntry.TenantId)
+                ? Session.Username ?? "default"
+                : resumeEntry.TenantId;
+
+            if (resumeEntry.Id == 0)
+            {
+                resumeEntry.TenantId = tenantId;
+                DbContext.ResumeEntries.Add(resumeEntry);
+                await DbContext.SaveChangesAsync();
+            }
+
+            var parsedSections = ResumeUploadService.SplitResumeMarkdown(
+                _wholeResumeMarkdown,
+                GetResumeTitle(resumeEntry));
+            var createdAt = DateTime.UtcNow;
+
+            var existingSections = await DbContext.ResumeSections
+                .Where(section => section.ResumeEntryId == resumeEntry.Id && section.TenantId == tenantId)
+                .ToListAsync();
+            DbContext.ResumeSections.RemoveRange(existingSections);
+            await DbContext.SaveChangesAsync();
+
+            resumeEntry.Sections.Clear();
+            _entries.Clear();
+            _collapsedSectionKeys.Clear();
+
+            var sectionEntries = parsedSections
+                .Select((section, index) => new ResumeSection
+                {
+                    ResumeEntryId = resumeEntry.Id,
+                    ResumeEntry = resumeEntry,
+                    Title = section.Title,
+                    Content = section.Content,
+                    HeadingLevel = section.HeadingLevel,
+                    SortOrder = index,
+                    CreatedAt = createdAt.AddTicks(index),
+                    TenantId = tenantId
+                })
+                .ToList();
+
+            DbContext.ResumeSections.AddRange(sectionEntries);
+            await DbContext.SaveChangesAsync();
+
+            for (var i = 0; i < parsedSections.Count; i++)
+            {
+                var parentIndex = parsedSections[i].ParentIndex;
+                if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                {
+                    sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                }
+            }
+
+            foreach (var sectionEntry in sectionEntries)
+            {
+                sectionEntry.EmbeddingPayload = await CreateEmbeddingPayloadAsync(sectionEntry);
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            foreach (var section in sectionEntries)
+            {
+                section.ResumeEntry = resumeEntry;
+            }
+
+            resumeEntry.Sections.Clear();
+            foreach (var section in sectionEntries)
+            {
+                resumeEntry.Sections.Add(section);
+            }
+
+            _entries.AddRange(sectionEntries);
+            _selectedEntry = _entries.FirstOrDefault();
+            RefreshWholeResumeMarkdown();
+            _message = $"Saved full resume and rebuilt {_entries.Count} section{(_entries.Count == 1 ? "" : "s")}.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
     }
 
     private Task<string> CreateEmbeddingPayloadAsync(ResumeSection entry)
@@ -755,6 +1010,146 @@ else
                 { "source_file", GetSourceFileName(entry) },
                 { "tenant_id", entry.TenantId }
             });
+    }
+
+    private void SwitchEditorTab(ResumeEditorTab tab)
+    {
+        _message = string.Empty;
+        _error = string.Empty;
+        _activeEditorTab = tab;
+
+        if (tab == ResumeEditorTab.FullMarkdown)
+        {
+            RefreshWholeResumeMarkdown();
+        }
+    }
+
+    private IReadOnlyList<SectionTreeNode> GetVisibleSectionNodes()
+    {
+        var orderedEntries = _entries
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id)
+            .ToList();
+        var entriesById = orderedEntries
+            .Where(section => section.Id != 0)
+            .ToDictionary(section => section.Id);
+        var childrenByParentId = orderedEntries
+            .Where(section => section.ParentSectionId is not null && entriesById.ContainsKey(section.ParentSectionId.Value))
+            .GroupBy(section => section.ParentSectionId!.Value)
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var roots = orderedEntries
+            .Where(section => section.ParentSectionId is null || !entriesById.ContainsKey(section.ParentSectionId.Value))
+            .ToList();
+        var visibleNodes = new List<SectionTreeNode>();
+        var visitedKeys = new HashSet<string>();
+
+        foreach (var root in roots)
+        {
+            AddVisibleSectionNode(root, 0);
+        }
+
+        foreach (var entry in orderedEntries)
+        {
+            AddVisibleSectionNode(entry, 0);
+        }
+
+        return visibleNodes;
+
+        void AddVisibleSectionNode(ResumeSection entry, int depth)
+        {
+            var key = GetSectionKey(entry);
+            if (!visitedKeys.Add(key))
+            {
+                return;
+            }
+
+            var children = entry.Id != 0 && childrenByParentId.TryGetValue(entry.Id, out var childItems)
+                ? childItems
+                : [];
+            visibleNodes.Add(new SectionTreeNode(entry, depth, children.Count > 0));
+
+            if (children.Count == 0 || IsSectionCollapsed(entry))
+            {
+                return;
+            }
+
+            foreach (var child in children)
+            {
+                AddVisibleSectionNode(child, depth + 1);
+            }
+        }
+    }
+
+    private void ToggleSectionNode(ResumeSection entry)
+    {
+        var key = GetSectionKey(entry);
+        if (!_collapsedSectionKeys.Add(key))
+        {
+            _collapsedSectionKeys.Remove(key);
+        }
+    }
+
+    private bool IsSectionCollapsed(ResumeSection entry)
+    {
+        return _collapsedSectionKeys.Contains(GetSectionKey(entry));
+    }
+
+    private static string GetSectionDisplayTitle(ResumeSection entry)
+    {
+        return string.IsNullOrWhiteSpace(entry.Title)
+            ? "Untitled Section"
+            : entry.Title.Trim();
+    }
+
+    private string? GetSectionAriaExpanded(SectionTreeNode node)
+    {
+        return node.HasChildren
+            ? (!IsSectionCollapsed(node.Entry)).ToString().ToLowerInvariant()
+            : null;
+    }
+
+    private static string GetSectionKey(ResumeSection entry)
+    {
+        return entry.Id != 0
+            ? $"id:{entry.Id}"
+            : $"draft:{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(entry)}";
+    }
+
+    private string GetEditorTabClass(ResumeEditorTab tab)
+    {
+        return _activeEditorTab == tab ? "active" : string.Empty;
+    }
+
+    private void RefreshWholeResumeMarkdown()
+    {
+        _wholeResumeMarkdown = BuildResumeMarkdown(_entries);
+    }
+
+    private static string BuildResumeMarkdown(IEnumerable<ResumeSection> sections)
+    {
+        var builder = new StringBuilder();
+
+        foreach (var section in sections
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id))
+        {
+            var headingLevel = Math.Clamp(section.HeadingLevel, 1, 6);
+            var title = string.IsNullOrWhiteSpace(section.Title)
+                ? "Untitled Section"
+                : section.Title.Trim();
+
+            builder.AppendLine($"{new string('#', headingLevel)} {title}");
+
+            if (!string.IsNullOrWhiteSpace(section.Content))
+            {
+                builder.AppendLine();
+                builder.AppendLine(section.Content.Trim());
+            }
+
+            builder.AppendLine();
+        }
+
+        return builder.ToString().Trim();
     }
 
     private static string GetEntrySummary(ResumeSection entry)
@@ -788,6 +1183,11 @@ else
         if (resumeEntry is null)
         {
             return "No resume selected";
+        }
+
+        if (!string.IsNullOrWhiteSpace(resumeEntry.Title))
+        {
+            return resumeEntry.Title.Trim();
         }
 
         var primaryTitle = resumeEntry.Sections
