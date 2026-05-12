@@ -10,3 +10,7 @@ TestResults/
 TestReport*.md
 TestReport*.html
 .local-logs/
+artifacts/
+database/
+COMMIT_REPORT.md
+FIXES_SUMMARY.md
