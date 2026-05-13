@@ -33,13 +33,13 @@ else
                     <h2>Resume Builder</h2>
                     <span>@_resumeEntries.Count resume@(_resumeEntries.Count == 1 ? "" : "s") - @_entries.Count section@(_entries.Count == 1 ? "" : "s")</span>
                 </div>
-                <button class="icon-action" title="Add section" @onclick="CreateSection">
+                <button class="icon-action" title="New resume" @onclick="CreateResumeDraft">
                     +
                 </button>
             </div>
 
             <div class="section-actions">
-                <button class="btn btn-primary" @onclick="CreateSection">New Section</button>
+                <button class="btn btn-primary" @onclick="CreateResumeDraft">New Resume</button>
                 <a class="btn btn-outline-primary" href="/resume/upload">Upload File</a>
             </div>
 
@@ -64,7 +64,7 @@ else
             {
                 <div class="empty-sections">
                     <strong>No resumes yet</strong>
-                    <span>Upload a resume file or create a manual section to get started.</span>
+                    <span>Upload a resume file or create a manual resume to get started.</span>
                 </div>
             }
             else if (_selectedResumeEntry is null)
@@ -78,7 +78,7 @@ else
             {
                 <div class="empty-sections">
                     <strong>No sections in this resume</strong>
-                    <span>Create a section for @GetResumeTitle(_selectedResumeEntry).</span>
+                    <span>Edit the full Markdown and save to rebuild navigation.</span>
                 </div>
             }
             else
@@ -106,7 +106,7 @@ else
                             </button>
                             <button type="button"
                                     class="section-tree-title"
-                                    @onclick="() => SelectEntry(node.Entry)">
+                                    @onclick="() => LocateSectionAsync(node.Entry)">
                                 <span class="section-heading-text">@GetSectionDisplayTitle(node.Entry)</span>
                             </button>
                         </div>
@@ -118,32 +118,8 @@ else
         <main class="section-editor">
             <div class="editor-topbar">
                 <a class="btn btn-secondary" href="/chat">Back to Chat</a>
-                <div class="editor-tabs" role="tablist" aria-label="Resume editor mode">
-                    <button type="button"
-                            class="editor-tab @GetEditorTabClass(ResumeEditorTab.Sections)"
-                            role="tab"
-                            aria-selected="@(_activeEditorTab == ResumeEditorTab.Sections)"
-                            @onclick="() => SwitchEditorTab(ResumeEditorTab.Sections)">
-                        Sections
-                    </button>
-                    <button type="button"
-                            class="editor-tab @GetEditorTabClass(ResumeEditorTab.FullMarkdown)"
-                            role="tab"
-                            aria-selected="@(_activeEditorTab == ResumeEditorTab.FullMarkdown)"
-                            @onclick="() => SwitchEditorTab(ResumeEditorTab.FullMarkdown)">
-                        Full Markdown
-                    </button>
-                </div>
                 <div class="editor-actions">
-                    @if (_activeEditorTab == ResumeEditorTab.Sections && _selectedEntry is not null)
-                    {
-                        <button class="btn btn-outline-secondary" @onclick="DuplicateSelectedAsync" disabled="@_isSaving">Duplicate</button>
-                        <button class="btn btn-outline-danger" @onclick="DeleteSelectedAsync" disabled="@_isSaving">Delete</button>
-                        <button class="btn btn-primary" @onclick="SaveSelectedAsync" disabled="@_isSaving">
-                            @(_isSaving ? "Saving..." : "Save Section")
-                        </button>
-                    }
-                    else if (_activeEditorTab == ResumeEditorTab.FullMarkdown && _selectedResumeEntry is not null)
+                    @if (_selectedResumeEntry is not null)
                     {
                         <button class="btn btn-primary" @onclick="SaveWholeResumeAsync" disabled="@(_isSaving || string.IsNullOrWhiteSpace(_wholeResumeMarkdown))">
                             @(_isSaving ? "Saving..." : "Save Resume")
@@ -162,61 +138,33 @@ else
                 <div class="alert alert-danger">@_error</div>
             }
 
-            @if (_activeEditorTab == ResumeEditorTab.FullMarkdown)
-            {
-                @if (_selectedResumeEntry is null)
-                {
-                    <div class="editor-empty-state">
-                        <h3>Select a resume</h3>
-                        <p>Choose a resume from the left panel before editing the full Markdown.</p>
-                    </div>
-                }
-                else
-                {
-                    <section class="section-workspace">
-                        <div class="section-edit-pane">
-                            <div class="section-meta-row">
-                                <span>Editing @GetResumeTitle(_selectedResumeEntry)</span>
-                                <span>@_entries.Count section@(_entries.Count == 1 ? "" : "s")</span>
-                                <span>@GetWordCount(_wholeResumeMarkdown) words</span>
-                            </div>
-
-                            <MarkdownEditor @bind-Value="_wholeResumeMarkdown"
-                                            Label="Full Resume Markdown"
-                                            Placeholder="Edit the whole resume in Markdown..."
-                                            Rows="28" />
-                        </div>
-                    </section>
-                }
-            }
-            else if (_selectedEntry is null)
+            @if (_selectedResumeEntry is null)
             {
                 <div class="editor-empty-state">
-                    <h3>@(_selectedResumeEntry is null ? "Select a resume" : "Select a section")</h3>
-                    <p>@(_selectedResumeEntry is null ? "Choose a resume file from the left panel before editing sections." : "Choose a section from the left panel or create a new one.")</p>
-                    <button class="btn btn-primary" @onclick="CreateSection">Create Section</button>
+                    <h3>Select a resume</h3>
+                    <p>Choose a resume from the left panel before editing the full Markdown.</p>
+                    <button class="btn btn-primary" @onclick="CreateResumeDraft">New Resume</button>
                 </div>
             }
             else
             {
                 <section class="section-workspace">
-                    <div class="builder-workspace-grid">
-                        <div class="section-edit-pane">
-                            <div class="section-meta-row">
-                                <span>@(_selectedEntry.Id == 0 ? "Draft section" : $"Created {_selectedEntry.CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm}")</span>
-                                <span>@GetWordCount(_selectedEntry.Content) words</span>
-                                <span>Editing @GetResumeTitle(_selectedResumeEntry ?? _selectedEntry.ResumeEntry)</span>
-                                @if (!string.IsNullOrWhiteSpace(GetSourceFileName(_selectedEntry)) && GetSourceFileName(_selectedEntry) != ManualSourceName)
-                                {
-                                    <span>Imported from @GetSourceFileName(_selectedEntry)</span>
-                                }
-                            </div>
-
-                            <MarkdownEditor @bind-Value="_selectedEntry.Content"
-                                            Label="Markdown"
-                                            Placeholder="Write this resume section in Markdown..."
-                                            Rows="22" />
+                    <div class="section-edit-pane">
+                        <div class="section-meta-row">
+                            <span>Editing @GetResumeTitle(_selectedResumeEntry)</span>
+                            <span>@_entries.Count section@(_entries.Count == 1 ? "" : "s")</span>
+                            <span>@GetWordCount(_wholeResumeMarkdown) words</span>
+                            @if (!string.IsNullOrWhiteSpace(_selectedResumeEntry.SourceFileName) && _selectedResumeEntry.SourceFileName != ManualSourceName)
+                            {
+                                <span>Imported from @_selectedResumeEntry.SourceFileName</span>
+                            }
                         </div>
+
+                        <MarkdownEditor @ref="_fullResumeEditor"
+                                        @bind-Value="_wholeResumeMarkdown"
+                                        Label="Full Resume Markdown"
+                                        Placeholder="Edit the whole resume in Markdown..."
+                                        Rows="30" />
                     </div>
                 </section>
             }
@@ -392,18 +340,6 @@ else
         font-weight: 700;
     }
 
-    .heading-level-badge {
-        flex: 0 0 auto;
-        min-width: 28px;
-        padding: 2px 6px;
-        border-radius: 6px;
-        background: #eef2ff;
-        color: #4754b8;
-        font-size: 11px;
-        font-weight: 800;
-        text-align: center;
-    }
-
     .empty-sections {
         display: grid;
         gap: 6px;
@@ -428,34 +364,6 @@ else
         margin-bottom: 18px;
     }
 
-    .editor-tabs {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.72);
-    }
-
-    .editor-tab {
-        min-height: 34px;
-        padding: 7px 12px;
-        border: 0;
-        border-radius: 9px;
-        background: transparent;
-        color: #5f6068;
-        font-size: 13px;
-        font-weight: 750;
-        white-space: nowrap;
-    }
-
-    .editor-tab.active {
-        background: white;
-        color: #4c4ac4;
-        box-shadow: 0 4px 14px rgba(102, 126, 234, 0.16);
-    }
-
     .editor-actions {
         display: flex;
         align-items: center;
@@ -467,14 +375,6 @@ else
     .section-workspace {
         width: 100%;
         max-width: none;
-    }
-
-    .builder-workspace-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        width: 100%;
-        gap: 20px;
-        align-items: start;
     }
 
     .section-edit-pane {
@@ -525,9 +425,6 @@ else
             border-bottom: 1px solid rgba(0, 0, 0, 0.08);
         }
 
-        .builder-workspace-grid {
-            grid-template-columns: 1fr;
-        }
     }
 
     @@media (max-width: 576px) {
@@ -539,14 +436,6 @@ else
         .editor-topbar {
             align-items: stretch;
             flex-direction: column;
-        }
-
-        .editor-tabs {
-            width: 100%;
-        }
-
-        .editor-tab {
-            flex: 1;
         }
 
         .editor-actions {
@@ -563,12 +452,6 @@ else
 @code {
     private const string ManualSourceName = "Manual section";
 
-    private enum ResumeEditorTab
-    {
-        Sections,
-        FullMarkdown
-    }
-
     private sealed record SectionTreeNode(ResumeSection Entry, int Depth, bool HasChildren);
 
     private readonly List<ResumeEntry> _resumeEntries = [];
@@ -576,7 +459,7 @@ else
     private readonly HashSet<string> _collapsedSectionKeys = [];
     private ResumeEntry? _selectedResumeEntry;
     private ResumeSection? _selectedEntry;
-    private ResumeEditorTab _activeEditorTab = ResumeEditorTab.Sections;
+    private MarkdownEditor? _fullResumeEditor;
     private bool _sessionResolved;
     private bool _isSaving;
     private string _wholeResumeMarkdown = string.Empty;
@@ -680,21 +563,26 @@ else
         return index < 0 ? 0 : index;
     }
 
-    private void SelectEntry(ResumeSection entry)
+    private async Task LocateSectionAsync(ResumeSection entry)
     {
         _message = string.Empty;
         _error = string.Empty;
         _selectedEntry = entry;
-        _activeEditorTab = ResumeEditorTab.Sections;
+
+        if (_fullResumeEditor is null)
+        {
+            return;
+        }
+
+        await _fullResumeEditor.FocusLineAsync(FindSectionHeadingLine(entry));
     }
 
-    private void CreateSection()
+    private void CreateResumeDraft()
     {
         _message = string.Empty;
         _error = string.Empty;
-        _activeEditorTab = ResumeEditorTab.Sections;
 
-        var targetResume = _selectedResumeEntry ?? new ResumeEntry
+        var targetResume = new ResumeEntry
         {
             Title = "Manual Resume",
             SourceFileName = ManualSourceName,
@@ -702,27 +590,25 @@ else
             TenantId = Session.Username ?? "default"
         };
 
-        if (_selectedResumeEntry is null)
-        {
-            _selectedResumeEntry = targetResume;
-            _resumeEntries.Insert(0, targetResume);
-        }
-
         var draft = new ResumeSection
         {
-            Title = "Untitled Section",
-            Content = "## Untitled Section\n\nDescribe your experience here.",
-            HeadingLevel = 2,
+            Title = "Untitled Resume",
+            Content = "Add the resume content here.",
+            HeadingLevel = 1,
             ResumeEntryId = targetResume.Id,
             ResumeEntry = targetResume,
-            SortOrder = _entries.Count == 0 ? 0 : _entries.Max(entry => entry.SortOrder) + 1,
+            SortOrder = 0,
             CreatedAt = DateTime.UtcNow,
             TenantId = targetResume.TenantId
         };
 
-        _entries.Insert(0, draft);
-        targetResume.Sections.Add(draft);
+        _selectedResumeEntry = targetResume;
         _selectedEntry = draft;
+        _entries.Clear();
+        _entries.Add(draft);
+        _collapsedSectionKeys.Clear();
+        _resumeEntries.Insert(0, targetResume);
+        targetResume.Sections.Add(draft);
         RefreshWholeResumeMarkdown();
     }
 
@@ -1012,18 +898,6 @@ else
             });
     }
 
-    private void SwitchEditorTab(ResumeEditorTab tab)
-    {
-        _message = string.Empty;
-        _error = string.Empty;
-        _activeEditorTab = tab;
-
-        if (tab == ResumeEditorTab.FullMarkdown)
-        {
-            RefreshWholeResumeMarkdown();
-        }
-    }
-
     private IReadOnlyList<SectionTreeNode> GetVisibleSectionNodes()
     {
         var orderedEntries = _entries
@@ -1115,14 +989,77 @@ else
             : $"draft:{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(entry)}";
     }
 
-    private string GetEditorTabClass(ResumeEditorTab tab)
-    {
-        return _activeEditorTab == tab ? "active" : string.Empty;
-    }
-
     private void RefreshWholeResumeMarkdown()
     {
         _wholeResumeMarkdown = BuildResumeMarkdown(_entries);
+    }
+
+    private int FindSectionHeadingLine(ResumeSection entry)
+    {
+        var normalizedMarkdown = (_wholeResumeMarkdown ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
+        var lines = normalizedMarkdown.Split('\n');
+        var targetTitle = GetSectionDisplayTitle(entry);
+        var targetHeadingLevel = Math.Clamp(entry.HeadingLevel, 1, 6);
+        var orderedEntries = _entries
+            .OrderBy(section => section.SortOrder)
+            .ThenBy(section => section.Id)
+            .ToList();
+        var sameHeadingOrdinal = orderedEntries
+            .TakeWhile(section => !ReferenceEquals(section, entry))
+            .Count(section =>
+                Math.Clamp(section.HeadingLevel, 1, 6) == targetHeadingLevel &&
+                string.Equals(GetSectionDisplayTitle(section), targetTitle, StringComparison.OrdinalIgnoreCase));
+
+        var matchingHeadingOrdinal = 0;
+        var headingLineIndexes = new List<int>();
+        var titleOnlyLineIndex = -1;
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (!TryParseMarkdownHeading(lines[index], out var title, out var headingLevel))
+            {
+                continue;
+            }
+
+            headingLineIndexes.Add(index);
+
+            if (!string.Equals(title, targetTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (titleOnlyLineIndex < 0)
+            {
+                titleOnlyLineIndex = index;
+            }
+
+            if (headingLevel != targetHeadingLevel)
+            {
+                continue;
+            }
+
+            if (matchingHeadingOrdinal == sameHeadingOrdinal)
+            {
+                return index;
+            }
+
+            matchingHeadingOrdinal++;
+        }
+
+        if (titleOnlyLineIndex >= 0)
+        {
+            return titleOnlyLineIndex;
+        }
+
+        var sectionIndex = orderedEntries.FindIndex(section => ReferenceEquals(section, entry));
+        if (sectionIndex >= 0 && headingLineIndexes.Count > 0)
+        {
+            return headingLineIndexes[Math.Min(sectionIndex, headingLineIndexes.Count - 1)];
+        }
+
+        return 0;
     }
 
     private static string BuildResumeMarkdown(IEnumerable<ResumeSection> sections)

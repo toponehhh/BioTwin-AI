@@ -242,6 +242,19 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    public async Task FocusLineAsync(int zeroBasedLineNumber)
+    {
+        if (!_initialized)
+        {
+            return;
+        }
+
+        await JS.InvokeVoidAsync(
+            "bioTwinMarkdownEditor.focusLine",
+            _editorId,
+            Math.Max(0, zeroBasedLineNumber));
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_initialized)

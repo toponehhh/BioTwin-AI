@@ -126,6 +126,32 @@
             }
         },
 
+        focusLine(id, lineNumber) {
+            const state = editors.get(id);
+            const targetLine = Math.max(0, Number(lineNumber) || 0);
+            if (!state) {
+                const element = document.getElementById(id);
+                if (!element) {
+                    return;
+                }
+
+                const lines = element.value.split(/\r\n|\r|\n/);
+                const safeLine = Math.min(targetLine, Math.max(0, lines.length - 1));
+                const offset = lines.slice(0, safeLine).reduce((total, line) => total + line.length + 1, 0);
+                element.focus();
+                element.setSelectionRange(offset, offset);
+                const lineHeight = Number.parseFloat(window.getComputedStyle(element).lineHeight) || 22;
+                element.scrollTop = Math.max(0, safeLine * lineHeight - element.clientHeight / 3);
+                return;
+            }
+
+            const cm = state.editor.codemirror;
+            const safeLine = Math.min(targetLine, Math.max(0, cm.lineCount() - 1));
+            cm.focus();
+            cm.setCursor({ line: safeLine, ch: 0 });
+            cm.scrollIntoView({ line: safeLine, ch: 0 }, 96);
+        },
+
         dispose(id) {
             const state = editors.get(id);
             if (!state) {
