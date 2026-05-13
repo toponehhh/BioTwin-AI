@@ -8,6 +8,7 @@
 @inject CurrentUserSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ResumePdfExportService PdfExportService
 
 @if (!_sessionResolved)
 {
@@ -37,6 +38,9 @@ else
                 <button class="btn btn-primary" @onclick="DownloadMarkdownAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">
                     Download Markdown
                 </button>
+                <button class="btn btn-outline-primary" @onclick="DownloadPdfAsync" disabled="@(string.IsNullOrWhiteSpace(_markdown) || _isExportingPdf)">
+                    @(_isExportingPdf ? "Preparing PDF..." : "Download PDF")
+                </button>
                 <button class="btn btn-outline-primary" @onclick="DownloadOriginalFileAsync" disabled="@(_selectedResume?.HasOriginalFile != true)">
                     Download Original File
                 </button>
@@ -46,6 +50,10 @@ else
         @if (!string.IsNullOrWhiteSpace(_message))
         {
             <div class="alert alert-success">@_message</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
         }
 
         @if (_resumeOptions.Count == 0)
@@ -89,8 +97,10 @@ else
 
 @code {
     private bool _sessionResolved;
+    private bool _isExportingPdf;
     private string _markdown = string.Empty;
     private string _message = string.Empty;
+    private string _error = string.Empty;
     private int? _selectedResumeEntryId;
     private List<ResumeExportOption> _resumeOptions = new();
     private ResumeExportOption? _selectedResume => _resumeOptions.FirstOrDefault(x => x.Id == _selectedResumeEntryId);
@@ -200,6 +210,7 @@ else
     private async Task CopyAllAsync()
     {
         _message = string.Empty;
+        _error = string.Empty;
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", _markdown);
         _message = "Markdown copied to clipboard.";
     }
@@ -207,14 +218,45 @@ else
     private async Task DownloadMarkdownAsync()
     {
         _message = string.Empty;
+        _error = string.Empty;
         var fileName = $"{BuildSafeFileName(GetSelectedResumeTitle())}.md";
         await DownloadBytesAsync(fileName, "text/markdown;charset=utf-8", Encoding.UTF8.GetBytes(_markdown));
         _message = "Markdown download started.";
     }
 
+    private async Task DownloadPdfAsync()
+    {
+        _message = string.Empty;
+        _error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_markdown))
+        {
+            _error = "Markdown content is required before exporting PDF.";
+            return;
+        }
+
+        try
+        {
+            _isExportingPdf = true;
+            var fileName = $"{BuildSafeFileName(GetSelectedResumeTitle())}.pdf";
+            var pdfBytes = await Task.Run(() => PdfExportService.GeneratePdf(_markdown, GetSelectedResumeTitle()));
+            await DownloadBytesAsync(fileName, "application/pdf", pdfBytes);
+            _message = "PDF download started.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to export PDF: {ex.Message}";
+        }
+        finally
+        {
+            _isExportingPdf = false;
+        }
+    }
+
     private async Task DownloadOriginalFileAsync()
     {
         _message = string.Empty;
+        _error = string.Empty;
 
         if (_selectedResumeEntryId is null)
         {
@@ -262,6 +304,7 @@ else
     {
         _markdown = value;
         _message = string.Empty;
+        _error = string.Empty;
         return Task.CompletedTask;
     }
 

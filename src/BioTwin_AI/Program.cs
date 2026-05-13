@@ -2,8 +2,11 @@ using BioTwin_AI.Components;
 using BioTwin_AI.Data;
 using BioTwin_AI.Services;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -49,6 +52,7 @@ builder.Services.AddHttpClient<ResumeMarkdownRefinementService>((provider, clien
     var timeoutSeconds = configuration.GetValue("ResumeMarkdownRefinement:TimeoutSeconds", 300);
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
+builder.Services.AddScoped<ResumePdfExportService>();
 
 // Configure HTTP client for All2MD service
 builder.Services.AddHttpClient<ResumeUploadService>((provider, client) =>
