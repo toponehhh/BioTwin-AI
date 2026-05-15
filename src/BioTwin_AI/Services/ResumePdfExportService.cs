@@ -3,6 +3,7 @@ using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using Microsoft.Extensions.Localization;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -11,18 +12,32 @@ namespace BioTwin_AI.Services;
 
 public sealed class ResumePdfExportService
 {
+    private readonly IStringLocalizer<SharedResource>? _localizer;
+
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .Build();
+
+    public ResumePdfExportService()
+        : this(null)
+    {
+    }
+
+    public ResumePdfExportService(IStringLocalizer<SharedResource>? localizer)
+    {
+        _localizer = localizer;
+    }
 
     public byte[] GeneratePdf(string markdown, string title)
     {
         if (string.IsNullOrWhiteSpace(markdown))
         {
-            throw new ArgumentException("Markdown content is required.", nameof(markdown));
+            throw new ArgumentException(T("MarkdownContentRequired", "Markdown content is required."), nameof(markdown));
         }
 
-        var documentTitle = string.IsNullOrWhiteSpace(title) ? "Resume" : title.Trim();
+        var documentTitle = string.IsNullOrWhiteSpace(title) ? T("DefaultResumeTitle", "Resume") : title.Trim();
+        var pageLabel = T("PdfPageLabel", "Page ");
+        var pageOfLabel = T("PdfPageOfLabel", " of ");
         var markdownDocument = Markdown.Parse(markdown, Pipeline);
 
         return Document.Create(container =>
@@ -59,9 +74,9 @@ public sealed class ResumePdfExportService
                     .AlignCenter()
                     .Text(text =>
                     {
-                        text.Span("Page ").FontSize(8).FontColor(Colors.Grey.Medium);
+                        text.Span(pageLabel).FontSize(8).FontColor(Colors.Grey.Medium);
                         text.CurrentPageNumber().FontSize(8).FontColor(Colors.Grey.Medium);
-                        text.Span(" of ").FontSize(8).FontColor(Colors.Grey.Medium);
+                        text.Span(pageOfLabel).FontSize(8).FontColor(Colors.Grey.Medium);
                         text.TotalPages().FontSize(8).FontColor(Colors.Grey.Medium);
                     });
             });
@@ -362,5 +377,10 @@ public sealed class ResumePdfExportService
         {
             AppendInlineText(builder, child);
         }
+    }
+
+    private string T(string key, string fallback)
+    {
+        return _localizer?[key].Value ?? fallback;
     }
 }

@@ -2,6 +2,7 @@ using BioTwin_AI.Data;
 using BioTwin_AI.Models;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -36,6 +37,7 @@ namespace BioTwin_AI.Services
         private readonly ResumeMarkdownRefinementService _markdownRefinementService;
         private readonly HttpClient _httpClient;
         private readonly ILogger<ResumeUploadService> _logger;
+        private readonly IStringLocalizer<SharedResource> _localizer;
         private readonly string _all2mdApiUrl;
         private readonly CurrentUserSession _session;
 
@@ -46,6 +48,7 @@ namespace BioTwin_AI.Services
             HttpClient httpClient,
             ILogger<ResumeUploadService> logger,
             CurrentUserSession session,
+            IStringLocalizer<SharedResource> localizer,
             IConfiguration config)
         {
             _dbContext = dbContext;
@@ -53,6 +56,7 @@ namespace BioTwin_AI.Services
             _markdownRefinementService = markdownRefinementService;
             _httpClient = httpClient;
             _logger = logger;
+            _localizer = localizer;
             _all2mdApiUrl = config["All2MD:ApiUrl"] ?? "http://localhost:8000";
             _session = session;
         }
@@ -61,7 +65,7 @@ namespace BioTwin_AI.Services
         {
             if (!_session.IsAuthenticated || string.IsNullOrWhiteSpace(_session.Username))
             {
-                throw new InvalidOperationException("Please sign in first.");
+                throw new InvalidOperationException(T("PleaseSignInFirst"));
             }
 
             return _session.Username;
@@ -117,7 +121,7 @@ namespace BioTwin_AI.Services
             try
             {
                 _logger.LogInformation("Processing resume file: {FileName}", file.Name);
-                await ReportProgressAsync(progress, $"Reading uploaded file: {file.Name}");
+                await ReportProgressAsync(progress, T("ReadingUploadedFile", file.Name));
 
                 using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
                 using var memoryStream = new MemoryStream();
@@ -127,7 +131,7 @@ namespace BioTwin_AI.Services
                 var existingEntry = await FindExistingResumeByHashAsync(fileHash);
                 if (existingEntry is not null)
                 {
-                    await ReportProgressAsync(progress, $"This file already exists as {existingEntry.SourceFileName}. Skipping conversion and upload.");
+                    await ReportProgressAsync(progress, T("ThisFileAlreadyExists", existingEntry.SourceFileName));
                     var existingMarkdown = await BuildMarkdownForEntryAsync(existingEntry.Id);
                     return new ConvertedResumeFile(
                         existingMarkdown,
@@ -141,9 +145,9 @@ namespace BioTwin_AI.Services
                         existingEntry.Title);
                 }
 
-                await ReportProgressAsync(progress, $"Converting {GetFileKind(file.Name)} to Markdown. This can take a few minutes...");
+                await ReportProgressAsync(progress, T("ConvertingFileToMarkdown", GetFileKind(file.Name)));
                 var markdownContent = await ConvertToMarkdownAsync(file.Name, fileBytes, progress);
-                await ReportProgressAsync(progress, "Markdown conversion completed. Refining section structure...");
+                await ReportProgressAsync(progress, T("MarkdownConversionCompleted"));
                 markdownContent = await _markdownRefinementService.RefineAsync(
                     markdownContent,
                     Path.GetFileNameWithoutExtension(file.Name),
@@ -193,18 +197,18 @@ namespace BioTwin_AI.Services
                     var existingSections = await LoadExistingSectionsByHashAsync(sourceFileHash, tenantId);
                     if (existingSections.Count > 0)
                     {
-                        await ReportProgressAsync(progress, "This file was already uploaded. Checking existing section embeddings...");
+                        await ReportProgressAsync(progress, T("AlreadyUploadedCheckingEmbeddings"));
                         await EnsureSectionEmbeddingsAsync(existingSections, sourceFileName, progress);
                         await _dbContext.SaveChangesAsync();
-                        await ReportProgressAsync(progress, "Reusing the existing indexed resume.");
+                        await ReportProgressAsync(progress, T("ReusingExistingIndexedResume"));
                         return existingSections;
                     }
                 }
 
-                await ReportProgressAsync(progress, "Splitting Markdown content into sections...");
-                var sections = SplitResumeMarkdown(markdownContent, fallbackTitle);
+                await ReportProgressAsync(progress, T("SplittingMarkdownContent"));
+                var sections = SplitResumeMarkdown(markdownContent, fallbackTitle, T("DefaultResumeTitle"));
                 var createdAt = DateTime.UtcNow;
-                await ReportProgressAsync(progress, $"Markdown was split into {sections.Count} section(s). Saving original resume file...");
+                await ReportProgressAsync(progress, T("MarkdownSplitSavingOriginal", sections.Count));
 
                 var resumeEntry = new ResumeEntry
                 {
@@ -221,7 +225,7 @@ namespace BioTwin_AI.Services
                 _dbContext.ResumeEntries.Add(resumeEntry);
                 await _dbContext.SaveChangesAsync();
 
-                await ReportProgressAsync(progress, "Original resume file saved. Writing sections...");
+                await ReportProgressAsync(progress, T("OriginalResumeSavedWritingSections"));
                 var sectionEntries = sections
                     .Select((section, index) => new ResumeSection
                     {
@@ -253,7 +257,7 @@ namespace BioTwin_AI.Services
                 await EnsureSectionEmbeddingsAsync(sectionEntries, sourceFileName, progress);
                 await _dbContext.SaveChangesAsync();
 
-                await ReportProgressAsync(progress, $"Done. Saved and indexed {sectionEntries.Count} section(s).");
+                await ReportProgressAsync(progress, T("DoneSavedIndexedSections", sectionEntries.Count));
                 _logger.LogInformation("Saved {Count} resume sections from {SourceFile}", sectionEntries.Count, sourceFileName);
                 return sectionEntries;
             }
@@ -282,18 +286,18 @@ namespace BioTwin_AI.Services
 
                 if (resumeEntry is null)
                 {
-                    throw new InvalidOperationException("The selected resume could not be found.");
+                    throw new InvalidOperationException(T("SelectedResumeCouldNotBeFound"));
                 }
 
-                await ReportProgressAsync(progress, "Splitting updated Markdown content into sections...");
-                var sections = SplitResumeMarkdown(markdownContent, fallbackTitle);
+                await ReportProgressAsync(progress, T("SplittingUpdatedMarkdownContent"));
+                var sections = SplitResumeMarkdown(markdownContent, fallbackTitle, T("DefaultResumeTitle"));
                 var createdAt = DateTime.UtcNow;
 
                 resumeEntry.Title = string.IsNullOrWhiteSpace(fallbackTitle)
                     ? resumeEntry.Title
                     : fallbackTitle.Trim();
 
-                await ReportProgressAsync(progress, "Replacing existing sections...");
+                await ReportProgressAsync(progress, T("ReplacingExistingSections"));
                 _dbContext.ResumeSections.RemoveRange(resumeEntry.Sections);
                 await _dbContext.SaveChangesAsync();
                 resumeEntry.Sections.Clear();
@@ -329,7 +333,7 @@ namespace BioTwin_AI.Services
                 await EnsureSectionEmbeddingsAsync(sectionEntries, resumeEntry.SourceFileName, progress);
                 await _dbContext.SaveChangesAsync();
 
-                await ReportProgressAsync(progress, $"Done. Updated and indexed {sectionEntries.Count} section(s).");
+                await ReportProgressAsync(progress, T("DoneUpdatedIndexedSections", sectionEntries.Count));
                 _logger.LogInformation("Replaced {Count} resume sections for entry {ResumeEntryId}", sectionEntries.Count, resumeEntry.Id);
                 return sectionEntries;
             }
@@ -455,7 +459,7 @@ namespace BioTwin_AI.Services
                     continue;
                 }
 
-                await ReportProgressAsync(progress, $"Processing section {i + 1} / {sectionEntries.Count}: {sectionEntry.Title}");
+                await ReportProgressAsync(progress, T("ProcessingSectionStatus", i + 1, sectionEntries.Count, sectionEntry.Title));
                 sectionEntry.EmbeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(
                     sectionEntry.Content,
                     new Dictionary<string, string>
@@ -509,7 +513,7 @@ namespace BioTwin_AI.Services
                 return jobResult;
             }
 
-            await ReportProgressAsync(progress, "All2MD progress API is not available. Falling back to synchronous conversion...");
+            await ReportProgressAsync(progress, T("All2MdFallback"));
             return await ConvertToMarkdownSynchronouslyAsync(filename, fileBytes);
         }
 
@@ -530,22 +534,22 @@ namespace BioTwin_AI.Services
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
-                throw new HttpRequestException($"All2MD job start failed: {response.StatusCode} - {error}");
+                throw new HttpRequestException(T("All2MdJobStartFailed", response.StatusCode, error));
             }
 
             using var startDoc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             if (!startDoc.RootElement.TryGetProperty("job_id", out var jobIdProp))
             {
-                throw new InvalidOperationException("All2MD job response did not include a job_id.");
+                throw new InvalidOperationException(T("All2MdJobResponseMissingJobId"));
             }
 
             var jobId = jobIdProp.GetString();
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                throw new InvalidOperationException("All2MD returned an empty job_id.");
+                throw new InvalidOperationException(T("All2MdReturnedEmptyJobId"));
             }
 
-            await ReportProgressAsync(progress, $"All2MD job queued: {jobId}");
+            await ReportProgressAsync(progress, T("All2MdJobQueued", jobId));
 
             while (true)
             {
@@ -554,7 +558,7 @@ namespace BioTwin_AI.Services
                 if (!statusResponse.IsSuccessStatusCode)
                 {
                     var error = await statusResponse.Content.ReadAsStringAsync();
-                    throw new HttpRequestException($"All2MD job status failed: {statusResponse.StatusCode} - {error}");
+                    throw new HttpRequestException(T("All2MdJobStatusFailed", statusResponse.StatusCode, error));
                 }
 
                 using var statusDoc = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync());
@@ -564,12 +568,13 @@ namespace BioTwin_AI.Services
                     : "unknown";
                 var message = root.TryGetProperty("message", out var messageProp)
                     ? messageProp.GetString()
-                    : "Converting document";
+                    : T("All2MdConvertingDocument");
+                message ??= T("All2MdConvertingDocument");
                 var percent = root.TryGetProperty("progress", out var progressProp)
                     ? progressProp.GetInt32()
                     : 0;
 
-                await ReportProgressAsync(progress, $"All2MD: {message} ({percent}%)");
+                await ReportProgressAsync(progress, T("All2MdStatus", message, percent));
 
                 if (string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
                 {
@@ -579,7 +584,7 @@ namespace BioTwin_AI.Services
                         return contentProp.GetString() ?? string.Empty;
                     }
 
-                    throw new InvalidOperationException("All2MD job completed without Markdown content.");
+                    throw new InvalidOperationException(T("All2MdCompletedWithoutContent"));
                 }
 
                 if (string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase))
@@ -587,7 +592,7 @@ namespace BioTwin_AI.Services
                     var error = root.TryGetProperty("error", out var errorProp)
                         ? errorProp.GetString()
                         : message;
-                    throw new InvalidOperationException($"All2MD conversion failed: {error}");
+                    throw new InvalidOperationException(T("All2MdConversionFailed", error ?? message));
                 }
             }
         }
@@ -601,12 +606,12 @@ namespace BioTwin_AI.Services
             {
                 var error = await response.Content.ReadAsStringAsync();
                 _logger.LogWarning("All2MD API error: {StatusCode} - {Error}", response.StatusCode, error);
-                throw new HttpRequestException($"All2MD conversion failed: {response.StatusCode}");
+                throw new HttpRequestException(T("All2MdConversionFailed", response.StatusCode));
             }
 
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             return doc.RootElement.TryGetProperty("content", out var contentProp)
-                ? contentProp.GetString() ?? "# Document\n\nConversion failed to extract content."
+                ? contentProp.GetString() ?? T("DocumentConversionFallback")
                 : doc.RootElement.GetRawText();
         }
 
@@ -619,9 +624,12 @@ namespace BioTwin_AI.Services
             return content;
         }
 
-        public static List<ResumeMarkdownSection> SplitResumeMarkdown(string markdownContent, string fallbackTitle)
+        public static List<ResumeMarkdownSection> SplitResumeMarkdown(
+            string markdownContent,
+            string fallbackTitle,
+            string defaultFallbackTitle = "Resume")
         {
-            var fallback = string.IsNullOrWhiteSpace(fallbackTitle) ? "Resume" : fallbackTitle.Trim();
+            var fallback = string.IsNullOrWhiteSpace(fallbackTitle) ? defaultFallbackTitle : fallbackTitle.Trim();
             var normalized = (markdownContent ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
 
             if (string.IsNullOrWhiteSpace(normalized))
@@ -714,7 +722,7 @@ namespace BioTwin_AI.Services
             return progress is null ? Task.CompletedTask : progress(message);
         }
 
-        private static string GetFileKind(string fileName)
+        private string GetFileKind(string fileName)
         {
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
             return extension switch
@@ -724,8 +732,18 @@ namespace BioTwin_AI.Services
                 ".pptx" => "PPTX",
                 ".html" or ".htm" => "HTML",
                 ".txt" => "TXT",
-                _ => "file"
+                _ => T("FileKindFile")
             };
+        }
+
+        private string T(string key)
+        {
+            return _localizer[key].Value;
+        }
+
+        private string T(string key, params object[] arguments)
+        {
+            return _localizer[key, arguments].Value;
         }
 
         /// <summary>

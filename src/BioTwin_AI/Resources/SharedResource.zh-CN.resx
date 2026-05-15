@@ -1,0 +1,647 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AddResumeContentHere" xml:space="preserve">
+    <value>在这里添加简历内容。</value>
+  </data>
+  <data name="AddSection" xml:space="preserve">
+    <value>添加分节</value>
+  </data>
+  <data name="AIChat" xml:space="preserve">
+    <value>AI 聊天</value>
+  </data>
+  <data name="AIInterviewAssistant" xml:space="preserve">
+    <value>AI 面试助手</value>
+  </data>
+  <data name="AIThinking" xml:space="preserve">
+    <value>AI 正在思考</value>
+  </data>
+  <data name="AlreadyUploadedTitle" xml:space="preserve">
+    <value>已上传。</value>
+  </data>
+  <data name="AskMeAboutMyExperience" xml:space="preserve">
+    <value>询问我的经历</value>
+  </data>
+  <data name="AskQuestionPlaceholder" xml:space="preserve">
+    <value>问我一个问题...</value>
+  </data>
+  <data name="BackToChat" xml:space="preserve">
+    <value>返回聊天</value>
+  </data>
+  <data name="BrowseSearchAllCandidateResumes" xml:space="preserve">
+    <value>浏览并搜索所有候选人简历</value>
+  </data>
+  <data name="CandidateLabel" xml:space="preserve">
+    <value>候选人：{0}</value>
+  </data>
+  <data name="ClickMe" xml:space="preserve">
+    <value>点我</value>
+  </data>
+  <data name="CollapseNavigation" xml:space="preserve">
+    <value>收起导航</value>
+  </data>
+  <data name="CollapseSection" xml:space="preserve">
+    <value>收起分节</value>
+  </data>
+  <data name="ConversionFailed" xml:space="preserve">
+    <value>转换失败：{0}</value>
+  </data>
+  <data name="ConversionTimedOut" xml:space="preserve">
+    <value>转换失败：All2MD 转换超时。详情：{0}</value>
+  </data>
+  <data name="ConvertedMarkdown" xml:space="preserve">
+    <value>转换后的 Markdown</value>
+  </data>
+  <data name="ConvertedMarkdownPlaceholder" xml:space="preserve">
+    <value>转换后的 Markdown 将显示在这里...</value>
+  </data>
+  <data name="ConvertToMarkdown" xml:space="preserve">
+    <value>转换为 Markdown</value>
+  </data>
+  <data name="CopyMarkdown" xml:space="preserve">
+    <value>复制 Markdown</value>
+  </data>
+  <data name="CopySuffix" xml:space="preserve">
+    <value>副本</value>
+  </data>
+  <data name="Counter" xml:space="preserve">
+    <value>计数器</value>
+  </data>
+  <data name="CreateAccount" xml:space="preserve">
+    <value>创建账号</value>
+  </data>
+  <data name="CurrentCount" xml:space="preserve">
+    <value>当前计数：{0}</value>
+  </data>
+  <data name="DefaultResumeTitle" xml:space="preserve">
+    <value>简历</value>
+  </data>
+  <data name="DetectedMarkdownSectionTree" xml:space="preserve">
+    <value>检测到的 Markdown 分节树</value>
+  </data>
+  <data name="DetectedSectionTree" xml:space="preserve">
+    <value>检测到的分节树</value>
+  </data>
+  <data name="DevelopmentMode" xml:space="preserve">
+    <value>开发模式</value>
+  </data>
+  <data name="DevelopmentModeDetails" xml:space="preserve">
+    <value>切换到 Development 环境会显示此错误的更多详细信息。</value>
+  </data>
+  <data name="DevelopmentModeWarning" xml:space="preserve">
+    <value>已部署应用不应启用 Development 环境，因为这可能会向最终用户显示异常中的敏感信息。本地调试时，请将 ASPNETCORE_ENVIRONMENT 环境变量设置为 Development，然后重启应用。</value>
+  </data>
+  <data name="DownloadMarkdown" xml:space="preserve">
+    <value>下载 Markdown</value>
+  </data>
+  <data name="DownloadOriginalFile" xml:space="preserve">
+    <value>下载原始文件</value>
+  </data>
+  <data name="DownloadPdf" xml:space="preserve">
+    <value>下载 PDF</value>
+  </data>
+  <data name="DuplicatePreviewSummary" xml:space="preserve">
+    <value>此文件已保存。可以编辑 Markdown，并在准备好后更新分节。</value>
+  </data>
+  <data name="DuplicateResumeLoaded" xml:space="preserve">
+    <value>所选文件匹配已有简历 #{0}。已载入保存的标题和 Markdown 供编辑。</value>
+  </data>
+  <data name="DuplicateStatus" xml:space="preserve">
+    <value>检测到重复文件。已复用现有简历。</value>
+  </data>
+  <data name="EditFullMarkdownBeforeCopy" xml:space="preserve">
+    <value>复制前可以编辑生成的 Markdown。</value>
+  </data>
+  <data name="EditingResume" xml:space="preserve">
+    <value>正在编辑 {0}</value>
+  </data>
+  <data name="EditorSelectResumeBody" xml:space="preserve">
+    <value>请先从左侧面板选择一份简历，再编辑完整 Markdown。</value>
+  </data>
+  <data name="EmptyModelResponse" xml:space="preserve">
+    <value>模型返回了空响应。</value>
+  </data>
+  <data name="EnterAsInterviewer" xml:space="preserve">
+    <value>以面试官身份进入</value>
+  </data>
+  <data name="EnterPassword" xml:space="preserve">
+    <value>输入密码</value>
+  </data>
+  <data name="EnterUsername" xml:space="preserve">
+    <value>输入用户名</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>错误</value>
+  </data>
+  <data name="ErrorHeading" xml:space="preserve">
+    <value>错误。</value>
+  </data>
+  <data name="ErrorPrefix" xml:space="preserve">
+    <value>错误：{0}</value>
+  </data>
+  <data name="ErrorProcessingRequest" xml:space="preserve">
+    <value>处理请求时发生错误。</value>
+  </data>
+  <data name="ExpandNavigation" xml:space="preserve">
+    <value>展开导航</value>
+  </data>
+  <data name="ExpandSection" xml:space="preserve">
+    <value>展开分节</value>
+  </data>
+  <data name="ExportMarkdown" xml:space="preserve">
+    <value>导出 Markdown</value>
+  </data>
+  <data name="ExportMarkdownPlaceholder" xml:space="preserve">
+    <value>简历 Markdown 将显示在这里...</value>
+  </data>
+  <data name="ExportResume" xml:space="preserve">
+    <value>导出简历</value>
+  </data>
+  <data name="FailedToExportPdf" xml:space="preserve">
+    <value>导出 PDF 失败：{0}</value>
+  </data>
+  <data name="FailedToRejoin" xml:space="preserve">
+    <value>重新连接失败。请重试或刷新页面。</value>
+  </data>
+  <data name="FailedToResume" xml:space="preserve">
+    <value>恢复会话失败。请重试或刷新页面。</value>
+  </data>
+  <data name="FullResumeMarkdown" xml:space="preserve">
+    <value>完整简历 Markdown</value>
+  </data>
+  <data name="FullResumeMarkdownPlaceholder" xml:space="preserve">
+    <value>在 Markdown 中编辑整份简历...</value>
+  </data>
+  <data name="FullResumeMarkdownRequired" xml:space="preserve">
+    <value>完整简历 Markdown 不能为空。</value>
+  </data>
+  <data name="GoToLogin" xml:space="preserve">
+    <value>去登录</value>
+  </data>
+  <data name="HelloWorld" xml:space="preserve">
+    <value>你好，世界！</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>首页</value>
+  </data>
+  <data name="ImportedFrom" xml:space="preserve">
+    <value>导入自 {0}</value>
+  </data>
+  <data name="InterviewAssistant" xml:space="preserve">
+    <value>面试助手</value>
+  </data>
+  <data name="Interviewer" xml:space="preserve">
+    <value>面试官</value>
+  </data>
+  <data name="InterviewerMode" xml:space="preserve">
+    <value>面试官模式</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="LanguageSimplifiedChinese" xml:space="preserve">
+    <value>简体中文</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>加载中...</value>
+  </data>
+  <data name="LoadingSession" xml:space="preserve">
+    <value>正在加载会话...</value>
+  </data>
+  <data name="Login" xml:space="preserve">
+    <value>登录</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>退出登录</value>
+  </data>
+  <data name="ManualResume" xml:space="preserve">
+    <value>手动简历</value>
+  </data>
+  <data name="ManualSectionSourceName" xml:space="preserve">
+    <value>手动分节</value>
+  </data>
+  <data name="MarkdownCopiedToClipboard" xml:space="preserve">
+    <value>Markdown 已复制到剪贴板。</value>
+  </data>
+  <data name="MarkdownContent" xml:space="preserve">
+    <value>Markdown 内容</value>
+  </data>
+  <data name="MarkdownContentRequired" xml:space="preserve">
+    <value>Markdown 内容不能为空。</value>
+  </data>
+  <data name="MarkdownContentRequiredBeforePdf" xml:space="preserve">
+    <value>导出 PDF 前需要先提供 Markdown 内容。</value>
+  </data>
+  <data name="MarkdownDownloadStarted" xml:space="preserve">
+    <value>Markdown 下载已开始。</value>
+  </data>
+  <data name="MarkdownEditorMeta" xml:space="preserve">
+    <value>{0} 行 / {1} 个字符</value>
+  </data>
+  <data name="MarkdownSplitReview" xml:space="preserve">
+    <value>Markdown 已拆分为 {0} 个分节。保存前请先检查。</value>
+  </data>
+  <data name="NavigationMenu" xml:space="preserve">
+    <value>导航菜单</value>
+  </data>
+  <data name="NewResume" xml:space="preserve">
+    <value>新建简历</value>
+  </data>
+  <data name="NoOriginalUploadedFileStored" xml:space="preserve">
+    <value>这份简历没有存储原始上传文件。</value>
+  </data>
+  <data name="NoResumesFoundUploadFirst" xml:space="preserve">
+    <value>未找到简历。请先上传内容。</value>
+  </data>
+  <data name="NoResumesYet" xml:space="preserve">
+    <value>还没有简历</value>
+  </data>
+  <data name="NoResumesYetBody" xml:space="preserve">
+    <value>上传简历文件或创建手动简历即可开始。</value>
+  </data>
+  <data name="NoResumeSectionsForSelectedResume" xml:space="preserve">
+    <value>所选简历没有分节。</value>
+  </data>
+  <data name="NoResumeSectionsUploadedYet" xml:space="preserve">
+    <value>还没有上传任何简历分节。</value>
+  </data>
+  <data name="NoResumeSelected" xml:space="preserve">
+    <value>未选择简历</value>
+  </data>
+  <data name="NoSectionsInResume" xml:space="preserve">
+    <value>这份简历还没有分节</value>
+  </data>
+  <data name="NoSectionsInResumeBody" xml:space="preserve">
+    <value>编辑完整 Markdown 并保存后会重建导航。</value>
+  </data>
+  <data name="NotFound" xml:space="preserve">
+    <value>未找到</value>
+  </data>
+  <data name="NotFoundMessage" xml:space="preserve">
+    <value>抱歉，你要找的内容不存在。</value>
+  </data>
+  <data name="OriginalFileDownloadStarted" xml:space="preserve">
+    <value>原始文件下载已开始。</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>密码</value>
+  </data>
+  <data name="PdfDownloadStarted" xml:space="preserve">
+    <value>PDF 下载已开始。</value>
+  </data>
+  <data name="PdfPageLabel" xml:space="preserve">
+    <value>第 </value>
+  </data>
+  <data name="PdfPageOfLabel" xml:space="preserve">
+    <value> / </value>
+  </data>
+  <data name="PleaseEnterResumeTitle" xml:space="preserve">
+    <value>请输入简历标题</value>
+  </data>
+  <data name="PleaseSelectFile" xml:space="preserve">
+    <value>请选择文件</value>
+  </data>
+  <data name="PleaseSignInChatResume" xml:space="preserve">
+    <value>请先登录以访问聊天和简历数据。</value>
+  </data>
+  <data name="PleaseSignInFirst" xml:space="preserve">
+    <value>请先登录。</value>
+  </data>
+  <data name="PleaseSignInUpload" xml:space="preserve">
+    <value>请先登录以上传简历分节。</value>
+  </data>
+  <data name="PreparingPdf" xml:space="preserve">
+    <value>正在准备 PDF...</value>
+  </data>
+  <data name="PreparingResumeUpload" xml:space="preserve">
+    <value>正在准备简历上传...</value>
+  </data>
+  <data name="ProcessingLabel" xml:space="preserve">
+    <value>处理中：{0}</value>
+  </data>
+  <data name="Register" xml:space="preserve">
+    <value>注册</value>
+  </data>
+  <data name="RejoinFailed" xml:space="preserve">
+    <value>重新连接失败...将在 {0} 秒后重试。</value>
+  </data>
+  <data name="RejoinFailedPrefix" xml:space="preserve">
+    <value>重新连接失败...将在</value>
+  </data>
+  <data name="RejoiningServer" xml:space="preserve">
+    <value>正在重新连接服务器...</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="RequestId" xml:space="preserve">
+    <value>请求 ID：</value>
+  </data>
+  <data name="ResumeAction" xml:space="preserve">
+    <value>恢复</value>
+  </data>
+  <data name="ResumeBuilder" xml:space="preserve">
+    <value>简历编辑器</value>
+  </data>
+  <data name="ResumeLabel" xml:space="preserve">
+    <value>简历</value>
+  </data>
+  <data name="ResumeCountSummary" xml:space="preserve">
+    <value>{0} 份简历 - {1} 个分节</value>
+  </data>
+  <data name="ResumeEdit" xml:space="preserve">
+    <value>编辑简历</value>
+  </data>
+  <data name="ResumeSearch" xml:space="preserve">
+    <value>简历搜索</value>
+  </data>
+  <data name="ResumeSectionTree" xml:space="preserve">
+    <value>简历分节树</value>
+  </data>
+  <data name="ResumeSections" xml:space="preserve">
+    <value>简历分节</value>
+  </data>
+  <data name="ResumesLabel" xml:space="preserve">
+    <value>简历</value>
+  </data>
+  <data name="ResumeSummary" xml:space="preserve">
+    <value>{0} 个{1} - {2}</value>
+  </data>
+  <data name="ResumeTitle" xml:space="preserve">
+    <value>简历标题</value>
+  </data>
+  <data name="ResumeTitlePlaceholder" xml:space="preserve">
+    <value>当转换后的 Markdown 没有分节标题时使用</value>
+  </data>
+  <data name="ResumeToExport" xml:space="preserve">
+    <value>要导出的简历</value>
+  </data>
+  <data name="ResumeUpload" xml:space="preserve">
+    <value>上传简历</value>
+  </data>
+  <data name="Retry" xml:space="preserve">
+    <value>重试</value>
+  </data>
+  <data name="ReviewConvertedContentSummary" xml:space="preserve">
+    <value>请检查并编辑转换后的内容。它将作为 {0} 个{1}保存到标题树中。</value>
+  </data>
+  <data name="SaveFailed" xml:space="preserve">
+    <value>保存失败：{0}</value>
+  </data>
+  <data name="SaveResume" xml:space="preserve">
+    <value>保存简历</value>
+  </data>
+  <data name="SaveSectionsIndex" xml:space="preserve">
+    <value>保存分节并索引</value>
+  </data>
+  <data name="SavedAndIndexedSections" xml:space="preserve">
+    <value>已保存并索引 {0} 个{1}。</value>
+  </data>
+  <data name="SavedFullResumeRebuiltSections" xml:space="preserve">
+    <value>已保存完整简历并重建 {0} 个{1}。</value>
+  </data>
+  <data name="SavedSection" xml:space="preserve">
+    <value>已保存分节“{0}”。</value>
+  </data>
+  <data name="Saving" xml:space="preserve">
+    <value>保存中...</value>
+  </data>
+  <data name="SearchAcrossAllCandidateResumes" xml:space="preserve">
+    <value>搜索所有候选人简历</value>
+  </data>
+  <data name="SearchCandidateResumesPlaceholder" xml:space="preserve">
+    <value>搜索候选人简历...</value>
+  </data>
+  <data name="SearchingResumesComposingAnswer" xml:space="preserve">
+    <value>正在检索简历并组织回答</value>
+  </data>
+  <data name="SectionDeleted" xml:space="preserve">
+    <value>分节已删除。</value>
+  </data>
+  <data name="SectionLabel" xml:space="preserve">
+    <value>分节</value>
+  </data>
+  <data name="SectionsLabel" xml:space="preserve">
+    <value>分节</value>
+  </data>
+  <data name="SectionsPluralLabel" xml:space="preserve">
+    <value>分节</value>
+  </data>
+  <data name="SecondsSuffix" xml:space="preserve">
+    <value>秒后重试。</value>
+  </data>
+  <data name="SelectAResume" xml:space="preserve">
+    <value>选择一份简历</value>
+  </data>
+  <data name="SelectFile" xml:space="preserve">
+    <value>选择文件</value>
+  </data>
+  <data name="SelectedFile" xml:space="preserve">
+    <value>已选择：{0}</value>
+  </data>
+  <data name="SelectResumeAria" xml:space="preserve">
+    <value>选择简历</value>
+  </data>
+  <data name="SelectResumeBeforeSavingFullMarkdown" xml:space="preserve">
+    <value>保存完整 Markdown 前请先选择一份简历。</value>
+  </data>
+  <data name="SelectResumeBeforeDuplicating" xml:space="preserve">
+    <value>复制分节前请先选择一份简历。</value>
+  </data>
+  <data name="SelectResumeBody" xml:space="preserve">
+    <value>选择要编辑的简历。</value>
+  </data>
+  <data name="Send" xml:space="preserve">
+    <value>发送</value>
+  </data>
+  <data name="SessionPaused" xml:space="preserve">
+    <value>服务器已暂停该会话。</value>
+  </data>
+  <data name="SignIn" xml:space="preserve">
+    <value>登录</value>
+  </data>
+  <data name="SorryAssistantError" xml:space="preserve">
+    <value>抱歉，处理你的问题时遇到了错误。</value>
+  </data>
+  <data name="SupportedFormats" xml:space="preserve">
+    <value>支持格式：PDF、DOCX、PPTX、HTML、TXT</value>
+  </data>
+  <data name="Thinking" xml:space="preserve">
+    <value>思考过程</value>
+  </data>
+  <data name="ThinkingButton" xml:space="preserve">
+    <value>思考中...</value>
+  </data>
+  <data name="UntitledResume" xml:space="preserve">
+    <value>未命名简历</value>
+  </data>
+  <data name="UntitledSection" xml:space="preserve">
+    <value>未命名分节</value>
+  </data>
+  <data name="UpdateSectionsReindex" xml:space="preserve">
+    <value>更新分节并重新索引</value>
+  </data>
+  <data name="UploadFile" xml:space="preserve">
+    <value>上传文件</value>
+  </data>
+  <data name="UploadOne" xml:space="preserve">
+    <value>上传一份</value>
+  </data>
+  <data name="UploadResume" xml:space="preserve">
+    <value>上传简历</value>
+  </data>
+  <data name="UploadSuccessTitle" xml:space="preserve">
+    <value>成功！</value>
+  </data>
+  <data name="Uploading" xml:space="preserve">
+    <value>上传中...</value>
+  </data>
+  <data name="UploadedAt" xml:space="preserve">
+    <value>{0} - 上传于 {1}</value>
+  </data>
+  <data name="Username" xml:space="preserve">
+    <value>用户名</value>
+  </data>
+  <data name="WelcomeNewApp" xml:space="preserve">
+    <value>欢迎使用你的新应用。</value>
+  </data>
+  <data name="WordLabel" xml:space="preserve">
+    <value>词</value>
+  </data>
+  <data name="WordsLabel" xml:space="preserve">
+    <value>词</value>
+  </data>
+  <data name="WriteMarkdownPlaceholder" xml:space="preserve">
+    <value>在这里编写 Markdown...</value>
+  </data>
+  <data name="Username and password are required." xml:space="preserve">
+    <value>用户名和密码不能为空。</value>
+  </data>
+  <data name="Username already exists." xml:space="preserve">
+    <value>用户名已存在。</value>
+  </data>
+  <data name="Registered and signed in successfully." xml:space="preserve">
+    <value>注册成功，已登录。</value>
+  </data>
+  <data name="Invalid username or password." xml:space="preserve">
+    <value>用户名或密码无效。</value>
+  </data>
+  <data name="Logged in successfully." xml:space="preserve">
+    <value>登录成功。</value>
+  </data>
+  <data name="All2MdConvertingDocument" xml:space="preserve">
+    <value>正在转换文档</value>
+  </data>
+  <data name="All2MdCompletedWithoutContent" xml:space="preserve">
+    <value>All2MD 任务已完成，但没有返回 Markdown 内容。</value>
+  </data>
+  <data name="All2MdConversionFailed" xml:space="preserve">
+    <value>All2MD 转换失败：{0}</value>
+  </data>
+  <data name="All2MdFallback" xml:space="preserve">
+    <value>All2MD 进度 API 不可用。正在回退到同步转换...</value>
+  </data>
+  <data name="All2MdJobResponseMissingJobId" xml:space="preserve">
+    <value>All2MD 任务响应未包含 job_id。</value>
+  </data>
+  <data name="All2MdJobQueued" xml:space="preserve">
+    <value>All2MD 任务已排队：{0}</value>
+  </data>
+  <data name="All2MdJobStartFailed" xml:space="preserve">
+    <value>All2MD 任务启动失败：{0} - {1}</value>
+  </data>
+  <data name="All2MdJobStatusFailed" xml:space="preserve">
+    <value>All2MD 任务状态查询失败：{0} - {1}</value>
+  </data>
+  <data name="All2MdReturnedEmptyJobId" xml:space="preserve">
+    <value>All2MD 返回了空的 job_id。</value>
+  </data>
+  <data name="All2MdStatus" xml:space="preserve">
+    <value>All2MD：{0}（{1}%）</value>
+  </data>
+  <data name="AlreadyUploadedCheckingEmbeddings" xml:space="preserve">
+    <value>此文件已上传。正在检查现有分节嵌入...</value>
+  </data>
+  <data name="ConvertingFileToMarkdown" xml:space="preserve">
+    <value>正在将 {0} 转换为 Markdown。这可能需要几分钟...</value>
+  </data>
+  <data name="DoneSavedIndexedSections" xml:space="preserve">
+    <value>完成。已保存并索引 {0} 个分节。</value>
+  </data>
+  <data name="DoneUpdatedIndexedSections" xml:space="preserve">
+    <value>完成。已更新并索引 {0} 个分节。</value>
+  </data>
+  <data name="DocumentConversionFallback" xml:space="preserve">
+    <value># 文档
+
+转换未能提取内容。</value>
+  </data>
+  <data name="FileKindFile" xml:space="preserve">
+    <value>文件</value>
+  </data>
+  <data name="MarkdownConversionCompleted" xml:space="preserve">
+    <value>Markdown 转换完成。正在优化分节结构...</value>
+  </data>
+  <data name="MarkdownIsTooLargeForRefinement" xml:space="preserve">
+    <value>Markdown 过大，无法自动优化。将使用原始转换结果。</value>
+  </data>
+  <data name="MarkdownRefinementUnavailable" xml:space="preserve">
+    <value>Markdown 优化不可用。将使用原始转换结果。</value>
+  </data>
+  <data name="MarkdownStructureRefined" xml:space="preserve">
+    <value>Markdown 结构已优化。正在准备预览...</value>
+  </data>
+  <data name="MarkdownSplitSavingOriginal" xml:space="preserve">
+    <value>Markdown 已拆分为 {0} 个分节。正在保存原始简历文件...</value>
+  </data>
+  <data name="OriginalResumeSavedWritingSections" xml:space="preserve">
+    <value>原始简历文件已保存。正在写入分节...</value>
+  </data>
+  <data name="ProcessingSectionStatus" xml:space="preserve">
+    <value>正在处理分节 {0} / {1}：{2}</value>
+  </data>
+  <data name="ReadingUploadedFile" xml:space="preserve">
+    <value>正在读取上传文件：{0}</value>
+  </data>
+  <data name="ReplacingExistingSections" xml:space="preserve">
+    <value>正在替换现有分节...</value>
+  </data>
+  <data name="RefiningMarkdownStructure" xml:space="preserve">
+    <value>正在使用 {0} 优化 Markdown 结构...</value>
+  </data>
+  <data name="ReusingExistingIndexedResume" xml:space="preserve">
+    <value>正在复用现有已索引简历。</value>
+  </data>
+  <data name="SplittingMarkdownContent" xml:space="preserve">
+    <value>正在将 Markdown 内容拆分为分节...</value>
+  </data>
+  <data name="SplittingSavingIndexing" xml:space="preserve">
+    <value>正在拆分、保存并索引 Markdown 分节...</value>
+  </data>
+  <data name="SplittingUpdatedMarkdownContent" xml:space="preserve">
+    <value>正在将更新后的 Markdown 内容拆分为分节...</value>
+  </data>
+  <data name="SelectedResumeCouldNotBeFound" xml:space="preserve">
+    <value>找不到所选简历。</value>
+  </data>
+  <data name="ThisFileAlreadyExists" xml:space="preserve">
+    <value>此文件已作为 {0} 存在。正在跳过转换和上传。</value>
+  </data>
+  <data name="UpdatingExistingResume" xml:space="preserve">
+    <value>正在更新现有简历分节并重建嵌入...</value>
+  </data>
+</root>

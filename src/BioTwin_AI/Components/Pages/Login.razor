@@ -5,13 +5,14 @@
 @inject CurrentUserSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> L
 
 <div class="login-container">
     <div class="login-wrapper">
         <div class="login-card">
             <div class="login-header">
                 <h2 class="login-title">BioTwin</h2>
-                <p class="login-subtitle">AI Interview Assistant</p>
+                <p class="login-subtitle">@L["AIInterviewAssistant"]</p>
             </div>
 
             @if (!string.IsNullOrEmpty(message))
@@ -25,15 +26,15 @@
             <div class="mode-switcher">
                 <button class="mode-btn @(!isRegister && !isInterviewer ? "active" : "")" @onclick="() => { isRegister = false; isInterviewer = false; }">
                     <span class="mode-icon">→</span>
-                    <span>Sign In</span>
+                    <span>@L["SignIn"]</span>
                 </button>
                 <button class="mode-btn @(isRegister && !isInterviewer ? "active" : "")" @onclick="() => { isRegister = true; isInterviewer = false; }">
                     <span class="mode-icon">+</span>
-                    <span>Register</span>
+                    <span>@L["Register"]</span>
                 </button>
                 <button class="mode-btn @(isInterviewer ? "active" : "")" @onclick="() => { isInterviewer = true; isRegister = false; }">
                     <span class="mode-icon">🔍</span>
-                    <span>Interviewer</span>
+                    <span>@L["Interviewer"]</span>
                 </button>
             </div>
 
@@ -41,15 +42,15 @@
             {
                 <EditForm Model="loginModel" OnValidSubmit="HandleSubmit">
                     <div class="form-group">
-                        <label class="form-label">Username</label>
-                        <input class="form-input" @bind="loginModel.Username" placeholder="Enter username" required />
+                        <label class="form-label">@L["Username"]</label>
+                        <input class="form-input" @bind="loginModel.Username" placeholder="@L["EnterUsername"]" required />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Password</label>
-                        <input class="form-input" type="password" @bind="loginModel.Password" placeholder="Enter password" required />
+                        <label class="form-label">@L["Password"]</label>
+                        <input class="form-input" type="password" @bind="loginModel.Password" placeholder="@L["EnterPassword"]" required />
                     </div>
                     <button class="btn-submit" type="submit">
-                        @(isRegister ? "Create Account" : "Sign In")
+                        @(isRegister ? L["CreateAccount"] : L["SignIn"])
                     </button>
                 </EditForm>
             }
@@ -57,10 +58,10 @@
             {
                 <div class="interviewer-info">
                     <div class="info-icon">🔍</div>
-                    <h3>Interview Mode</h3>
-                    <p>Browse and search all candidate resumes</p>
+                    <h3>@L["InterviewerMode"]</h3>
+                    <p>@L["BrowseSearchAllCandidateResumes"]</p>
                     <button class="btn-submit" @onclick="HandleInterviewerLogin">
-                        Enter as Interviewer
+                        @L["EnterAsInterviewer"]
                     </button>
                 </div>
             }

@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject IStringLocalizer<SharedResource> L
 
 <div class="bg-orbs" aria-hidden="true">
     <div class="orb orb-1"></div>
@@ -15,12 +16,20 @@
     </div>
 
     <main>
-        @if (!Navigation.Uri.Contains("/login"))
-        {
-            <div class="top-row px-4">
-                <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <div class="top-row px-4">
+            <div class="language-switcher">
+                <label class="visually-hidden" for="culture-select">@L["Language"]</label>
+                <select id="culture-select"
+                        class="language-select"
+                        title="@L["Language"]"
+                        aria-label="@L["Language"]"
+                        value="@CurrentCultureName"
+                        @onchange="ChangeCulture">
+                    <option value="en">@L["LanguageEnglish"]</option>
+                    <option value="zh-CN">@L["LanguageSimplifiedChinese"]</option>
+                </select>
             </div>
-        }
+        </div>
 
         <article class="content @(Navigation.Uri.Contains("/login") ? "content-login" : "") px-4">
             @Body
@@ -29,17 +38,35 @@
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    @L["ErrorProcessingRequest"]
+    <a href="." class="reload">@L["Reload"]</a>
     <span class="dismiss">🗙</span>
 </div>
 
 @code {
     private bool _navCollapsed;
 
+    private string CurrentCultureName => CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase)
+        ? "zh-CN"
+        : "en";
+
     private Task SetNavCollapsed(bool collapsed)
     {
         _navCollapsed = collapsed;
         return Task.CompletedTask;
+    }
+
+    private void ChangeCulture(ChangeEventArgs args)
+    {
+        var culture = args.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(culture) || string.Equals(culture, CurrentCultureName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var relativeUri = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        Navigation.NavigateTo(
+            $"/culture/set?culture={Uri.EscapeDataString(culture)}&redirectUri={Uri.EscapeDataString(relativeUri)}",
+            forceLoad: true);
     }
 }

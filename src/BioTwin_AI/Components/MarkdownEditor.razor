@@ -1,19 +1,20 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> L
 
 <div class="markdown-editor-shell" style="@EditorShellStyle">
-    @if (!string.IsNullOrWhiteSpace(Label))
+    @if (!string.IsNullOrWhiteSpace(EffectiveLabel))
     {
         <div class="markdown-editor-header">
-            <label class="form-label mb-0" for="@_editorId">@Label</label>
-            <span class="markdown-editor-meta">@LineCount lines / @CharacterCount chars</span>
+            <label class="form-label mb-0" for="@_editorId">@EffectiveLabel</label>
+            <span class="markdown-editor-meta">@L["MarkdownEditorMeta", LineCount, CharacterCount]</span>
         </div>
     }
 
     <textarea id="@_editorId"
               class="markdown-editor-fallback"
               rows="@Rows"
-              placeholder="@Placeholder"
+              placeholder="@EffectivePlaceholder"
               readonly="@ReadOnly">@_currentValue</textarea>
 </div>
 
@@ -175,8 +176,8 @@
 </style>
 
 @code {
-    [Parameter] public string Label { get; set; } = "Markdown Content";
-    [Parameter] public string Placeholder { get; set; } = "Write Markdown here...";
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Placeholder { get; set; } = string.Empty;
     [Parameter] public string Value { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
     [Parameter] public int Rows { get; set; } = 14;
@@ -188,6 +189,14 @@
     private string _currentValue = string.Empty;
 
     private string EditorShellStyle => $"--markdown-editor-body-height: {Math.Max(260, Rows * 28)}px;";
+
+    private string EffectiveLabel => string.IsNullOrWhiteSpace(Label)
+        ? L["MarkdownContent"].Value
+        : Label;
+
+    private string EffectivePlaceholder => string.IsNullOrWhiteSpace(Placeholder)
+        ? L["WriteMarkdownPlaceholder"].Value
+        : Placeholder;
 
     private int CharacterCount => _currentValue?.Length ?? 0;
 
@@ -216,7 +225,7 @@
                 new
                 {
                     value = _currentValue,
-                    placeholder = Placeholder,
+                    placeholder = EffectivePlaceholder,
                     readOnly = ReadOnly,
                     rows = Rows
                 });
@@ -229,7 +238,8 @@
             await JS.InvokeVoidAsync("bioTwinMarkdownEditor.setOptions", _editorId, new
             {
                 value = _currentValue,
-                readOnly = ReadOnly
+                readOnly = ReadOnly,
+                placeholder = EffectivePlaceholder
             });
         }
     }

@@ -6,18 +6,19 @@
 @inject NavigationManager Navigation
 @inject BioTwin_AI.Services.CurrentUserSession Session
 @inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> L
 
 @if (!_sessionResolved)
 {
     <div class="container mt-5">
-        <div class="alert alert-secondary">Loading session...</div>
+        <div class="alert alert-secondary">@L["LoadingSession"]</div>
     </div>
 }
 else if (!Session.IsAuthenticated)
 {
     <div class="container mt-5">
-        <div class="alert alert-warning">Please sign in to upload resume sections.</div>
-        <a class="btn btn-primary" href="/login">Go to Login</a>
+        <div class="alert alert-warning">@L["PleaseSignInUpload"]</div>
+        <a class="btn btn-primary" href="/login">@L["GoToLogin"]</a>
     </div>
 }
 else
@@ -25,10 +26,10 @@ else
     <div class="container-fluid mt-4">
         <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
             <div>
-                <h2 class="mb-1">Upload Resume</h2>
-                <div class="text-muted small">Supported formats: PDF, DOCX, PPTX, HTML, TXT</div>
+                <h2 class="mb-1">@L["UploadResume"]</h2>
+                <div class="text-muted small">@L["SupportedFormats"]</div>
             </div>
-            <a href="/chat" class="btn btn-secondary">Back to Chat</a>
+            <a href="/chat" class="btn btn-secondary">@L["BackToChat"]</a>
         </div>
 
         <div class="row g-4 upload-workspace">
@@ -37,13 +38,13 @@ else
                     <div class="card-body">
                         <form @onsubmit="ConvertSelectedFileAsync" @onsubmit:preventDefault="true" novalidate>
                             <div class="mb-3">
-                                <label for="title" class="form-label">Resume Title</label>
+                                <label for="title" class="form-label">@L["ResumeTitle"]</label>
                                 <input type="text" class="form-control" id="title" @bind="sectionTitle"
-                                       placeholder="Used when the converted Markdown has no section headings" />
+                                       placeholder="@L["ResumeTitlePlaceholder"]" />
                             </div>
 
                             <div class="mb-3">
-                                <label for="fileUpload" class="form-label">Select File</label>
+                                <label for="fileUpload" class="form-label">@L["SelectFile"]</label>
                                 <InputFile id="fileUpload" class="form-control" @ref="fileInput"
                                            accept=".pdf,.docx,.pptx,.html,.txt" OnChange="@HandleFileSelected" />
                             </div>
@@ -51,21 +52,21 @@ else
                             @if (!string.IsNullOrEmpty(selectedFileName))
                             {
                                 <div class="alert alert-secondary" role="alert">
-                                    Selected: <strong>@selectedFileName</strong>
+                                    @L["SelectedFile", selectedFileName]
                                 </div>
                             }
 
                             @if (isUploading)
                             {
                                 <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">Uploading...</span>
+                                    <span class="visually-hidden">@L["Uploading"]</span>
                                 </div>
-                                <p class="text-muted">Processing: @statusMessage</p>
+                                <p class="text-muted">@L["ProcessingLabel", statusMessage]</p>
                             }
                             else
                             {
                                 <button type="submit" class="btn btn-primary w-100" disabled="@isSaving">
-                                    Convert to Markdown
+                                    @L["ConvertToMarkdown"]
                                 </button>
                             }
 
@@ -87,14 +88,14 @@ else
                             @if (uploadSuccess)
                             {
                                 <div class="alert alert-success mt-3" role="alert">
-                                    <strong>Success!</strong> Saved and indexed @savedSectionCount section@(savedSectionCount == 1 ? "" : "s").
+                                    <strong>@L["UploadSuccessTitle"]</strong> @L["SavedAndIndexedSections", savedSectionCount, SectionWord(savedSectionCount)]
                                 </div>
                             }
 
                             @if (isDuplicateUpload)
                             {
                                 <div class="alert alert-warning mt-3" role="alert">
-                                    <strong>Already uploaded.</strong> @duplicateMessage
+                                    <strong>@L["AlreadyUploadedTitle"]</strong> @duplicateMessage
                                 </div>
                             }
                         </form>
@@ -103,8 +104,8 @@ else
 
                 @if (convertedSections.Count > 0)
                 {
-                    <div class="section-tree-preview mt-3" aria-label="Detected Markdown section tree">
-                        <div class="section-tree-title">Detected section tree</div>
+                    <div class="section-tree-preview mt-3" aria-label="@L["DetectedMarkdownSectionTree"]">
+                        <div class="section-tree-title">@L["DetectedSectionTree"]</div>
                         @foreach (var section in convertedSections)
                         {
                             <div class="section-tree-item" style="padding-left: @(GetSectionTreeIndent(section))px">
@@ -121,18 +122,18 @@ else
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
                             <div>
-                                <h5 class="mb-1">Converted Markdown</h5>
+                                <h5 class="mb-1">@L["ConvertedMarkdown"]</h5>
                                 <div class="text-muted small">@MarkdownPreviewSummary</div>
                             </div>
                             <button class="btn btn-primary" @onclick="SaveConvertedMarkdownAsync" disabled="@(isSaving || string.IsNullOrWhiteSpace(convertedMarkdown))">
-                                @(isSaving ? "Saving..." : isDuplicateUpload ? "Update Sections & Re-index" : "Save Sections & Index")
+                                @(isSaving ? L["Saving"] : isDuplicateUpload ? L["UpdateSectionsReindex"] : L["SaveSectionsIndex"])
                             </button>
                         </div>
 
                         <MarkdownEditor Value="@convertedMarkdown"
                                         ValueChanged="OnConvertedMarkdownChanged"
-                                        Label="Markdown Content"
-                                        Placeholder="Converted Markdown will appear here..."
+                                        Label="@L["MarkdownContent"]"
+                                        Placeholder="@L["ConvertedMarkdownPlaceholder"]"
                                         Rows="24" />
                     </div>
                 </div>
@@ -213,8 +214,8 @@ else
     private List<ResumeMarkdownSection> convertedSections = new();
 
     private string MarkdownPreviewSummary => isDuplicateUpload
-        ? "This file is already saved. Edit the Markdown and update its sections when ready."
-        : $"Review and edit the converted content. It will be saved as {estimatedSectionCount} section{(estimatedSectionCount == 1 ? "" : "s")} in a heading tree.";
+        ? L["DuplicatePreviewSummary"].Value
+        : L["ReviewConvertedContentSummary", estimatedSectionCount, SectionWord(estimatedSectionCount)].Value;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -263,12 +264,12 @@ else
         {
             if (selectedFile == null)
             {
-                errorMessage = "Please select a file";
+                errorMessage = L["PleaseSelectFile"].Value;
                 return;
             }
 
             isUploading = true;
-            await UpdateStatusAsync("Preparing resume upload...");
+            await UpdateStatusAsync(L["PreparingResumeUpload"].Value);
 
             var convertedFile = await UploadService.ConvertResumeFileAsync(selectedFile, UpdateStatusAsync);
             convertedMarkdown = convertedFile.MarkdownContent;
@@ -293,21 +294,21 @@ else
 
             if (isDuplicateUpload)
             {
-                duplicateMessage = $"The selected file matches existing resume #{existingResumeEntryId}. Its saved title and Markdown were loaded for editing.";
-                await UpdateStatusAsync("Duplicate file detected. Existing resume was reused.");
+                duplicateMessage = L["DuplicateResumeLoaded", existingResumeEntryId.GetValueOrDefault()].Value;
+                await UpdateStatusAsync(L["DuplicateStatus"].Value);
             }
             else
             {
-                await UpdateStatusAsync($"Markdown has been split into {estimatedSectionCount} section(s). Review it before saving.");
+                await UpdateStatusAsync(L["MarkdownSplitReview", estimatedSectionCount].Value);
             }
         }
         catch (TaskCanceledException ex)
         {
-            errorMessage = $"Conversion failed: All2MD conversion timed out. Details: {ex.Message}";
+            errorMessage = L["ConversionTimedOut", ex.Message].Value;
         }
         catch (Exception ex)
         {
-            errorMessage = $"Conversion failed: {ex.Message}";
+            errorMessage = L["ConversionFailed", ex.Message].Value;
         }
         finally
         {
@@ -322,13 +323,13 @@ else
 
         if (string.IsNullOrWhiteSpace(sectionTitle))
         {
-            errorMessage = "Please enter a resume title";
+            errorMessage = L["PleaseEnterResumeTitle"].Value;
             return;
         }
 
         if (string.IsNullOrWhiteSpace(convertedMarkdown))
         {
-            errorMessage = "Markdown content is required.";
+            errorMessage = L["MarkdownContentRequired"].Value;
             return;
         }
 
@@ -336,8 +337,8 @@ else
         {
             isSaving = true;
             await UpdateStatusAsync(isDuplicateUpload
-                ? "Updating existing resume sections and rebuilding embeddings..."
-                : "Splitting, saving, and indexing Markdown sections...");
+                ? L["UpdatingExistingResume"].Value
+                : L["SplittingSavingIndexing"].Value);
 
             var savedEntries = isDuplicateUpload && existingResumeEntryId is not null
                 ? await UploadService.ReplaceResumeMarkdownSectionsAsync(
@@ -379,7 +380,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = $"Save failed: {ex.Message}";
+            errorMessage = L["SaveFailed", ex.Message].Value;
         }
         finally
         {
@@ -402,7 +403,10 @@ else
 
     private void UpdateConvertedSections()
     {
-        convertedSections = ResumeUploadService.SplitResumeMarkdown(convertedMarkdown, sectionTitle);
+        convertedSections = ResumeUploadService.SplitResumeMarkdown(
+            convertedMarkdown,
+            sectionTitle,
+            L["DefaultResumeTitle"].Value);
         estimatedSectionCount = convertedSections.Count;
     }
 
@@ -410,5 +414,12 @@ else
     {
         var level = Math.Clamp(section.HeadingLevel, 1, 6);
         return (level - 1) * 18;
+    }
+
+    private string SectionWord(int count)
+    {
+        return count == 1
+            ? L["SectionLabel"].Value
+            : L["SectionsPluralLabel"].Value;
     }
 }

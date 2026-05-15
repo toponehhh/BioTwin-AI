@@ -3,11 +3,12 @@
 @rendermode InteractiveServer
 @inject AgentService AgentService
 @inject CurrentUserSession Session
+@inject IStringLocalizer<SharedResource> L
 
 <div class="chat-container">
     <div class="chat-header">
-        <h5>@(Session.IsInterviewer ? "Resume Search" : "Interview Assistant")</h5>
-        <small class="text-muted">@(Session.IsInterviewer ? "Search across all candidate resumes" : "Ask me about my experience")</small>
+        <h5>@(Session.IsInterviewer ? L["ResumeSearch"] : L["InterviewAssistant"])</h5>
+        <small class="text-muted">@(Session.IsInterviewer ? L["SearchAcrossAllCandidateResumes"] : L["AskMeAboutMyExperience"])</small>
     </div>
 
     <div class="chat-messages" @ref="chatMessagesContainer">
@@ -16,11 +17,11 @@
             @if (!message.IsUser && message.IsPending && string.IsNullOrWhiteSpace(message.Content) && string.IsNullOrWhiteSpace(message.ThinkingContent))
             {
                 <div class="message assistant-message thinking-message">
-                    <div class="thinking-indicator" role="status" aria-live="polite" aria-label="AI 正在思考">
+                    <div class="thinking-indicator" role="status" aria-live="polite" aria-label="@L["AIThinking"]">
                         <span class="thinking-orb" aria-hidden="true"></span>
                         <span class="thinking-copy">
-                            <span class="thinking-text">AI 正在思考</span>
-                            <span class="thinking-subtext">正在检索简历并组织回答</span>
+                            <span class="thinking-text">@L["AIThinking"]</span>
+                            <span class="thinking-subtext">@L["SearchingResumesComposingAnswer"]</span>
                         </span>
                         <span class="thinking-dots" aria-hidden="true">
                             <span></span><span></span><span></span>
@@ -36,7 +37,7 @@
                         <details class="thinking-panel" open="@message.IsPending">
                             <summary>
                                 <span class="thinking-panel-dot"></span>
-                                <span>Thinking</span>
+                                <span>@L["Thinking"]</span>
                             </summary>
                             <div class="thinking-panel-content">
                                 @((MarkupString)message.ThinkingContent)
@@ -65,13 +66,13 @@
         }
 
         <div class="input-group">
-            <input type="text" class="form-control" placeholder="@(Session.IsInterviewer ? "Search candidate resumes..." : "Ask me a question...")" @bind="currentQuestion" @bind:event="oninput"
+            <input type="text" class="form-control" placeholder="@(Session.IsInterviewer ? L["SearchCandidateResumesPlaceholder"] : L["AskQuestionPlaceholder"])" @bind="currentQuestion" @bind:event="oninput"
                    @onkeydown="HandleKeyDown" disabled="@isStreaming" />
             <button class="btn btn-primary" @onclick="SendQuestion"
                     disabled="@(string.IsNullOrWhiteSpace(currentQuestion) || isStreaming)">
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"
                       style="@(isStreaming ? "" : "display:none;")"></span>
-                <span>@(isStreaming ? "思考中..." : "发送")</span>
+                <span>@(isStreaming ? L["ThinkingButton"] : L["Send"])</span>
             </button>
         </div>
     </div>
@@ -500,14 +501,14 @@
             if (responseBuilder.Length == 0)
             {
                 assistantMessage.IsPending = false;
-                assistantMessage.Content = "The model returned an empty response.";
+                assistantMessage.Content = L["EmptyModelResponse"];
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error: {ex.Message}";
+            errorMessage = L["ErrorPrefix", ex.Message];
             assistantMessage.IsPending = false;
-            assistantMessage.Content = "Sorry, I encountered an error processing your question.";
+            assistantMessage.Content = L["SorryAssistantError"];
         }
         finally
         {

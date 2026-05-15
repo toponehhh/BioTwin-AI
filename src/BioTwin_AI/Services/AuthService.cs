@@ -1,6 +1,7 @@
 using BioTwin_AI.Data;
 using BioTwin_AI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -10,11 +11,21 @@ namespace BioTwin_AI.Services
     {
         private readonly BioTwinDbContext _dbContext;
         private readonly CurrentUserSession _session;
+        private readonly IStringLocalizer<SharedResource>? _localizer;
 
         public AuthService(BioTwinDbContext dbContext, CurrentUserSession session)
+            : this(dbContext, session, null)
+        {
+        }
+
+        public AuthService(
+            BioTwinDbContext dbContext,
+            CurrentUserSession session,
+            IStringLocalizer<SharedResource>? localizer)
         {
             _dbContext = dbContext;
             _session = session;
+            _localizer = localizer;
         }
 
         public async Task<(bool Success, string Message)> RegisterAsync(string username, string password)
@@ -22,13 +33,13 @@ namespace BioTwin_AI.Services
             username = NormalizeUsername(username);
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                return (false, "Username and password are required.");
+                return (false, T("Username and password are required."));
             }
 
             var exists = await _dbContext.UserAccounts.AnyAsync(u => u.Username == username);
             if (exists)
             {
-                return (false, "Username already exists.");
+                return (false, T("Username already exists."));
             }
 
             var user = new UserAccount
@@ -42,7 +53,7 @@ namespace BioTwin_AI.Services
             await _dbContext.SaveChangesAsync();
             _session.SignIn(username);
 
-            return (true, "Registered and signed in successfully.");
+            return (true, T("Registered and signed in successfully."));
         }
 
         public async Task<(bool Success, string Message)> LoginAsync(string username, string password)
@@ -50,22 +61,22 @@ namespace BioTwin_AI.Services
             username = NormalizeUsername(username);
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                return (false, "Username and password are required.");
+                return (false, T("Username and password are required."));
             }
 
             var user = await _dbContext.UserAccounts.FirstOrDefaultAsync(u => u.Username == username);
             if (user == null)
             {
-                return (false, "Invalid username or password.");
+                return (false, T("Invalid username or password."));
             }
 
             if (!VerifyPassword(password, user.PasswordHash))
             {
-                return (false, "Invalid username or password.");
+                return (false, T("Invalid username or password."));
             }
 
             _session.SignIn(user.Username);
-            return (true, "Logged in successfully.");
+            return (true, T("Logged in successfully."));
         }
 
         public void Logout()
@@ -76,6 +87,11 @@ namespace BioTwin_AI.Services
         private static string NormalizeUsername(string username)
         {
             return username.Trim().ToLowerInvariant();
+        }
+
+        private string T(string key)
+        {
+            return _localizer?[key].Value ?? key;
         }
 
         private static string HashPassword(string password)

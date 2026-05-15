@@ -20,6 +20,10 @@ main {
     margin: 0;
 }
 
+.content-login ::deep .login-container {
+    min-height: calc(100vh - 3.5rem);
+}
+
 .sidebar {
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(24px);
@@ -61,6 +65,30 @@ main {
     text-overflow: ellipsis;
 }
 
+.language-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.language-select {
+    min-width: 150px;
+    min-height: 36px;
+    padding: 6px 36px 6px 12px;
+    border: 1px solid rgba(94, 92, 230, 0.18);
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.82);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.language-select:focus {
+    border-color: rgba(94, 92, 230, 0.5);
+    box-shadow: 0 0 0 3px rgba(94, 92, 230, 0.1);
+    outline: none;
+}
+
 @media (max-width: 640.98px) {
     .top-row {
         justify-content: space-between;
@@ -69,6 +97,10 @@ main {
     .top-row ::deep a,
     .top-row ::deep .btn-link {
         margin-left: 0;
+    }
+
+    .language-select {
+        min-width: 132px;
     }
 }
 

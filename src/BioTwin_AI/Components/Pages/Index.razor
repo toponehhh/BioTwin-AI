@@ -5,18 +5,19 @@
 @inject BioTwin_AI.Services.CurrentUserSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> L
 
 @if (!_sessionResolved)
 {
     <div class="container mt-5">
-        <div class="alert alert-secondary">Loading session...</div>
+        <div class="alert alert-secondary">@L["LoadingSession"]</div>
     </div>
 }
 else if (!Session.IsAuthenticated)
 {
     <div class="container mt-5">
-        <div class="alert alert-warning">Please sign in to access chat and resume data.</div>
-        <a class="btn btn-primary" href="/login">Go to Login</a>
+        <div class="alert alert-warning">@L["PleaseSignInChatResume"]</div>
+        <a class="btn btn-primary" href="/login">@L["GoToLogin"]</a>
     </div>
 }
 else

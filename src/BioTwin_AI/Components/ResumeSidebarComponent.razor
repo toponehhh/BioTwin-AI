@@ -2,17 +2,18 @@
 @using BioTwin_AI.Models
 @rendermode InteractiveServer
 @inject ResumeUploadService UploadService
+@inject IStringLocalizer<SharedResource> L
 
 <div class="resume-sidebar">
     <div class="sidebar-header">
-        <h5>Resume Sections</h5>
-        <a href="/resume/upload" class="btn btn-sm btn-primary">+ Add Section</a>
+        <h5>@L["ResumeSections"]</h5>
+        <a href="/resume/upload" class="btn btn-sm btn-primary">+ @L["AddSection"]</a>
     </div>
 
     @if (isLoading)
     {
         <div class="spinner-border spinner-border-sm" role="status">
-            <span class="visually-hidden">Loading...</span>
+            <span class="visually-hidden">@L["Loading"]</span>
         </div>
     }
     else if (resumeSections?.Any() == true)
@@ -23,7 +24,7 @@
                 <div class="resume-item" style="margin-left: @(GetTreeIndent(entry))px" @onclick="() => SelectEntry(entry)">
                     <div class="resume-item-header">
                         <h6><span class="heading-level-badge">H@entry.HeadingLevel</span> @entry.Title</h6>
-                        <small class="text-muted">@entry.CreatedAt.ToString("MMM dd, yyyy")</small>
+                        <small class="text-muted">@entry.CreatedAt.ToString("MMM dd, yyyy", CultureInfo.CurrentCulture)</small>
                     </div>
                     <p class="resume-item-preview">
                         @{
@@ -41,7 +42,7 @@
     else
     {
         <div class="alert alert-info" role="alert">
-            No resume sections uploaded yet. <a href="/resume/upload">Upload one</a>
+            @L["NoResumeSectionsUploadedYet"] <a href="/resume/upload">@L["UploadOne"]</a>
         </div>
     }
 </div>

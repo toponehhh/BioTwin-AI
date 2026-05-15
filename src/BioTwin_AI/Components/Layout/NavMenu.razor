@@ -4,6 +4,7 @@
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> L
 
 <div class="top-row navbar navbar-dark @(Collapsed ? "nav-collapsed" : "")">
     <div class="container-fluid">
@@ -13,14 +14,14 @@
         </a>
         <button type="button"
                 class="collapse-toggle"
-                title="@(Collapsed ? "Expand navigation" : "Collapse navigation")"
+                title="@(Collapsed ? L["ExpandNavigation"] : L["CollapseNavigation"])"
                 @onclick="ToggleCollapsed">
             <span class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")" aria-hidden="true"></span>
         </button>
     </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<input type="checkbox" title="@L["NavigationMenu"]" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
@@ -29,18 +30,18 @@
             <div class="nav-item px-3 text-white-50 small">
                 @if (Session.IsInterviewer)
                 {
-                    <span class="nav-label">Interviewer Mode</span>
-                    <span class="nav-mini" title="Interviewer Mode">I</span>
+                    <span class="nav-label">@L["InterviewerMode"]</span>
+                    <span class="nav-mini" title="@L["InterviewerMode"]">I</span>
                 }
                 else
                 {
-                    <span class="nav-label">Candidate: <strong>@Session.Username</strong></span>
+                    <span class="nav-label">@L["CandidateLabel", Session.Username ?? string.Empty]</span>
                     <span class="nav-mini" title="@Session.Username">C</span>
                 }
             </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="chat" Match="NavLinkMatch.All">
-                    <span class="bi bi-chat-dots-fill" aria-hidden="true"></span><span class="nav-label">AI Chat</span>
+                    <span class="bi bi-chat-dots-fill" aria-hidden="true"></span><span class="nav-label">@L["AIChat"]</span>
                 </NavLink>
             </div>
             
@@ -49,24 +50,24 @@
             {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="resume/upload">
-                        <span class="bi bi-cloud-upload-fill" aria-hidden="true"></span><span class="nav-label">Resume Upload</span>
+                        <span class="bi bi-cloud-upload-fill" aria-hidden="true"></span><span class="nav-label">@L["ResumeUpload"]</span>
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="resume/edit">
-                        <span class="bi bi-pencil-square" aria-hidden="true"></span><span class="nav-label">Resume Edit</span>
+                        <span class="bi bi-pencil-square" aria-hidden="true"></span><span class="nav-label">@L["ResumeEdit"]</span>
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="resume/export">
-                        <span class="bi bi-download" aria-hidden="true"></span><span class="nav-label">Export Resume</span>
+                        <span class="bi bi-download" aria-hidden="true"></span><span class="nav-label">@L["ExportResume"]</span>
                     </NavLink>
                 </div>
             }
             
             <div class="nav-item px-3">
                 <button class="btn btn-link nav-link text-start" @onclick="LogoutAsync">
-                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span><span class="nav-label">Logout</span>
+                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span><span class="nav-label">@L["Logout"]</span>
                 </button>
             </div>
         }
@@ -74,7 +75,7 @@
         {
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="login">
-                    <span class="bi bi-person-circle" aria-hidden="true"></span><span class="nav-label">Login</span>
+                    <span class="bi bi-person-circle" aria-hidden="true"></span><span class="nav-label">@L["Login"]</span>
                 </NavLink>
             </div>
         }

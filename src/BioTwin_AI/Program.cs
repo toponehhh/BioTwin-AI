@@ -1,6 +1,7 @@
 using BioTwin_AI.Components;
 using BioTwin_AI.Data;
 using BioTwin_AI.Services;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
 
@@ -11,6 +12,7 @@ QuestPDF.Settings.License = LicenseType.Community;
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddLocalization();
 
 // Configure SQLite DbContext
 var dbDirectory = Path.Combine(builder.Environment.ContentRootPath, "database");
@@ -23,13 +25,11 @@ builder.Services.AddDbContext<BioTwinDbContext>(options =>
 // Configure RAG Service
 builder.Services.AddScoped<IRagService, RagService>();
 
+// Configure Microsoft.Extensions.AI chat and embedding clients
+builder.Services.AddBioTwinAiClients(builder.Configuration);
+
 // Configure Embedding Service
-builder.Services.AddHttpClient<EmbeddingService>((provider, client) =>
-{
-    var configuration = provider.GetRequiredService<IConfiguration>();
-    var timeoutSeconds = configuration.GetValue("LLM:EmbeddingTimeoutSeconds", 300);
-    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-});
+builder.Services.AddScoped<EmbeddingService>();
 builder.Services.AddScoped<IEmbeddingService>(provider =>
     provider.GetRequiredService<EmbeddingService>());
 
@@ -38,20 +38,10 @@ builder.Services.AddScoped<CurrentUserSession>();
 builder.Services.AddScoped<AuthService>();
 
 // Configure Agent Service
-builder.Services.AddHttpClient<AgentService>((provider, client) =>
-{
-    var configuration = provider.GetRequiredService<IConfiguration>();
-    var timeoutSeconds = configuration.GetValue("LLM:ChatTimeoutSeconds", 300);
-    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-});
+builder.Services.AddScoped<AgentService>();
 
 // Configure resume Markdown refinement service
-builder.Services.AddHttpClient<ResumeMarkdownRefinementService>((provider, client) =>
-{
-    var configuration = provider.GetRequiredService<IConfiguration>();
-    var timeoutSeconds = configuration.GetValue("ResumeMarkdownRefinement:TimeoutSeconds", 300);
-    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-});
+builder.Services.AddScoped<ResumeMarkdownRefinementService>();
 builder.Services.AddScoped<ResumePdfExportService>();
 
 // Configure HTTP client for All2MD service
@@ -67,6 +57,12 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
 var app = builder.Build();
+
+var supportedCultureNames = new[] { "en", "zh-CN" };
+app.UseRequestLocalization(new RequestLocalizationOptions()
+    .SetDefaultCulture("en")
+    .AddSupportedCultures(supportedCultureNames)
+    .AddSupportedUICultures(supportedCultureNames));
 
 // Initialize RAG system
 using (var scope = app.Services.CreateScope())
@@ -88,6 +84,30 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapGet("/culture/set", (HttpContext httpContext, string culture, string? redirectUri) =>
+{
+    var selectedCulture = supportedCultureNames.FirstOrDefault(
+        supportedCulture => string.Equals(supportedCulture, culture, StringComparison.OrdinalIgnoreCase)) ?? "en";
+    var returnUri = string.IsNullOrWhiteSpace(redirectUri) ? "/" : redirectUri;
+    if (!Uri.IsWellFormedUriString(returnUri, UriKind.Relative) ||
+        returnUri.StartsWith("//", StringComparison.Ordinal))
+    {
+        returnUri = "/";
+    }
+
+    httpContext.Response.Cookies.Append(
+        CookieRequestCultureProvider.DefaultCookieName,
+        CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(selectedCulture)),
+        new CookieOptions
+        {
+            Expires = DateTimeOffset.UtcNow.AddYears(1),
+            IsEssential = true,
+            Path = "/",
+            SameSite = SameSiteMode.Lax
+        });
+
+    return Results.LocalRedirect(returnUri);
+});
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

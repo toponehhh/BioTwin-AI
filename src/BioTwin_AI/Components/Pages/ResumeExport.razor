@@ -9,18 +9,19 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ResumePdfExportService PdfExportService
+@inject IStringLocalizer<SharedResource> L
 
 @if (!_sessionResolved)
 {
     <div class="container mt-4">
-        <div class="alert alert-secondary">Loading session...</div>
+        <div class="alert alert-secondary">@L["LoadingSession"]</div>
     </div>
 }
 else if (!Session.IsAuthenticated)
 {
     <div class="container mt-4">
-        <div class="alert alert-warning">Please sign in first.</div>
-        <a class="btn btn-primary" href="/login">Go to Login</a>
+        <div class="alert alert-warning">@L["PleaseSignInFirst"]</div>
+        <a class="btn btn-primary" href="/login">@L["GoToLogin"]</a>
     </div>
 }
 else
@@ -28,21 +29,21 @@ else
     <div class="container-fluid mt-4">
         <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
             <div>
-                <h2 class="mb-1">Export Resume</h2>
-                <div class="text-muted small">Edit the generated Markdown before copying it out.</div>
+                <h2 class="mb-1">@L["ExportResume"]</h2>
+                <div class="text-muted small">@L["EditFullMarkdownBeforeCopy"]</div>
             </div>
             <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-outline-secondary" @onclick="CopyAllAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">
-                    Copy Markdown
+                    @L["CopyMarkdown"]
                 </button>
                 <button class="btn btn-primary" @onclick="DownloadMarkdownAsync" disabled="@string.IsNullOrWhiteSpace(_markdown)">
-                    Download Markdown
+                    @L["DownloadMarkdown"]
                 </button>
                 <button class="btn btn-outline-primary" @onclick="DownloadPdfAsync" disabled="@(string.IsNullOrWhiteSpace(_markdown) || _isExportingPdf)">
-                    @(_isExportingPdf ? "Preparing PDF..." : "Download PDF")
+                    @(_isExportingPdf ? L["PreparingPdf"] : L["DownloadPdf"])
                 </button>
                 <button class="btn btn-outline-primary" @onclick="DownloadOriginalFileAsync" disabled="@(_selectedResume?.HasOriginalFile != true)">
-                    Download Original File
+                    @L["DownloadOriginalFile"]
                 </button>
             </div>
         </div>
@@ -58,12 +59,12 @@ else
 
         @if (_resumeOptions.Count == 0)
         {
-            <div class="alert alert-info">No resumes found. Please upload content first.</div>
+            <div class="alert alert-info">@L["NoResumesFoundUploadFirst"]</div>
         }
         else
         {
             <div class="mb-3">
-                <label for="resumeEntry" class="form-label">Resume to export</label>
+                <label for="resumeEntry" class="form-label">@L["ResumeToExport"]</label>
                 <select id="resumeEntry" class="form-select" value="@_selectedResumeEntryId" @onchange="OnResumeChangedAsync">
                     @foreach (var resume in _resumeOptions)
                     {
@@ -73,22 +74,21 @@ else
                 @if (_selectedResume is not null)
                 {
                     <div class="form-text">
-                        @_selectedResume.SectionCount section@(_selectedResume.SectionCount == 1 ? "" : "s")
-                        - uploaded @_selectedResume.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        @L["UploadedAt", $"{_selectedResume.SectionCount} {SectionWord(_selectedResume.SectionCount)}", _selectedResume.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture)]
                     </div>
                 }
             </div>
 
             @if (string.IsNullOrWhiteSpace(_markdown))
             {
-                <div class="alert alert-info">No resume sections found for the selected resume.</div>
+                <div class="alert alert-info">@L["NoResumeSectionsForSelectedResume"]</div>
             }
             else
             {
                 <MarkdownEditor Value="@_markdown"
                                 ValueChanged="OnMarkdownChanged"
-                                Label="Export Markdown"
-                                Placeholder="Resume Markdown will appear here..."
+                                Label="@L["ExportMarkdown"]"
+                                Placeholder="@L["ExportMarkdownPlaceholder"]"
                                 Rows="22" />
             }
         }
@@ -212,7 +212,7 @@ else
         _message = string.Empty;
         _error = string.Empty;
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", _markdown);
-        _message = "Markdown copied to clipboard.";
+        _message = L["MarkdownCopiedToClipboard"].Value;
     }
 
     private async Task DownloadMarkdownAsync()
@@ -221,7 +221,7 @@ else
         _error = string.Empty;
         var fileName = $"{BuildSafeFileName(GetSelectedResumeTitle())}.md";
         await DownloadBytesAsync(fileName, "text/markdown;charset=utf-8", Encoding.UTF8.GetBytes(_markdown));
-        _message = "Markdown download started.";
+        _message = L["MarkdownDownloadStarted"].Value;
     }
 
     private async Task DownloadPdfAsync()
@@ -231,7 +231,7 @@ else
 
         if (string.IsNullOrWhiteSpace(_markdown))
         {
-            _error = "Markdown content is required before exporting PDF.";
+            _error = L["MarkdownContentRequiredBeforePdf"].Value;
             return;
         }
 
@@ -241,11 +241,11 @@ else
             var fileName = $"{BuildSafeFileName(GetSelectedResumeTitle())}.pdf";
             var pdfBytes = await Task.Run(() => PdfExportService.GeneratePdf(_markdown, GetSelectedResumeTitle()));
             await DownloadBytesAsync(fileName, "application/pdf", pdfBytes);
-            _message = "PDF download started.";
+            _message = L["PdfDownloadStarted"].Value;
         }
         catch (Exception ex)
         {
-            _error = $"Failed to export PDF: {ex.Message}";
+            _error = L["FailedToExportPdf", ex.Message].Value;
         }
         finally
         {
@@ -278,7 +278,7 @@ else
 
         if (originalFile?.SourceFileContent is not { Length: > 0 } fileBytes)
         {
-            _message = "No original uploaded file is stored for this resume.";
+            _message = L["NoOriginalUploadedFileStored"].Value;
             return;
         }
 
@@ -290,7 +290,7 @@ else
             : originalFile.SourceContentType;
 
         await DownloadBytesAsync(fileName, contentType, fileBytes);
-        _message = "Original file download started.";
+        _message = L["OriginalFileDownloadStarted"].Value;
     }
 
     private async Task DownloadBytesAsync(string fileName, string contentType, byte[] fileBytes)
@@ -310,13 +310,20 @@ else
 
     private string GetSelectedResumeTitle()
     {
-        return _selectedResume?.Title ?? "Resume";
+        return _selectedResume?.Title ?? L["DefaultResumeTitle"].Value;
     }
 
     private string BuildResumeLabel(string title, string tenantId)
     {
-        var label = string.IsNullOrWhiteSpace(title) ? "Untitled resume" : title;
+        var label = string.IsNullOrWhiteSpace(title) ? L["UntitledResume"].Value : title;
         return Session.IsInterviewer ? $"{label} ({tenantId})" : label;
+    }
+
+    private string SectionWord(int count)
+    {
+        return count == 1
+            ? L["SectionLabel"].Value
+            : L["SectionsPluralLabel"].Value;
     }
 
     private static string BuildSafeFileName(string value)

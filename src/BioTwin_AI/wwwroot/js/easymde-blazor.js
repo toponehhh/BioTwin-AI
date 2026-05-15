@@ -113,6 +113,9 @@
                 if (element && typeof options.readOnly === "boolean") {
                     element.readOnly = options.readOnly;
                 }
+                if (element && typeof options.placeholder === "string") {
+                    element.placeholder = options.placeholder;
+                }
                 return;
             }
 
@@ -123,6 +126,10 @@
 
             if (typeof options.readOnly === "boolean") {
                 state.editor.codemirror.setOption("readOnly", options.readOnly ? "nocursor" : false);
+            }
+
+            if (typeof options.placeholder === "string") {
+                state.editor.codemirror.setOption("placeholder", options.placeholder);
             }
         },
 

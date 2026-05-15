@@ -1,7 +1,8 @@
-using System.Net.Http.Headers;
+using Microsoft.Extensions.AI;
+using OllamaSharp;
+using OllamaSharp.Models;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 
 namespace BioTwin_AI.Services
 {
@@ -13,18 +14,15 @@ namespace BioTwin_AI.Services
 
     /// <summary>
     /// Service for AI agent interaction with LLM using RAG context.
-    /// Supports Ollama and OpenAI-compatible chat endpoints.
     /// </summary>
     public class AgentService
     {
         private readonly IRagService _ragService;
         private readonly ILogger<AgentService> _logger;
-        private readonly HttpClient _httpClient;
+        private readonly IChatClient _chatClient;
         private readonly CurrentUserSession _session;
-        private readonly string _provider;
-        private readonly string _llmBaseUrl;
+        private readonly bool _isOllamaProvider;
         private readonly string _model;
-        private readonly string? _apiKey;
         private readonly double _temperature;
         private readonly int _maxTokens;
         private readonly int _maxContextChars;
@@ -37,17 +35,15 @@ namespace BioTwin_AI.Services
             IRagService ragService,
             ILogger<AgentService> logger,
             IConfiguration config,
-            HttpClient httpClient,
+            IChatClient chatClient,
             CurrentUserSession session)
         {
             _ragService = ragService;
             _logger = logger;
-            _httpClient = httpClient;
+            _chatClient = chatClient;
             _session = session;
-            _provider = config["LLM:Provider"] ?? "Ollama";
-            _llmBaseUrl = config["LLM:BaseUrl"] ?? "http://localhost:11434";
+            _isOllamaProvider = string.Equals(config["LLM:Provider"] ?? "Ollama", "Ollama", StringComparison.OrdinalIgnoreCase);
             _model = config["LLM:Model"] ?? "gemma4:e2b";
-            _apiKey = config["LLM:ApiKey"];
             _temperature = config.GetValue("LLM:Temperature", 0.2);
             _maxTokens = config.GetValue("LLM:MaxTokens", 800);
             _maxContextChars = config.GetValue("LLM:MaxContextChars", 6000);
@@ -109,34 +105,32 @@ namespace BioTwin_AI.Services
 
             var relevantContent = await _ragService.SearchAsync(question, limit: 3);
             var context = BuildContext(relevantContent);
-
             var (systemPrompt, userPrompt) = BuildPrompts(question, context);
+            var messages = BuildChatMessages(systemPrompt, userPrompt);
 
-            if (string.Equals(_provider, "Ollama", StringComparison.OrdinalIgnoreCase))
+            var emittedAnswer = false;
+            var maxOutputTokens = _isOllamaProvider ? _chatNumPredict : _maxTokens;
+            var options = CreateChatOptions(_ollamaThink, maxOutputTokens, _chatNumCtx);
+
+            await foreach (var chunk in StreamChatAsync(messages, options, cancellationToken))
             {
-                var emittedAnswer = false;
-                await foreach (var chunk in StreamOllamaAsync(systemPrompt, userPrompt, _ollamaThink, _chatNumPredict, _chatNumCtx, cancellationToken))
+                if (chunk.Kind == AgentStreamChunk.Answer)
                 {
-                    if (chunk.Kind == AgentStreamChunk.Answer)
-                    {
-                        emittedAnswer = true;
-                    }
+                    emittedAnswer = true;
+                }
 
+                yield return chunk;
+            }
+
+            if (!emittedAnswer && _isOllamaProvider && _ollamaThink && !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Ollama returned no visible content with thinking enabled. Retrying once with thinking disabled.");
+                var retryOptions = CreateChatOptions(false, maxOutputTokens, _chatNumCtx);
+
+                await foreach (var chunk in StreamChatAsync(messages, retryOptions, cancellationToken))
+                {
                     yield return chunk;
                 }
-
-                if (!emittedAnswer && _ollamaThink && !cancellationToken.IsCancellationRequested)
-                {
-                    _logger.LogWarning("Ollama returned no visible content with thinking enabled. Retrying once with thinking disabled.");
-                    await foreach (var chunk in StreamOllamaAsync(systemPrompt, userPrompt, false, _chatNumPredict, _chatNumCtx, cancellationToken))
-                    {
-                        yield return chunk;
-                    }
-                }
-            }
-            else
-            {
-                yield return new AgentStreamChunk(AgentStreamChunk.Answer, await CallOpenAiCompatibleAsync(systemPrompt, userPrompt));
             }
         }
 
@@ -216,220 +210,75 @@ Resume Context:
             return (systemPrompt, userPrompt);
         }
 
-        private async Task<string> CallOllamaAsync(string systemPrompt, string userPrompt)
+        private ChatMessage[] BuildChatMessages(string systemPrompt, string userPrompt)
         {
-            var url = $"{_llmBaseUrl.TrimEnd('/')}/api/chat";
-            var payload = new
-            {
-                model = _model,
-                stream = false,
-                think = _ollamaThink,
-                options = new
-                {
-                    temperature = _temperature,
-                    num_predict = _chatNumPredict,
-                    num_ctx = _chatNumCtx
-                },
-                messages = new object[]
-                {
-                    new { role = "system", content = systemPrompt },
-                    new { role = "user", content = userPrompt }
-                }
-            };
-
-            using var response = await _httpClient.PostAsync(
-                url,
-                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
-
-            var raw = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new InvalidOperationException($"Ollama request failed ({(int)response.StatusCode}): {raw}");
-            }
-
-            using var document = JsonDocument.Parse(raw);
-            var content = document.RootElement
-                .GetProperty("message")
-                .GetProperty("content")
-                .GetString();
-
-            return string.IsNullOrWhiteSpace(content)
-                ? "The model returned an empty response."
-                : content;
+            return
+            [
+                new ChatMessage(ChatRole.System, systemPrompt),
+                new ChatMessage(ChatRole.User, userPrompt)
+            ];
         }
 
-        private async IAsyncEnumerable<AgentStreamChunk> StreamOllamaAsync(
-            string systemPrompt,
-            string userPrompt,
-            bool think,
-            int numPredict,
-            int numCtx,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        private ChatOptions CreateChatOptions(bool think, int maxOutputTokens, int numCtx)
         {
-            var url = $"{_llmBaseUrl.TrimEnd('/')}/api/chat";
-            var payload = new
+            var options = new ChatOptions
             {
-                model = _model,
-                stream = true,
-                think,
-                options = new
-                {
-                    temperature = _temperature,
-                    num_predict = numPredict,
-                    num_ctx = numCtx
-                },
-                messages = new object[]
-                {
-                    new { role = "system", content = systemPrompt },
-                    new { role = "user", content = userPrompt }
-                }
+                ModelId = _model,
+                Temperature = (float)_temperature,
+                MaxOutputTokens = maxOutputTokens
             };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            if (_isOllamaProvider)
             {
-                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-            };
-
-            using var response = await _httpClient.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var rawError = await response.Content.ReadAsStringAsync(cancellationToken);
-                throw new InvalidOperationException($"Ollama request failed ({(int)response.StatusCode}): {rawError}");
+                options.AddOllamaOption(OllamaOption.NumPredict, maxOutputTokens);
+                options.AddOllamaOption(OllamaOption.NumCtx, numCtx);
+                options.AddOllamaOption(OllamaOption.Think, think);
+                options.Reasoning = new ReasoningOptions
+                {
+                    Output = think ? ReasoningOutput.Full : ReasoningOutput.None
+                };
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var reader = new StreamReader(stream);
-            var buffer = new StringBuilder();
+            return options;
+        }
 
-            while (true)
+        private async IAsyncEnumerable<AgentStreamChunk> StreamChatAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions options,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await foreach (var update in _chatClient.GetStreamingResponseAsync(messages, options, cancellationToken))
             {
-                var line = await reader.ReadLineAsync(cancellationToken);
-                if (line is null)
+                foreach (var chunk in ConvertUpdate(update))
                 {
-                    break;
+                    yield return chunk;
                 }
-
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                if (buffer.Length > 0)
-                {
-                    buffer.AppendLine();
-                }
-
-                buffer.Append(line);
-
-                JsonDocument? document = null;
-                try
-                {
-                    document = JsonDocument.Parse(buffer.ToString());
-                    buffer.Clear();
-                }
-                catch (JsonException)
-                {
-                    // Keep buffering until we have a complete JSON object.
-                    continue;
-                }
-
-                var root = document.RootElement;
-
-                if (root.TryGetProperty("error", out var errorNode))
-                {
-                    document.Dispose();
-                    throw new InvalidOperationException($"Ollama stream error: {errorNode.GetString()}");
-                }
-
-                if (root.TryGetProperty("message", out var messageNode)
-                    && messageNode.TryGetProperty("thinking", out var thinkingNode))
-                {
-                    var piece = thinkingNode.GetString();
-                    if (!string.IsNullOrEmpty(piece))
-                    {
-                        document.Dispose();
-                        yield return new AgentStreamChunk(AgentStreamChunk.Thinking, piece);
-                        continue;
-                    }
-                }
-
-                if (root.TryGetProperty("message", out messageNode)
-                    && messageNode.TryGetProperty("content", out var contentNode))
-                {
-                    var piece = contentNode.GetString();
-                    if (!string.IsNullOrEmpty(piece))
-                    {
-                        document.Dispose();
-                        yield return new AgentStreamChunk(AgentStreamChunk.Answer, piece);
-                        continue;
-                    }
-                }
-
-                if (root.TryGetProperty("done", out var doneNode) && doneNode.GetBoolean())
-                {
-                    document.Dispose();
-                    yield break;
-                }
-
-                document.Dispose();
             }
         }
 
-        private async Task<string> CallOpenAiCompatibleAsync(string systemPrompt, string userPrompt)
+        private static IEnumerable<AgentStreamChunk> ConvertUpdate(ChatResponseUpdate update)
         {
-            var baseUrl = _llmBaseUrl.TrimEnd('/');
-            var url = baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
-                ? $"{baseUrl}/chat/completions"
-                : $"{baseUrl}/v1/chat/completions";
+            var emittedAnswerContent = false;
 
-            var payload = new
+            foreach (var content in update.Contents)
             {
-                model = _model,
-                temperature = _temperature,
-                max_tokens = _maxTokens,
-                messages = new object[]
+                switch (content)
                 {
-                    new { role = "system", content = systemPrompt },
-                    new { role = "user", content = userPrompt }
+                    case TextReasoningContent reasoningContent when !string.IsNullOrEmpty(reasoningContent.Text):
+                        yield return new AgentStreamChunk(AgentStreamChunk.Thinking, reasoningContent.Text);
+                        break;
+
+                    case TextContent textContent when !string.IsNullOrEmpty(textContent.Text):
+                        emittedAnswerContent = true;
+                        yield return new AgentStreamChunk(AgentStreamChunk.Answer, textContent.Text);
+                        break;
                 }
-            };
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-            };
-
-            if (!string.IsNullOrWhiteSpace(_apiKey))
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
             }
 
-            using var response = await _httpClient.SendAsync(request);
-            var raw = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
+            if (!emittedAnswerContent && !string.IsNullOrEmpty(update.Text))
             {
-                throw new InvalidOperationException($"OpenAI-compatible request failed ({(int)response.StatusCode}): {raw}");
+                yield return new AgentStreamChunk(AgentStreamChunk.Answer, update.Text);
             }
-
-            using var document = JsonDocument.Parse(raw);
-            var choices = document.RootElement.GetProperty("choices");
-            if (choices.GetArrayLength() == 0)
-            {
-                return "The model returned no choices.";
-            }
-
-            var content = choices[0]
-                .GetProperty("message")
-                .GetProperty("content")
-                .GetString();
-
-            return string.IsNullOrWhiteSpace(content)
-                ? "The model returned an empty response."
-                : content;
         }
     }
 }

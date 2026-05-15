@@ -1,8 +1,8 @@
 using BioTwin_AI.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Moq.Protected;
 using Xunit;
 
 namespace BioTwin_AI.Tests.Services
@@ -30,11 +30,11 @@ namespace BioTwin_AI.Tests.Services
                 .Build();
 
             var loggerMock = new Mock<ILogger<AgentService>>();
-            var httpClientMock = CreateMockHttpClient("Test response from candidate mode");
+            var chatClient = new FakeChatClient("Test response from candidate mode");
             var session = new CurrentUserSession();
             session.SignIn("testcandidate", UserRole.Candidate);
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, httpClientMock, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
 
             // Act
             var response = await agentService.AnswerQuestionAsync("What is your experience with C#?");
@@ -66,11 +66,11 @@ namespace BioTwin_AI.Tests.Services
                 .Build();
 
             var loggerMock = new Mock<ILogger<AgentService>>();
-            var httpClientMock = CreateMockHttpClient("Test response from interviewer mode");
+            var chatClient = new FakeChatClient("Test response from interviewer mode");
             var session = new CurrentUserSession();
             session.InterviewerLogin();
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, httpClientMock, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
 
             // Act
             var response = await agentService.AnswerQuestionAsync("What is candidate1's C# experience?");
@@ -102,10 +102,10 @@ namespace BioTwin_AI.Tests.Services
                 .Build();
 
             var loggerMock = new Mock<ILogger<AgentService>>();
-            var httpClientMock = CreateMockHttpClient("Response");
+            var chatClient = new FakeChatClient("Response");
             var session = new CurrentUserSession();
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, httpClientMock, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
 
             // Act
             await agentService.AnswerQuestionAsync("Test question?");
@@ -142,10 +142,10 @@ namespace BioTwin_AI.Tests.Services
                 .Build();
 
             var loggerMock = new Mock<ILogger<AgentService>>();
-            var httpClientMock = CreateMockHttpClient("No context available");
+            var chatClient = new FakeChatClient("No context available");
             var session = new CurrentUserSession();
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, httpClientMock, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
 
             // Act
             var response = await agentService.AnswerQuestionAsync("Question with no context?");
@@ -154,28 +154,40 @@ namespace BioTwin_AI.Tests.Services
             Assert.NotEmpty(response);
         }
 
-        private HttpClient CreateMockHttpClient(string responseContent)
+        private sealed class FakeChatClient : IChatClient
         {
-            var handlerMock = new Mock<HttpMessageHandler>();
+            private readonly string _responseContent;
 
-            var mockResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            public FakeChatClient(string responseContent)
             {
-                Content = new StringContent($@"{{
-                    ""message"": {{
-                        ""content"": ""{responseContent}""
-                    }}
-                }}", System.Text.Encoding.UTF8, "application/json")
-            };
+                _responseContent = responseContent;
+            }
 
-            handlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.IsAny<HttpRequestMessage>(),
-                    ItExpr.IsAny<CancellationToken>())
-                .ReturnsAsync(mockResponse);
+            public Task<ChatResponse> GetResponseAsync(
+                IEnumerable<ChatMessage> messages,
+                ChatOptions? options = null,
+                CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, _responseContent)));
+            }
 
-            return new HttpClient(handlerMock.Object) { BaseAddress = new Uri("http://localhost:11434") };
+            public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+                IEnumerable<ChatMessage> messages,
+                ChatOptions? options = null,
+                [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+            {
+                await Task.Yield();
+                yield return new ChatResponseUpdate(ChatRole.Assistant, _responseContent);
+            }
+
+            public object? GetService(Type serviceType, object? serviceKey = null)
+            {
+                return null;
+            }
+
+            public void Dispose()
+            {
+            }
         }
     }
 }

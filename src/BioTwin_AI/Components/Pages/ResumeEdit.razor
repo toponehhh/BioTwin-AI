@@ -10,18 +10,19 @@
 @inject CurrentUserSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> L
 
 @if (!_sessionResolved)
 {
     <div class="container mt-4">
-        <div class="alert alert-secondary">Loading session...</div>
+        <div class="alert alert-secondary">@L["LoadingSession"]</div>
     </div>
 }
 else if (!Session.IsAuthenticated)
 {
     <div class="container mt-4">
-        <div class="alert alert-warning">Please sign in first.</div>
-        <a class="btn btn-primary" href="/login">Go to Login</a>
+        <div class="alert alert-warning">@L["PleaseSignInFirst"]</div>
+        <a class="btn btn-primary" href="/login">@L["GoToLogin"]</a>
     </div>
 }
 else
@@ -30,25 +31,25 @@ else
         <aside class="section-sidebar">
             <div class="section-sidebar-header">
                 <div>
-                    <h2>Resume Builder</h2>
-                    <span>@_resumeEntries.Count resume@(_resumeEntries.Count == 1 ? "" : "s") - @_entries.Count section@(_entries.Count == 1 ? "" : "s")</span>
+                    <h2>@L["ResumeBuilder"]</h2>
+                    <span>@ResumeBuilderSummary</span>
                 </div>
-                <button class="icon-action" title="New resume" @onclick="CreateResumeDraft">
+                <button class="icon-action" title="@L["NewResume"]" @onclick="CreateResumeDraft">
                     +
                 </button>
             </div>
 
             <div class="section-actions">
-                <button class="btn btn-primary" @onclick="CreateResumeDraft">New Resume</button>
-                <a class="btn btn-outline-primary" href="/resume/upload">Upload File</a>
+                <button class="btn btn-primary" @onclick="CreateResumeDraft">@L["NewResume"]</button>
+                <a class="btn btn-outline-primary" href="/resume/upload">@L["UploadFile"]</a>
             </div>
 
             @if (_resumeEntries.Count > 0)
             {
                 <div class="resume-picker">
-                    <div class="sidebar-kicker">Resume</div>
+                    <div class="sidebar-kicker">@L["DefaultResumeTitle"]</div>
                     <select class="form-select resume-select"
-                            aria-label="Select resume"
+                            aria-label="@L["SelectResumeAria"]"
                             value="@GetSelectedResumeIndex()"
                             @onchange="OnResumeChanged">
                         @for (var index = 0; index < _resumeEntries.Count; index++)
@@ -63,28 +64,28 @@ else
             @if (_resumeEntries.Count == 0)
             {
                 <div class="empty-sections">
-                    <strong>No resumes yet</strong>
-                    <span>Upload a resume file or create a manual resume to get started.</span>
+                    <strong>@L["NoResumesYet"]</strong>
+                    <span>@L["NoResumesYetBody"]</span>
                 </div>
             }
             else if (_selectedResumeEntry is null)
             {
                 <div class="empty-sections">
-                    <strong>Select a resume</strong>
-                    <span>Choose which resume you want to edit.</span>
+                    <strong>@L["SelectAResume"]</strong>
+                    <span>@L["SelectResumeBody"]</span>
                 </div>
             }
             else if (_entries.Count == 0)
             {
                 <div class="empty-sections">
-                    <strong>No sections in this resume</strong>
-                    <span>Edit the full Markdown and save to rebuild navigation.</span>
+                    <strong>@L["NoSectionsInResume"]</strong>
+                    <span>@L["NoSectionsInResumeBody"]</span>
                 </div>
             }
             else
             {
-                <div class="sidebar-kicker">Sections</div>
-                <div class="section-tree" role="tree" aria-label="Resume section tree">
+                <div class="sidebar-kicker">@L["SectionsLabel"]</div>
+                <div class="section-tree" role="tree" aria-label="@L["ResumeSectionTree"]">
                     @foreach (var node in GetVisibleSectionNodes())
                     {
                         <div class="section-tree-row @(ReferenceEquals(_selectedEntry, node.Entry) ? "active" : "")"
@@ -96,7 +97,7 @@ else
                             <button type="button"
                                     class="section-tree-toggle"
                                     disabled="@(!node.HasChildren)"
-                                    aria-label="@(IsSectionCollapsed(node.Entry) ? "Expand section" : "Collapse section")"
+                                    aria-label="@(IsSectionCollapsed(node.Entry) ? L["ExpandSection"] : L["CollapseSection"])"
                                     @onclick="() => ToggleSectionNode(node.Entry)"
                                     @onclick:stopPropagation="true">
                                 @if (node.HasChildren)
@@ -117,12 +118,12 @@ else
 
         <main class="section-editor">
             <div class="editor-topbar">
-                <a class="btn btn-secondary" href="/chat">Back to Chat</a>
+                <a class="btn btn-secondary" href="/chat">@L["BackToChat"]</a>
                 <div class="editor-actions">
                     @if (_selectedResumeEntry is not null)
                     {
                         <button class="btn btn-primary" @onclick="SaveWholeResumeAsync" disabled="@(_isSaving || string.IsNullOrWhiteSpace(_wholeResumeMarkdown))">
-                            @(_isSaving ? "Saving..." : "Save Resume")
+                            @(_isSaving ? L["Saving"] : L["SaveResume"])
                         </button>
                     }
                 </div>
@@ -141,9 +142,9 @@ else
             @if (_selectedResumeEntry is null)
             {
                 <div class="editor-empty-state">
-                    <h3>Select a resume</h3>
-                    <p>Choose a resume from the left panel before editing the full Markdown.</p>
-                    <button class="btn btn-primary" @onclick="CreateResumeDraft">New Resume</button>
+                    <h3>@L["SelectAResume"]</h3>
+                    <p>@L["EditorSelectResumeBody"]</p>
+                    <button class="btn btn-primary" @onclick="CreateResumeDraft">@L["NewResume"]</button>
                 </div>
             }
             else
@@ -151,19 +152,19 @@ else
                 <section class="section-workspace">
                     <div class="section-edit-pane">
                         <div class="section-meta-row">
-                            <span>Editing @GetResumeTitle(_selectedResumeEntry)</span>
-                            <span>@_entries.Count section@(_entries.Count == 1 ? "" : "s")</span>
-                            <span>@GetWordCount(_wholeResumeMarkdown) words</span>
+                            <span>@L["EditingResume", GetResumeTitle(_selectedResumeEntry)]</span>
+                            <span>@CountWithUnit(_entries.Count, "SectionLabel", "SectionsPluralLabel")</span>
+                            <span>@CountWithUnit(GetWordCount(_wholeResumeMarkdown), "WordLabel", "WordsLabel")</span>
                             @if (!string.IsNullOrWhiteSpace(_selectedResumeEntry.SourceFileName) && _selectedResumeEntry.SourceFileName != ManualSourceName)
                             {
-                                <span>Imported from @_selectedResumeEntry.SourceFileName</span>
+                                <span>@L["ImportedFrom", _selectedResumeEntry.SourceFileName]</span>
                             }
                         </div>
 
                         <MarkdownEditor @ref="_fullResumeEditor"
                                         @bind-Value="_wholeResumeMarkdown"
-                                        Label="Full Resume Markdown"
-                                        Placeholder="Edit the whole resume in Markdown..."
+                                        Label="@L["FullResumeMarkdown"]"
+                                        Placeholder="@L["FullResumeMarkdownPlaceholder"]"
                                         Rows="30" />
                     </div>
                 </section>
@@ -466,6 +467,9 @@ else
     private string _message = string.Empty;
     private string _error = string.Empty;
 
+    private string ResumeBuilderSummary =>
+        $"{CountWithUnit(_resumeEntries.Count, "ResumeLabel", "ResumesLabel")} - {CountWithUnit(_entries.Count, "SectionLabel", "SectionsPluralLabel")}";
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
@@ -584,7 +588,7 @@ else
 
         var targetResume = new ResumeEntry
         {
-            Title = "Manual Resume",
+            Title = L["ManualResume"].Value,
             SourceFileName = ManualSourceName,
             CreatedAt = DateTime.UtcNow,
             TenantId = Session.Username ?? "default"
@@ -592,8 +596,8 @@ else
 
         var draft = new ResumeSection
         {
-            Title = "Untitled Resume",
-            Content = "Add the resume content here.",
+            Title = L["UntitledResume"].Value,
+            Content = L["AddResumeContentHere"].Value,
             HeadingLevel = 1,
             ResumeEntryId = targetResume.Id,
             ResumeEntry = targetResume,
@@ -648,7 +652,7 @@ else
                 {
                     _selectedEntry.ResumeEntry = new ResumeEntry
                     {
-                        Title = "Manual Resume",
+                        Title = L["ManualResume"].Value,
                         SourceFileName = ManualSourceName,
                         CreatedAt = _selectedEntry.CreatedAt,
                         TenantId = _selectedEntry.TenantId
@@ -673,11 +677,11 @@ else
 
             SortCurrentSections();
             RefreshWholeResumeMarkdown();
-            _message = $"Saved section '{_selectedEntry.Title}'.";
+            _message = L["SavedSection", _selectedEntry.Title].Value;
         }
         catch (Exception ex)
         {
-            _error = $"Save failed: {ex.Message}";
+            _error = L["SaveFailed", ex.Message].Value;
         }
         finally
         {
@@ -695,13 +699,13 @@ else
         var targetResume = _selectedResumeEntry ?? _selectedEntry.ResumeEntry;
         if (targetResume is null)
         {
-            _error = "Select a resume before duplicating a section.";
+            _error = L["SelectResumeBeforeDuplicating"].Value;
             return;
         }
 
         var duplicate = new ResumeSection
         {
-            Title = $"{_selectedEntry.Title} Copy",
+            Title = $"{_selectedEntry.Title} {L["CopySuffix"]}",
             Content = _selectedEntry.Content,
             ResumeEntryId = targetResume.Id,
             ResumeEntry = targetResume,
@@ -773,7 +777,7 @@ else
             _selectedEntry = _entries.FirstOrDefault();
         }
 
-        _message = "Section deleted.";
+        _message = L["SectionDeleted"].Value;
         RefreshWholeResumeMarkdown();
     }
 
@@ -781,13 +785,13 @@ else
     {
         if (_selectedResumeEntry is null)
         {
-            _error = "Select a resume before saving the full Markdown.";
+            _error = L["SelectResumeBeforeSavingFullMarkdown"].Value;
             return;
         }
 
         if (string.IsNullOrWhiteSpace(_wholeResumeMarkdown))
         {
-            _error = "Full resume Markdown is required.";
+            _error = L["FullResumeMarkdownRequired"].Value;
             return;
         }
 
@@ -871,11 +875,11 @@ else
             _entries.AddRange(sectionEntries);
             _selectedEntry = _entries.FirstOrDefault();
             RefreshWholeResumeMarkdown();
-            _message = $"Saved full resume and rebuilt {_entries.Count} section{(_entries.Count == 1 ? "" : "s")}.";
+            _message = L["SavedFullResumeRebuiltSections", _entries.Count, SectionWord(_entries.Count)].Value;
         }
         catch (Exception ex)
         {
-            _error = $"Save failed: {ex.Message}";
+            _error = L["SaveFailed", ex.Message].Value;
         }
         finally
         {
@@ -968,10 +972,10 @@ else
         return _collapsedSectionKeys.Contains(GetSectionKey(entry));
     }
 
-    private static string GetSectionDisplayTitle(ResumeSection entry)
+    private string GetSectionDisplayTitle(ResumeSection entry)
     {
         return string.IsNullOrWhiteSpace(entry.Title)
-            ? "Untitled Section"
+            ? L["UntitledSection"].Value
             : entry.Title.Trim();
     }
 
@@ -1062,7 +1066,7 @@ else
         return 0;
     }
 
-    private static string BuildResumeMarkdown(IEnumerable<ResumeSection> sections)
+    private string BuildResumeMarkdown(IEnumerable<ResumeSection> sections)
     {
         var builder = new StringBuilder();
 
@@ -1072,7 +1076,7 @@ else
         {
             var headingLevel = Math.Clamp(section.HeadingLevel, 1, 6);
             var title = string.IsNullOrWhiteSpace(section.Title)
-                ? "Untitled Section"
+                ? L["UntitledSection"].Value
                 : section.Title.Trim();
 
             builder.AppendLine($"{new string('#', headingLevel)} {title}");
@@ -1089,15 +1093,15 @@ else
         return builder.ToString().Trim();
     }
 
-    private static string GetEntrySummary(ResumeSection entry)
+    private string GetEntrySummary(ResumeSection entry)
     {
         var source = string.IsNullOrWhiteSpace(GetSourceFileName(entry))
             ? ManualSourceName
             : GetSourceFileName(entry);
 
         return source == ManualSourceName
-            ? $"{GetWordCount(entry.Content)} words"
-            : $"{source} - {GetWordCount(entry.Content)} words";
+            ? CountWithUnit(GetWordCount(entry.Content), "WordLabel", "WordsLabel")
+            : $"{source} - {CountWithUnit(GetWordCount(entry.Content), "WordLabel", "WordsLabel")}";
     }
 
     private static int GetWordCount(string? text)
@@ -1115,11 +1119,11 @@ else
         return entry.ResumeEntry?.SourceFileName ?? string.Empty;
     }
 
-    private static string GetResumeTitle(ResumeEntry? resumeEntry)
+    private string GetResumeTitle(ResumeEntry? resumeEntry)
     {
         if (resumeEntry is null)
         {
-            return "No resume selected";
+            return L["NoResumeSelected"].Value;
         }
 
         if (!string.IsNullOrWhiteSpace(resumeEntry.Title))
@@ -1150,15 +1154,15 @@ else
         }
 
         return resumeEntry.SourceFileName == ManualSourceName
-            ? "Manual Resume"
-            : $"Resume {resumeEntry.CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm}";
+            ? L["ManualResume"].Value
+            : $"{L["DefaultResumeTitle"]} {resumeEntry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture)}";
     }
 
-    private static string GetResumeSummary(ResumeEntry resumeEntry)
+    private string GetResumeSummary(ResumeEntry resumeEntry)
     {
         var sectionCount = resumeEntry.Sections.Count;
-        var created = resumeEntry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-        return $"{sectionCount} section{(sectionCount == 1 ? "" : "s")} - {created}";
+        var created = resumeEntry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture);
+        return $"{sectionCount} {SectionWord(sectionCount)} - {created}";
     }
 
     private void SyncSelectedTitleFromMarkdown()
@@ -1178,7 +1182,7 @@ else
         _selectedEntry.Content = normalized.Content;
     }
 
-    private static (string Title, int HeadingLevel, string Content) NormalizeSectionMarkdown(
+    private (string Title, int HeadingLevel, string Content) NormalizeSectionMarkdown(
         string? content,
         string? fallbackTitle,
         int fallbackHeadingLevel)
@@ -1208,13 +1212,13 @@ else
             }
 
             return (
-                string.IsNullOrWhiteSpace(title) ? "Untitled Section" : title,
+                string.IsNullOrWhiteSpace(title) ? L["UntitledSection"].Value : title,
                 headingLevel,
                 string.Join(Environment.NewLine, lines).Trim());
         }
 
         return (
-            string.IsNullOrWhiteSpace(fallbackTitle) ? "Untitled Section" : fallbackTitle.Trim(),
+            string.IsNullOrWhiteSpace(fallbackTitle) ? L["UntitledSection"].Value : fallbackTitle.Trim(),
             Math.Clamp(fallbackHeadingLevel, 1, 6),
             normalizedContent.Trim());
     }
@@ -1254,6 +1258,19 @@ else
     {
         var level = Math.Clamp(entry.HeadingLevel, 1, 6);
         return 14 + ((level - 1) * 18);
+    }
+
+    private string CountWithUnit(int count, string singularKey, string pluralKey)
+    {
+        var unit = count == 1 ? L[singularKey].Value : L[pluralKey].Value;
+        return $"{count} {unit}";
+    }
+
+    private string SectionWord(int count)
+    {
+        return count == 1
+            ? L["SectionLabel"].Value
+            : L["SectionsPluralLabel"].Value;
     }
 
 }
