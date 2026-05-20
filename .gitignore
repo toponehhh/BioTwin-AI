@@ -14,3 +14,5 @@ artifacts/
 database/
 COMMIT_REPORT.md
 FIXES_SUMMARY.md
+src/BioTwin_AI/BioTwin_AI.csproj.lscache
+tests/BioTwin_AI.Tests/BioTwin_AI.Tests.csproj.lscache
