@@ -411,6 +411,21 @@
   <data name="SavedAndIndexedSections" xml:space="preserve">
     <value>Saved and indexed {0} {1}.</value>
   </data>
+  <data name="RebuildVectors" xml:space="preserve">
+    <value>Rebuild All Vectors</value>
+  </data>
+  <data name="RebuildVectorsDescription" xml:space="preserve">
+    <value>Re-generate embeddings for all existing resume sections. Run this once after upgrading to populate the new vector table.</value>
+  </data>
+  <data name="RebuildingVectors" xml:space="preserve">
+    <value>Rebuilding vectors...</value>
+  </data>
+  <data name="RebuildingVectorsForResume" xml:space="preserve">
+    <value>Rebuilding vectors for: {0}</value>
+  </data>
+  <data name="RebuildVectorsSuccess" xml:space="preserve">
+    <value>Done! Processed {0} {1} across {2} resume(s).</value>
+  </data>
   <data name="SavedFullResumeRebuiltSections" xml:space="preserve">
     <value>Saved full resume and rebuilt {0} {1}.</value>
   </data>

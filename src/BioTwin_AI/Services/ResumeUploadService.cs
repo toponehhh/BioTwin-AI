@@ -3,6 +3,7 @@ using BioTwin_AI.Models;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -40,6 +41,7 @@ namespace BioTwin_AI.Services
         private readonly IStringLocalizer<SharedResource> _localizer;
         private readonly string _all2mdApiUrl;
         private readonly CurrentUserSession _session;
+        private readonly int _vectorSize;
 
         public ResumeUploadService(
             BioTwinDbContext dbContext,
@@ -59,6 +61,7 @@ namespace BioTwin_AI.Services
             _localizer = localizer;
             _all2mdApiUrl = config["All2MD:ApiUrl"] ?? "http://localhost:8000";
             _session = session;
+            _vectorSize = config.GetValue("Rag:EmbeddingSize", 768);
         }
 
         private string GetTenantId()
@@ -198,8 +201,11 @@ namespace BioTwin_AI.Services
                     if (existingSections.Count > 0)
                     {
                         await ReportProgressAsync(progress, T("AlreadyUploadedCheckingEmbeddings"));
-                        await EnsureSectionEmbeddingsAsync(existingSections, sourceFileName, progress);
-                        await _dbContext.SaveChangesAsync();
+                        await ExecuteInTransactionAsync(async () =>
+                        {
+                            await EnsureSectionEmbeddingsAsync(existingSections, sourceFileName, progress);
+                            await _dbContext.SaveChangesAsync();
+                        });
                         await ReportProgressAsync(progress, T("ReusingExistingIndexedResume"));
                         return existingSections;
                     }
@@ -222,40 +228,44 @@ namespace BioTwin_AI.Services
                     TenantId = tenantId
                 };
 
-                _dbContext.ResumeEntries.Add(resumeEntry);
-                await _dbContext.SaveChangesAsync();
-
-                await ReportProgressAsync(progress, T("OriginalResumeSavedWritingSections"));
-                var sectionEntries = sections
-                    .Select((section, index) => new ResumeSection
-                    {
-                        ResumeEntryId = resumeEntry.Id,
-                        ResumeEntry = resumeEntry,
-                        Title = section.Title,
-                        Content = section.Content,
-                        HeadingLevel = section.HeadingLevel,
-                        SortOrder = index,
-                        CreatedAt = createdAt.AddTicks(index),
-                        TenantId = tenantId
-                    })
-                    .ToList();
-
-                _dbContext.ResumeSections.AddRange(sectionEntries);
-                await _dbContext.SaveChangesAsync();
-
-                for (var i = 0; i < sections.Count; i++)
+                List<ResumeSection> sectionEntries = new();
+                await ExecuteInTransactionAsync(async () =>
                 {
-                    var parentIndex = sections[i].ParentIndex;
-                    if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                    _dbContext.ResumeEntries.Add(resumeEntry);
+                    await _dbContext.SaveChangesAsync();
+
+                    await ReportProgressAsync(progress, T("OriginalResumeSavedWritingSections"));
+                    sectionEntries = sections
+                        .Select((section, index) => new ResumeSection
+                        {
+                            ResumeEntryId = resumeEntry.Id,
+                            ResumeEntry = resumeEntry,
+                            Title = section.Title,
+                            Content = section.Content,
+                            HeadingLevel = section.HeadingLevel,
+                            SortOrder = index,
+                            CreatedAt = createdAt.AddTicks(index),
+                            TenantId = tenantId
+                        })
+                        .ToList();
+
+                    _dbContext.ResumeSections.AddRange(sectionEntries);
+                    await _dbContext.SaveChangesAsync();
+
+                    for (var i = 0; i < sections.Count; i++)
                     {
-                        sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                        var parentIndex = sections[i].ParentIndex;
+                        if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                        {
+                            sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                        }
                     }
-                }
 
-                await _dbContext.SaveChangesAsync();
+                    await _dbContext.SaveChangesAsync();
 
-                await EnsureSectionEmbeddingsAsync(sectionEntries, sourceFileName, progress);
-                await _dbContext.SaveChangesAsync();
+                    await EnsureSectionEmbeddingsAsync(sectionEntries, sourceFileName, progress);
+                    await _dbContext.SaveChangesAsync();
+                });
 
                 await ReportProgressAsync(progress, T("DoneSavedIndexedSections", sectionEntries.Count));
                 _logger.LogInformation("Saved {Count} resume sections from {SourceFile}", sectionEntries.Count, sourceFileName);
@@ -298,44 +308,55 @@ namespace BioTwin_AI.Services
                     : fallbackTitle.Trim();
 
                 await ReportProgressAsync(progress, T("ReplacingExistingSections"));
-                _dbContext.ResumeSections.RemoveRange(resumeEntry.Sections);
-                await _dbContext.SaveChangesAsync();
-                resumeEntry.Sections.Clear();
-
-                var sectionEntries = sections
-                    .Select((section, index) => new ResumeSection
-                    {
-                        ResumeEntryId = resumeEntry.Id,
-                        ResumeEntry = resumeEntry,
-                        Title = section.Title,
-                        Content = section.Content,
-                        HeadingLevel = section.HeadingLevel,
-                        SortOrder = index,
-                        CreatedAt = createdAt.AddTicks(index),
-                        TenantId = tenantId
-                    })
-                    .ToList();
-
-                _dbContext.ResumeSections.AddRange(sectionEntries);
-                await _dbContext.SaveChangesAsync();
-
-                for (var i = 0; i < sections.Count; i++)
+                await ExecuteInTransactionAsync(async () =>
                 {
-                    var parentIndex = sections[i].ParentIndex;
-                    if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                    _dbContext.ResumeSections.RemoveRange(resumeEntry.Sections);
+                    await _dbContext.SaveChangesAsync();
+                    resumeEntry.Sections.Clear();
+
+                    var sectionEntries = sections
+                        .Select((section, index) => new ResumeSection
+                        {
+                            ResumeEntryId = resumeEntry.Id,
+                            ResumeEntry = resumeEntry,
+                            Title = section.Title,
+                            Content = section.Content,
+                            HeadingLevel = section.HeadingLevel,
+                            SortOrder = index,
+                            CreatedAt = createdAt.AddTicks(index),
+                            TenantId = tenantId
+                        })
+                        .ToList();
+
+                    _dbContext.ResumeSections.AddRange(sectionEntries);
+                    await _dbContext.SaveChangesAsync();
+
+                    for (var i = 0; i < sections.Count; i++)
                     {
-                        sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                        var parentIndex = sections[i].ParentIndex;
+                        if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                        {
+                            sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                        }
                     }
-                }
 
-                await _dbContext.SaveChangesAsync();
+                    await _dbContext.SaveChangesAsync();
 
-                await EnsureSectionEmbeddingsAsync(sectionEntries, resumeEntry.SourceFileName, progress);
-                await _dbContext.SaveChangesAsync();
+                    await EnsureSectionEmbeddingsAsync(sectionEntries, resumeEntry.SourceFileName, progress);
+                    await _dbContext.SaveChangesAsync();
 
-                await ReportProgressAsync(progress, T("DoneUpdatedIndexedSections", sectionEntries.Count));
-                _logger.LogInformation("Replaced {Count} resume sections for entry {ResumeEntryId}", sectionEntries.Count, resumeEntry.Id);
-                return sectionEntries;
+                    await ReportProgressAsync(progress, T("DoneUpdatedIndexedSections", sectionEntries.Count));
+                    _logger.LogInformation("Replaced {Count} resume sections for entry {ResumeEntryId}", sectionEntries.Count, resumeEntry.Id);
+                    resumeEntry.Sections.Clear();
+                    foreach (var sectionEntry in sectionEntries)
+                    {
+                        resumeEntry.Sections.Add(sectionEntry);
+                    }
+                });
+
+                return resumeEntry.Sections
+                    .OrderBy(section => section.SortOrder)
+                    .ToList();
             }
             catch (Exception ex)
             {
@@ -401,17 +422,18 @@ namespace BioTwin_AI.Services
                 _dbContext.ResumeSections.Add(section);
                 await _dbContext.SaveChangesAsync();
 
-                section.EmbeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(
-                    markdownContent,
-                    new Dictionary<string, string>
-                    {
-                        { "title", title },
-                        { "content", markdownContent },
-                        { "db_id", section.Id.ToString() },
-                        { "resume_entry_id", entry.Id.ToString() },
-                        { "source_file", sourceFileName },
-                        { "tenant_id", tenantId }
-                    });
+                var singleChunk = BuildSectionChunk(section, sourceFileName, new[] { section.Title });
+                var embeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(singleChunk);
+
+                section.Vector = new ResumeSectionVector
+                {
+                    TenantId = tenantId,
+                    SectionTitle = section.Title,
+                    ParentSectionTitle = null,
+                    Content = singleChunk.ToJson(),
+                    EmbeddingPayload = embeddingPayload,
+                    CreatedAt = section.CreatedAt
+                };
 
                 await _dbContext.SaveChangesAsync();
 
@@ -451,27 +473,188 @@ namespace BioTwin_AI.Services
             string sourceFileName,
             Func<string, Task>? progress)
         {
+            var sectionIds = sectionEntries.Select(section => section.Id).ToList();
+            var existingVectors = await _dbContext.ResumeSectionVectors
+                .Where(vector => sectionIds.Contains(vector.ResumeSectionId))
+                .ToDictionaryAsync(vector => vector.ResumeSectionId);
+            var sectionById = sectionEntries.ToDictionary(section => section.Id);
+
             for (var i = 0; i < sectionEntries.Count; i++)
             {
                 var sectionEntry = sectionEntries[i];
-                if (!string.IsNullOrWhiteSpace(sectionEntry.EmbeddingPayload))
+                await ReportProgressAsync(progress, T("ProcessingSectionStatus", i + 1, sectionEntries.Count, sectionEntry.Title));
+
+                var breadcrumb = GetTitleBreadcrumb(sectionEntry, sectionById);
+                var parentSectionTitle = breadcrumb.Count > 1 ? breadcrumb[^2] : null;
+                var chunk = BuildSectionChunk(sectionEntry, sourceFileName, breadcrumb);
+
+                if (existingVectors.TryGetValue(sectionEntry.Id, out var vectorEntry))
                 {
+                    var existing = ResumeSectionChunk.Parse(vectorEntry.Content);
+                    if (existing.Chunk == sectionEntry.Content &&
+                        existing.Metadata.TitleBreadcrumb.SequenceEqual(breadcrumb) &&
+                        IsSerializedEmbeddingPayload(vectorEntry.EmbeddingPayload))
+                    {
+                        continue;
+                    }
+                }
+
+                var embeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(chunk);
+
+                if (vectorEntry is null)
+                {
+                    vectorEntry = new ResumeSectionVector
+                    {
+                        ResumeSectionId = sectionEntry.Id,
+                        TenantId = sectionEntry.TenantId,
+                        SectionTitle = sectionEntry.Title,
+                        ParentSectionTitle = parentSectionTitle,
+                        Content = chunk.ToJson(),
+                        EmbeddingPayload = embeddingPayload,
+                        CreatedAt = sectionEntry.CreatedAt
+                    };
+
+                    _dbContext.ResumeSectionVectors.Add(vectorEntry);
+                    existingVectors[sectionEntry.Id] = vectorEntry;
                     continue;
                 }
 
-                await ReportProgressAsync(progress, T("ProcessingSectionStatus", i + 1, sectionEntries.Count, sectionEntry.Title));
-                sectionEntry.EmbeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(
-                    sectionEntry.Content,
-                    new Dictionary<string, string>
-                    {
-                        { "title", sectionEntry.Title },
-                        { "content", sectionEntry.Content },
-                        { "db_id", sectionEntry.Id.ToString() },
-                        { "resume_entry_id", sectionEntry.ResumeEntryId.ToString() },
-                        { "source_file", sourceFileName },
-                        { "tenant_id", sectionEntry.TenantId }
-                    });
+                vectorEntry.TenantId = sectionEntry.TenantId;
+                vectorEntry.SectionTitle = sectionEntry.Title;
+                vectorEntry.ParentSectionTitle = parentSectionTitle;
+                vectorEntry.Content = chunk.ToJson();
+                vectorEntry.EmbeddingPayload = embeddingPayload;
+                vectorEntry.CreatedAt = sectionEntry.CreatedAt;
             }
+        }
+
+        private static Dictionary<string, string> BuildSectionEmbeddingMetadata(
+            ResumeSection sectionEntry,
+            string sourceFileName,
+            string? parentSectionTitle)
+        {
+            var metadata = new Dictionary<string, string>
+            {
+                { "title", sectionEntry.Title },
+                { "content", sectionEntry.Content },
+                { "db_id", sectionEntry.Id.ToString() },
+                { "resume_entry_id", sectionEntry.ResumeEntryId.ToString() },
+                { "source_file", sourceFileName },
+                { "tenant_id", sectionEntry.TenantId }
+            };
+
+            if (!string.IsNullOrWhiteSpace(parentSectionTitle))
+            {
+                metadata["parent_section_title"] = parentSectionTitle;
+            }
+
+            return metadata;
+        }
+
+        private static string? TryGetParentSectionTitle(
+            ResumeSection sectionEntry,
+            IReadOnlyDictionary<int, ResumeSection> sectionById)
+        {
+            if (sectionEntry.ParentSectionId is null)
+            {
+                return null;
+            }
+
+            return sectionById.TryGetValue(sectionEntry.ParentSectionId.Value, out var parentSection)
+                ? parentSection.Title
+                : null;
+        }
+
+        /// <summary>
+        /// Build the title breadcrumb from the nearest h2 ancestor down to <paramref name="section"/> (inclusive).
+        /// E.g. ["Work Experience", "Google", "Senior Engineer"].
+        /// </summary>
+        private static IReadOnlyList<string> GetTitleBreadcrumb(
+            ResumeSection section,
+            IReadOnlyDictionary<int, ResumeSection> sectionById)
+        {
+            var chain = new List<string>();
+            var current = section;
+
+            while (current is not null)
+            {
+                chain.Add(current.Title);
+                if (current.HeadingLevel <= 2 || current.ParentSectionId is null)
+                {
+                    break;
+                }
+
+                current = sectionById.TryGetValue(current.ParentSectionId.Value, out var parent) ? parent : null;
+            }
+
+            chain.Reverse();
+            return chain;
+        }
+
+        private static ResumeSectionChunk BuildSectionChunk(
+            ResumeSection section,
+            string sourceFileName,
+            IReadOnlyList<string> titleBreadcrumb)
+        {
+            return new ResumeSectionChunk
+            {
+                Chunk = section.Content,
+                Metadata = new ResumeSectionChunkMetadata
+                {
+                    SectionTitle = section.Title,
+                    HeadingLevel = section.HeadingLevel,
+                    TitleBreadcrumb = titleBreadcrumb,
+                    ResumeSectionId = section.Id,
+                    ResumeEntryId = section.ResumeEntryId,
+                    SourceFile = sourceFileName,
+                    TenantId = section.TenantId
+                }
+            };
+        }
+
+        private bool IsSerializedEmbeddingPayload(string? embeddingPayload)
+        {
+            if (string.IsNullOrWhiteSpace(embeddingPayload))
+            {
+                return false;
+            }
+
+            var trimmed = embeddingPayload.Trim();
+            if (!trimmed.StartsWith("[", StringComparison.Ordinal) ||
+                !trimmed.EndsWith("]", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var body = trimmed[1..^1];
+            var parts = body.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length != _vectorSize)
+            {
+                return false;
+            }
+
+            foreach (var part in parts)
+            {
+                if (!float.TryParse(part, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private async Task ExecuteInTransactionAsync(Func<Task> operation)
+        {
+            if (!_dbContext.Database.IsRelational())
+            {
+                await operation();
+                return;
+            }
+
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            await operation();
+            await transaction.CommitAsync();
         }
 
         private async Task<string> BuildMarkdownForEntryAsync(int resumeEntryId)
@@ -796,6 +979,53 @@ namespace BioTwin_AI.Services
                 await _dbContext.SaveChangesAsync();
                 _logger.LogInformation("Deleted resume entry ID: {Id} for tenant {TenantId}", id, tenantId);
             }
+        }
+
+        /// <summary>
+        /// Re-generate embeddings for every resume section that is missing a vector or whose
+        /// content has changed since the last embedding was created.  Returns the number of
+        /// sections processed and the number of resumes covered.
+        /// </summary>
+        public async Task<(int sectionCount, int resumeCount)> RebuildAllEmbeddingsAsync(
+            Func<string, Task>? progress = null)
+        {
+            var tenantId = GetTenantId();
+
+            var entries = await _dbContext.ResumeEntries
+                .Where(e => e.TenantId == tenantId)
+                .OrderBy(e => e.Id)
+                .ToListAsync();
+
+            var allSections = await _dbContext.ResumeSections
+                .Where(s => s.TenantId == tenantId)
+                .OrderBy(s => s.ResumeEntryId)
+                .ThenBy(s => s.SortOrder)
+                .ToListAsync();
+
+            var sectionsByEntry = allSections
+                .GroupBy(s => s.ResumeEntryId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<ResumeSection>)g.ToList());
+
+            var processedResumes = 0;
+
+            foreach (var entry in entries)
+            {
+                if (!sectionsByEntry.TryGetValue(entry.Id, out var sections) || sections.Count == 0)
+                {
+                    continue;
+                }
+
+                await ReportProgressAsync(progress, T("RebuildingVectorsForResume", entry.Title));
+                await EnsureSectionEmbeddingsAsync(sections, entry.SourceFileName, progress);
+                await _dbContext.SaveChangesAsync();
+                processedResumes++;
+            }
+
+            _logger.LogInformation(
+                "RebuildAllEmbeddings complete for tenant {TenantId}: {SectionCount} sections across {ResumeCount} resumes",
+                tenantId, allSections.Count, processedResumes);
+
+            return (allSections.Count, processedResumes);
         }
     }
 }

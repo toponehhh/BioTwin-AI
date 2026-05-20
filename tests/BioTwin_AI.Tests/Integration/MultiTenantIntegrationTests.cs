@@ -66,11 +66,18 @@ namespace BioTwin_AI.Tests.Integration
         }
 
         [Fact]
-        public async Task ResumeEntry_WithEmbedding_PersistsCorrectly()
+        public async Task ResumeEntry_WithEmbeddingMetadata_PersistsCorrectly()
         {
             // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var embeddingPayload = "[0.1,0.2,0.3,0.4,0.5]";
+
+            var parentSection = new ResumeSection
+            {
+                TenantId = "candidate1",
+                Title = "Experience",
+                Content = "Parent section"
+            };
 
             var resumeEntry = new ResumeEntry
             {
@@ -78,12 +85,21 @@ namespace BioTwin_AI.Tests.Integration
                 SourceFileName = "cv.pdf",
                 Sections =
                 {
+                    parentSection,
                     new ResumeSection
                     {
                         TenantId = "candidate1",
-                        Title = "Experience",
+                        Title = "Project A",
                         Content = "My experience",
-                        EmbeddingPayload = embeddingPayload
+                        ParentSection = parentSection,
+                        Vector = new ResumeSectionVector
+                        {
+                            TenantId = "candidate1",
+                            SectionTitle = "Project A",
+                            ParentSectionTitle = "Experience",
+                            Content = "My experience",
+                            EmbeddingPayload = embeddingPayload
+                        }
                     }
                 }
             };
@@ -93,8 +109,10 @@ namespace BioTwin_AI.Tests.Integration
             await dbContext.SaveChangesAsync();
 
             // Assert
-            var retrieved = dbContext.ResumeSections.First(e => e.ResumeEntryId == resumeEntry.Id);
+            var retrieved = dbContext.ResumeSectionVectors.Single();
             Assert.Equal(embeddingPayload, retrieved.EmbeddingPayload);
+            Assert.Equal("Experience", retrieved.ParentSectionTitle);
+            Assert.Equal("Project A", retrieved.SectionTitle);
         }
 
         [Fact]

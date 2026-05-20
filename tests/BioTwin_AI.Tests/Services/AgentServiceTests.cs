@@ -15,7 +15,7 @@ namespace BioTwin_AI.Tests.Services
             // Arrange
             var ragServiceMock = new Mock<IRagService>();
             ragServiceMock
-                .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+                .Setup(x => x.SearchForChatAsync(It.IsAny<string>(), It.IsAny<int>()))
                 .ReturnsAsync(new List<(string, double)> { ("Experienced in C#", 0.95) });
 
             var config = new ConfigurationBuilder()
@@ -42,7 +42,7 @@ namespace BioTwin_AI.Tests.Services
             // Assert
             Assert.NotEmpty(response);
             Assert.Equal("Test response from candidate mode", response);
-            ragServiceMock.Verify(x => x.SearchAsync("What is your experience with C#?", 3), Times.Once);
+            ragServiceMock.Verify(x => x.SearchForChatAsync("What is your experience with C#?", 3), Times.Once);
         }
 
         [Fact]
@@ -51,7 +51,7 @@ namespace BioTwin_AI.Tests.Services
             // Arrange
             var ragServiceMock = new Mock<IRagService>();
             ragServiceMock
-                .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+                .Setup(x => x.SearchForChatAsync(It.IsAny<string>(), It.IsAny<int>()))
                 .ReturnsAsync(new List<(string, double)> { ("[candidate1 - Senior Dev]\nExperienced in C#", 0.95) });
 
             var config = new ConfigurationBuilder()
@@ -78,7 +78,7 @@ namespace BioTwin_AI.Tests.Services
             // Assert
             Assert.NotEmpty(response);
             Assert.Equal("Test response from interviewer mode", response);
-            ragServiceMock.Verify(x => x.SearchAsync("What is candidate1's C# experience?", 3), Times.Once);
+            ragServiceMock.Verify(x => x.SearchForChatAsync("What is candidate1's C# experience?", 3), Times.Once);
         }
 
         [Fact]
@@ -87,7 +87,7 @@ namespace BioTwin_AI.Tests.Services
             // Arrange
             var ragServiceMock = new Mock<IRagService>();
             ragServiceMock
-                .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+                .Setup(x => x.SearchForChatAsync(It.IsAny<string>(), It.IsAny<int>()))
                 .ReturnsAsync(new List<(string, double)>());
 
             var config = new ConfigurationBuilder()
@@ -127,7 +127,7 @@ namespace BioTwin_AI.Tests.Services
             // Arrange
             var ragServiceMock = new Mock<IRagService>();
             ragServiceMock
-                .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+                .Setup(x => x.SearchForChatAsync(It.IsAny<string>(), It.IsAny<int>()))
                 .ReturnsAsync(new List<(string, double)>()); // Empty results
 
             var config = new ConfigurationBuilder()

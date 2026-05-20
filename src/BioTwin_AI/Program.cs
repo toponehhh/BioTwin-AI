@@ -67,6 +67,9 @@ app.UseRequestLocalization(new RequestLocalizationOptions()
 // Initialize RAG system
 using (var scope = app.Services.CreateScope())
 {
+    var dbContext = scope.ServiceProvider.GetRequiredService<BioTwinDbContext>();
+    await dbContext.Database.EnsureCreatedAsync();
+
     var ragService = scope.ServiceProvider.GetRequiredService<IRagService>();
     await ragService.InitializeAsync();
 }
