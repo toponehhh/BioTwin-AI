@@ -2,9 +2,11 @@ using BioTwin_AI.Data;
 using BioTwin_AI.Models;
 using BioTwin_AI.Services;
 using BioTwin_AI.Tests.Fixtures;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System.Globalization;
 using Xunit;
 
 namespace BioTwin_AI.Tests.Services
@@ -14,145 +16,166 @@ namespace BioTwin_AI.Tests.Services
         [Fact]
         public async Task SearchAsync_CandidateCanOnlySearchOwnResumes()
         {
-            // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
             session.SignIn("candidate1", UserRole.Candidate);
 
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { { "Rag:EmbeddingSize", "768" } })
-                .Build();
-
+            var config = CreateConfig();
             var embeddingServiceMock = new Mock<IEmbeddingService>();
             embeddingServiceMock
                 .Setup(x => x.GetEmbeddingAsync(It.IsAny<string>(), It.IsAny<int>()))
-                .ReturnsAsync(new float[768]); // Return dummy embedding
+                .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = new RagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, config);
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
 
-            // Add test data
             dbContext.ResumeEntries.AddRange(
                 CreateResumeEntry("candidate1", "Candidate1 Resume", "Experience in C#"),
-                CreateResumeEntry("candidate2", "Candidate2 Resume", "Experience in Python")
-            );
+                CreateResumeEntry("candidate2", "Candidate2 Resume", "Experience in Python"));
             await dbContext.SaveChangesAsync();
 
-            // Act
             var results = await ragService.SearchAsync("experience", limit: 10);
 
-            // Assert
-            Assert.Single(results); // Should only get candidate1's resume
+            Assert.Single(results);
             Assert.Contains("Experience in C#", results[0].Content);
         }
 
         [Fact]
         public async Task SearchAsync_InterviewerCanSearchAllResumes()
         {
-            // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
-            session.InterviewerLogin(); // Login as interviewer
+            session.InterviewerLogin();
 
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { { "Rag:EmbeddingSize", "768" } })
-                .Build();
-
+            var config = CreateConfig();
             var embeddingServiceMock = new Mock<IEmbeddingService>();
             embeddingServiceMock
                 .Setup(x => x.GetEmbeddingAsync(It.IsAny<string>(), It.IsAny<int>()))
                 .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = new RagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, config);
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
 
-            // Add test data
             dbContext.ResumeEntries.AddRange(
                 CreateResumeEntry("candidate1", "Candidate1 Resume", "Experience in C#"),
-                CreateResumeEntry("candidate2", "Candidate2 Resume", "Experience in Python")
-            );
+                CreateResumeEntry("candidate2", "Candidate2 Resume", "Experience in Python"));
             await dbContext.SaveChangesAsync();
 
-            // Act
             var results = await ragService.SearchAsync("experience", limit: 10);
 
-            // Assert
-            Assert.Equal(2, results.Count); // Interviewer should get both resumes
-            Assert.All(results, r => Assert.Contains("[candidate", r.Content)); // Should include candidate ID
+            Assert.Equal(2, results.Count);
+            Assert.All(results, r => Assert.Contains("[candidate", r.Content));
         }
 
         [Fact]
         public async Task SearchAsync_ReturnsEmptyListWhenNoMatches()
         {
-            // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
             session.SignIn("candidate1");
 
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { { "Rag:EmbeddingSize", "768" } })
-                .Build();
-
+            var config = CreateConfig();
             var embeddingServiceMock = new Mock<IEmbeddingService>();
             embeddingServiceMock
                 .Setup(x => x.GetEmbeddingAsync(It.IsAny<string>(), It.IsAny<int>()))
                 .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = new RagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, config);
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
 
-            // Act - database is empty
             var results = await ragService.SearchAsync("nonexistent", limit: 5);
 
-            // Assert
             Assert.Empty(results);
         }
 
         [Fact]
         public async Task SearchAsync_RespectLimitParameter()
         {
-            // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
             session.SignIn("candidate1");
 
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { { "Rag:EmbeddingSize", "768" } })
-                .Build();
-
+            var config = CreateConfig();
             var embeddingServiceMock = new Mock<IEmbeddingService>();
             embeddingServiceMock
                 .Setup(x => x.GetEmbeddingAsync(It.IsAny<string>(), It.IsAny<int>()))
                 .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = new RagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, config);
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
 
-            // Add test data - 10 resumes for candidate1
             for (int i = 0; i < 10; i++)
             {
                 dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", $"Resume {i}", $"Content {i}"));
             }
             await dbContext.SaveChangesAsync();
 
-            // Act
             var results = await ragService.SearchAsync("content", limit: 3);
 
-            // Assert
-            Assert.Equal(3, results.Count); // Should respect limit
+            Assert.Equal(3, results.Count);
+        }
+
+        [Fact]
+        public async Task SearchForChatAsync_UsesRerankOrderWhenAvailable()
+        {
+            var dbContext = DbContextFactory.CreateInMemoryContext();
+            var session = new CurrentUserSession();
+            session.SignIn("candidate1");
+
+            var config = CreateConfig(enableRerank: true, rerankCandidateLimit: 2);
+            var embeddingServiceMock = new Mock<IEmbeddingService>();
+            embeddingServiceMock
+                .Setup(x => x.GetEmbeddingAsync("csharp", 768))
+                .ReturnsAsync(CreateVector(1f, 0f));
+
+            var loggerMock = new Mock<ILogger<RagService>>();
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[1,0]"), config);
+
+            dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Strong Match", "C# direct", CreateVectorPayload(1f, 0f)));
+            dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Weak Match", "LLM reranked", CreateVectorPayload(0.2f, 0.9f)));
+            await dbContext.SaveChangesAsync();
+
+            var results = await ragService.SearchForChatAsync("csharp", limit: 2);
+
+            Assert.Equal(2, results.Count);
+            Assert.Contains("Weak Match", results[0].Content);
+            Assert.Contains("Strong Match", results[1].Content);
+        }
+
+        [Fact]
+        public async Task SearchForChatAsync_FallsBackToVectorRankingWhenRerankResponseInvalid()
+        {
+            var dbContext = DbContextFactory.CreateInMemoryContext();
+            var session = new CurrentUserSession();
+            session.SignIn("candidate1");
+
+            var config = CreateConfig(enableRerank: true, rerankCandidateLimit: 2);
+            var embeddingServiceMock = new Mock<IEmbeddingService>();
+            embeddingServiceMock
+                .Setup(x => x.GetEmbeddingAsync("csharp", 768))
+                .ReturnsAsync(CreateVector(1f, 0f));
+
+            var loggerMock = new Mock<ILogger<RagService>>();
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("not-json"), config);
+
+            dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Strong Match", "C# direct", CreateVectorPayload(1f, 0f)));
+            dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Weak Match", "LLM reranked", CreateVectorPayload(0.2f, 0.9f)));
+            await dbContext.SaveChangesAsync();
+
+            var results = await ragService.SearchForChatAsync("csharp", limit: 2);
+
+            Assert.Equal(2, results.Count);
+            Assert.Contains("Strong Match", results[0].Content);
+            Assert.Contains("Weak Match", results[1].Content);
         }
 
         [Fact]
         public async Task CreateEmbeddingPayloadAsync_CallsEmbeddingService()
         {
-            // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
 
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { { "Rag:EmbeddingSize", "768" } })
-                .Build();
-
+            var config = CreateConfig();
             var embeddingServiceMock = new Mock<IEmbeddingService>();
             var testEmbedding = Enumerable.Range(0, 768).Select(i => (float)i / 768f).ToArray();
             embeddingServiceMock
@@ -160,38 +183,40 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(testEmbedding);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = new RagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, config);
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
 
-            // Act
-            var payload = await ragService.CreateEmbeddingPayloadAsync("test content", new Dictionary<string, string>());
+            var payload = await ragService.CreateEmbeddingPayloadAsync(
+                "test content",
+                new Dictionary<string, string>
+                {
+                    { "title", "Skills" },
+                    { "parent_section_title", "Experience" }
+                });
 
-            // Assert
             Assert.NotEmpty(payload);
             Assert.StartsWith("[", payload);
             Assert.EndsWith("]", payload);
-            embeddingServiceMock.Verify(x => x.GetEmbeddingAsync("test content", 768), Times.Once);
+            embeddingServiceMock.Verify(
+                x => x.GetEmbeddingAsync(
+                    "Section Title: Skills\n\nParent Section Title: Experience\n\nSection Content:\ntest content",
+                    768),
+                Times.Once);
         }
 
         [Fact]
         public async Task InitializeAsync_LogsRagInitialization()
         {
-            // Arrange
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
 
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { { "Rag:EmbeddingSize", "768" } })
-                .Build();
-
+            var config = CreateConfig();
             var embeddingServiceMock = new Mock<IEmbeddingService>();
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = new RagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, config);
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
 
-            // Act
             await ragService.InitializeAsync();
 
-            // Assert
             loggerMock.Verify(
                 x => x.Log(
                     LogLevel.Information,
@@ -202,7 +227,33 @@ namespace BioTwin_AI.Tests.Services
                 Times.Once);
         }
 
-        private static ResumeEntry CreateResumeEntry(string tenantId, string title, string content)
+        private static RagService CreateRagService(
+            BioTwinDbContext dbContext,
+            ILogger<RagService> logger,
+            CurrentUserSession session,
+            IEmbeddingService embeddingService,
+            IChatClient chatClient,
+            IConfiguration config)
+        {
+            return new RagService(dbContext, logger, session, embeddingService, chatClient, config);
+        }
+
+        private static IConfiguration CreateConfig(bool enableRerank = false, int rerankCandidateLimit = 8)
+        {
+            return new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Rag:EmbeddingSize", "768" },
+                    { "Rag:EnableRerank", enableRerank.ToString() },
+                    { "Rag:RerankCandidateLimit", rerankCandidateLimit.ToString(CultureInfo.InvariantCulture) },
+                    { "LLM:Provider", "Ollama" },
+                    { "LLM:Model", "qwen2.5:7b" },
+                    { "LLM:ChatNumCtx", "2048" }
+                })
+                .Build();
+        }
+
+        private static ResumeEntry CreateResumeEntry(string tenantId, string title, string content, string? embeddingPayload = null)
         {
             return new ResumeEntry
             {
@@ -215,10 +266,65 @@ namespace BioTwin_AI.Tests.Services
                         TenantId = tenantId,
                         Title = title,
                         Content = content,
-                        EmbeddingPayload = "[" + string.Join(",", Enumerable.Repeat(1f, 768)) + "]"
+                        Vector = new ResumeSectionVector
+                        {
+                            TenantId = tenantId,
+                            SectionTitle = title,
+                            Content = content,
+                            EmbeddingPayload = embeddingPayload ?? "[" + string.Join(",", Enumerable.Repeat(1f, 768)) + "]"
+                        }
                     }
                 }
             };
+        }
+
+        private static float[] CreateVector(float first, float second)
+        {
+            var vector = new float[768];
+            vector[0] = first;
+            vector[1] = second;
+            return vector;
+        }
+
+        private static string CreateVectorPayload(float first, float second)
+        {
+            return "[" + string.Join(",", CreateVector(first, second).Select(value => value.ToString("G9", CultureInfo.InvariantCulture))) + "]";
+        }
+
+        private sealed class FakeChatClient : IChatClient
+        {
+            private readonly string _responseText;
+
+            public FakeChatClient(string responseText)
+            {
+                _responseText = responseText;
+            }
+
+            public Task<ChatResponse> GetResponseAsync(
+                IEnumerable<ChatMessage> messages,
+                ChatOptions? options = null,
+                CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, _responseText)));
+            }
+
+            public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+                IEnumerable<ChatMessage> messages,
+                ChatOptions? options = null,
+                [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+            {
+                await Task.Yield();
+                yield return new ChatResponseUpdate(ChatRole.Assistant, _responseText);
+            }
+
+            public object? GetService(Type serviceType, object? serviceKey = null)
+            {
+                return null;
+            }
+
+            public void Dispose()
+            {
+            }
         }
     }
 }

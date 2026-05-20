@@ -103,7 +103,7 @@ namespace BioTwin_AI.Services
         {
             _logger.LogInformation("Processing question: {Question}", question);
 
-            var relevantContent = await _ragService.SearchAsync(question, limit: 3);
+            var relevantContent = await _ragService.SearchForChatAsync(question, limit: 3);
             var context = BuildContext(relevantContent);
             var (systemPrompt, userPrompt) = BuildPrompts(question, context);
             var messages = BuildChatMessages(systemPrompt, userPrompt);

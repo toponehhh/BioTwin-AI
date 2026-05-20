@@ -11,6 +11,7 @@ namespace BioTwin_AI.Data
 
         public DbSet<ResumeEntry> ResumeEntries { get; set; } = null!;
         public DbSet<ResumeSection> ResumeSections { get; set; } = null!;
+        public DbSet<ResumeSectionVector> ResumeSectionVectors { get; set; } = null!;
         public DbSet<UserAccount> UserAccounts { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -78,10 +79,6 @@ namespace BioTwin_AI.Data
                 .HasMaxLength(100);
 
             modelBuilder.Entity<ResumeSection>()
-                .Property(s => s.EmbeddingPayload)
-                .HasColumnName("VectorId");
-
-            modelBuilder.Entity<ResumeSection>()
                 .HasIndex(s => s.TenantId);
 
             modelBuilder.Entity<ResumeSection>()
@@ -98,6 +95,45 @@ namespace BioTwin_AI.Data
 
             modelBuilder.Entity<ResumeSection>()
                 .HasIndex(s => s.ParentSectionId);
+
+            modelBuilder.Entity<ResumeSection>()
+                .HasOne(s => s.Vector)
+                .WithOne(v => v.ResumeSection)
+                .HasForeignKey<ResumeSectionVector>(v => v.ResumeSectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .HasKey(v => v.Id);
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .Property(v => v.TenantId)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .Property(v => v.SectionTitle)
+                .IsRequired();
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .Property(v => v.ParentSectionTitle);
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .Property(v => v.Content)
+                .IsRequired();
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .Property(v => v.EmbeddingPayload)
+                .IsRequired();
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .HasIndex(v => v.ResumeSectionId)
+                .IsUnique();
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .HasIndex(v => v.TenantId);
+
+            modelBuilder.Entity<ResumeSectionVector>()
+                .HasIndex(v => new { v.TenantId, v.CreatedAt });
 
             modelBuilder.Entity<UserAccount>()
                 .HasKey(u => u.Id);

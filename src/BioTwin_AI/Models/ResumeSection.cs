@@ -29,9 +29,6 @@ namespace BioTwin_AI.Models
 
         public string TenantId { get; set; } = "default";
 
-        /// <summary>
-        /// Serialized embedding payload for RAG retrieval.
-        /// </summary>
-        public string? EmbeddingPayload { get; set; }
+        public ResumeSectionVector? Vector { get; set; }
     }
 }

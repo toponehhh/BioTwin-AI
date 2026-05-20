@@ -658,22 +658,28 @@ else
                         TenantId = _selectedEntry.TenantId
                     };
                 }
-
-                DbContext.ResumeSections.Add(_selectedEntry);
-                await DbContext.SaveChangesAsync();
-
-                if (_selectedResumeEntry is null)
-                {
-                    _selectedResumeEntry = _selectedEntry.ResumeEntry;
-                    if (_selectedResumeEntry is not null && !_resumeEntries.Contains(_selectedResumeEntry))
-                    {
-                        _resumeEntries.Insert(0, _selectedResumeEntry);
-                    }
-                }
             }
 
-            _selectedEntry.EmbeddingPayload = await CreateEmbeddingPayloadAsync(_selectedEntry);
-            await DbContext.SaveChangesAsync();
+            await ExecuteInTransactionAsync(async () =>
+            {
+                if (_selectedEntry.Id == 0)
+                {
+                    DbContext.ResumeSections.Add(_selectedEntry);
+                }
+
+                await DbContext.SaveChangesAsync();
+                await UpsertSectionVectorAsync(_selectedEntry, BuildSectionLookup(_entries));
+                await DbContext.SaveChangesAsync();
+            });
+
+            if (_selectedResumeEntry is null)
+            {
+                _selectedResumeEntry = _selectedEntry.ResumeEntry;
+                if (_selectedResumeEntry is not null && !_resumeEntries.Contains(_selectedResumeEntry))
+                {
+                    _resumeEntries.Insert(0, _selectedResumeEntry);
+                }
+            }
 
             SortCurrentSections();
             RefreshWholeResumeMarkdown();
@@ -805,61 +811,66 @@ else
             var tenantId = string.IsNullOrWhiteSpace(resumeEntry.TenantId)
                 ? Session.Username ?? "default"
                 : resumeEntry.TenantId;
-
-            if (resumeEntry.Id == 0)
-            {
-                resumeEntry.TenantId = tenantId;
-                DbContext.ResumeEntries.Add(resumeEntry);
-                await DbContext.SaveChangesAsync();
-            }
+            var isNewResume = resumeEntry.Id == 0;
+            resumeEntry.TenantId = tenantId;
 
             var parsedSections = ResumeUploadService.SplitResumeMarkdown(
                 _wholeResumeMarkdown,
                 GetResumeTitle(resumeEntry));
             var createdAt = DateTime.UtcNow;
-
-            var existingSections = await DbContext.ResumeSections
-                .Where(section => section.ResumeEntryId == resumeEntry.Id && section.TenantId == tenantId)
-                .ToListAsync();
-            DbContext.ResumeSections.RemoveRange(existingSections);
-            await DbContext.SaveChangesAsync();
-
-            resumeEntry.Sections.Clear();
-            _entries.Clear();
-            _collapsedSectionKeys.Clear();
-
-            var sectionEntries = parsedSections
-                .Select((section, index) => new ResumeSection
-                {
-                    ResumeEntryId = resumeEntry.Id,
-                    ResumeEntry = resumeEntry,
-                    Title = section.Title,
-                    Content = section.Content,
-                    HeadingLevel = section.HeadingLevel,
-                    SortOrder = index,
-                    CreatedAt = createdAt.AddTicks(index),
-                    TenantId = tenantId
-                })
-                .ToList();
-
-            DbContext.ResumeSections.AddRange(sectionEntries);
-            await DbContext.SaveChangesAsync();
-
-            for (var i = 0; i < parsedSections.Count; i++)
+            List<ResumeSection> sectionEntries = new();
+            await ExecuteInTransactionAsync(async () =>
             {
-                var parentIndex = parsedSections[i].ParentIndex;
-                if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                if (isNewResume)
                 {
-                    sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                    DbContext.ResumeEntries.Add(resumeEntry);
+                    await DbContext.SaveChangesAsync();
                 }
-            }
 
-            foreach (var sectionEntry in sectionEntries)
-            {
-                sectionEntry.EmbeddingPayload = await CreateEmbeddingPayloadAsync(sectionEntry);
-            }
+                var existingSections = await DbContext.ResumeSections
+                    .Where(section => section.ResumeEntryId == resumeEntry.Id && section.TenantId == tenantId)
+                    .ToListAsync();
+                DbContext.ResumeSections.RemoveRange(existingSections);
+                await DbContext.SaveChangesAsync();
 
-            await DbContext.SaveChangesAsync();
+                resumeEntry.Sections.Clear();
+                _entries.Clear();
+                _collapsedSectionKeys.Clear();
+
+                sectionEntries = parsedSections
+                    .Select((section, index) => new ResumeSection
+                    {
+                        ResumeEntryId = resumeEntry.Id,
+                        ResumeEntry = resumeEntry,
+                        Title = section.Title,
+                        Content = section.Content,
+                        HeadingLevel = section.HeadingLevel,
+                        SortOrder = index,
+                        CreatedAt = createdAt.AddTicks(index),
+                        TenantId = tenantId
+                    })
+                    .ToList();
+
+                DbContext.ResumeSections.AddRange(sectionEntries);
+                await DbContext.SaveChangesAsync();
+
+                for (var i = 0; i < parsedSections.Count; i++)
+                {
+                    var parentIndex = parsedSections[i].ParentIndex;
+                    if (parentIndex is not null && parentIndex.Value >= 0 && parentIndex.Value < sectionEntries.Count)
+                    {
+                        sectionEntries[i].ParentSectionId = sectionEntries[parentIndex.Value].Id;
+                    }
+                }
+
+                var sectionLookup = BuildSectionLookup(sectionEntries);
+                foreach (var sectionEntry in sectionEntries)
+                {
+                    await UpsertSectionVectorAsync(sectionEntry, sectionLookup);
+                }
+
+                await DbContext.SaveChangesAsync();
+            });
 
             foreach (var section in sectionEntries)
             {
@@ -887,19 +898,105 @@ else
         }
     }
 
-    private Task<string> CreateEmbeddingPayloadAsync(ResumeSection entry)
+    private async Task UpsertSectionVectorAsync(
+        ResumeSection entry,
+        IReadOnlyDictionary<int, ResumeSection>? sectionLookup = null)
     {
-        return RagService.CreateEmbeddingPayloadAsync(
-            entry.Content,
-            new Dictionary<string, string>
+        var titleBreadcrumb = await GetTitleBreadcrumbAsync(entry, sectionLookup);
+        var chunk = new ResumeSectionChunk
+        {
+            Chunk = entry.Content,
+            Metadata = new ResumeSectionChunkMetadata
             {
-                { "title", entry.Title },
-                { "content", entry.Content },
-                { "db_id", entry.Id.ToString() },
-                { "resume_entry_id", entry.ResumeEntryId.ToString() },
-                { "source_file", GetSourceFileName(entry) },
-                { "tenant_id", entry.TenantId }
-            });
+                SectionTitle = entry.Title,
+                HeadingLevel = entry.HeadingLevel,
+                TitleBreadcrumb = titleBreadcrumb,
+                ResumeSectionId = entry.Id,
+                ResumeEntryId = entry.ResumeEntryId,
+                SourceFile = GetSourceFileName(entry),
+                TenantId = entry.TenantId
+            }
+        };
+
+        var parentSectionTitle = titleBreadcrumb.Count > 1 ? titleBreadcrumb[^2] : null;
+        var embeddingPayload = await RagService.CreateEmbeddingPayloadAsync(chunk);
+
+        var vectorEntry = entry.Vector;
+        if (vectorEntry is null && entry.Id != 0)
+        {
+            vectorEntry = await DbContext.ResumeSectionVectors
+                .FirstOrDefaultAsync(vector => vector.ResumeSectionId == entry.Id);
+        }
+
+        if (vectorEntry is null)
+        {
+            vectorEntry = new ResumeSectionVector
+            {
+                ResumeSectionId = entry.Id,
+                CreatedAt = entry.CreatedAt
+            };
+
+            DbContext.ResumeSectionVectors.Add(vectorEntry);
+            entry.Vector = vectorEntry;
+        }
+
+        vectorEntry.TenantId = entry.TenantId;
+        vectorEntry.SectionTitle = entry.Title;
+        vectorEntry.ParentSectionTitle = parentSectionTitle;
+        vectorEntry.Content = chunk.ToJson();
+        vectorEntry.EmbeddingPayload = embeddingPayload;
+        vectorEntry.CreatedAt = entry.CreatedAt;
+    }
+
+    private async Task<IReadOnlyList<string>> GetTitleBreadcrumbAsync(
+        ResumeSection entry,
+        IReadOnlyDictionary<int, ResumeSection>? sectionLookup = null)
+    {
+        var chain = new List<string>();
+        var current = entry;
+
+        while (current is not null)
+        {
+            chain.Add(current.Title);
+            if (current.HeadingLevel <= 2 || current.ParentSectionId is null)
+            {
+                break;
+            }
+
+            if (sectionLookup is not null && sectionLookup.TryGetValue(current.ParentSectionId.Value, out var parent))
+            {
+                current = parent;
+            }
+            else
+            {
+                current = await DbContext.ResumeSections
+                    .FirstOrDefaultAsync(s => s.Id == current.ParentSectionId.Value);
+            }
+        }
+
+        chain.Reverse();
+        return chain;
+    }
+
+    private static Dictionary<int, ResumeSection> BuildSectionLookup(IEnumerable<ResumeSection> sections)
+    {
+        return sections
+            .Where(section => section.Id != 0)
+            .GroupBy(section => section.Id)
+            .ToDictionary(group => group.Key, group => group.First());
+    }
+
+    private async Task ExecuteInTransactionAsync(Func<Task> operation)
+    {
+        if (!DbContext.Database.IsRelational())
+        {
+            await operation();
+            return;
+        }
+
+        await using var transaction = await DbContext.Database.BeginTransactionAsync();
+        await operation();
+        await transaction.CommitAsync();
     }
 
     private IReadOnlyList<SectionTreeNode> GetVisibleSectionNodes()
