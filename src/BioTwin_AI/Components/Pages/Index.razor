@@ -3,6 +3,7 @@
 @using BioTwin_AI.Components
 @rendermode InteractiveServer
 @inject BioTwin_AI.Services.CurrentUserSession Session
+@inject BioTwin_AI.Services.AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> L
@@ -57,7 +58,7 @@ else
             return;
         }
 
-        await Session.RestoreAsync(JS);
+        await AuthService.RestoreSessionAsync(JS);
         _sessionResolved = true;
         StateHasChanged();
 

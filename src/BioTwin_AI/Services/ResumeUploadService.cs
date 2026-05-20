@@ -422,18 +422,25 @@ namespace BioTwin_AI.Services
                 _dbContext.ResumeSections.Add(section);
                 await _dbContext.SaveChangesAsync();
 
-                var singleChunk = BuildSectionChunk(section, sourceFileName, new[] { section.Title });
-                var embeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(singleChunk);
-
-                section.Vector = new ResumeSectionVector
+                if (ResumeSectionEmbeddingPolicy.TryCreateChunk(
+                    section,
+                    sourceFileName,
+                    new[] { section.Title },
+                    out var singleChunk) &&
+                    singleChunk is not null)
                 {
-                    TenantId = tenantId,
-                    SectionTitle = section.Title,
-                    ParentSectionTitle = null,
-                    Content = singleChunk.ToJson(),
-                    EmbeddingPayload = embeddingPayload,
-                    CreatedAt = section.CreatedAt
-                };
+                    var embeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(singleChunk);
+
+                    section.Vector = new ResumeSectionVector
+                    {
+                        TenantId = tenantId,
+                        SectionTitle = section.Title,
+                        ParentSectionTitle = null,
+                        Content = singleChunk.ToJson(),
+                        EmbeddingPayload = embeddingPayload,
+                        CreatedAt = section.CreatedAt
+                    };
+                }
 
                 await _dbContext.SaveChangesAsync();
 
@@ -486,17 +493,38 @@ namespace BioTwin_AI.Services
 
                 var breadcrumb = GetTitleBreadcrumb(sectionEntry, sectionById);
                 var parentSectionTitle = breadcrumb.Count > 1 ? breadcrumb[^2] : null;
-                var chunk = BuildSectionChunk(sectionEntry, sourceFileName, breadcrumb);
+                ResumeSectionChunk? chunk;
 
                 if (existingVectors.TryGetValue(sectionEntry.Id, out var vectorEntry))
                 {
+                    if (!ResumeSectionEmbeddingPolicy.TryCreateChunk(sectionEntry, sourceFileName, breadcrumb, out chunk))
+                    {
+                        _dbContext.ResumeSectionVectors.Remove(vectorEntry);
+                        existingVectors.Remove(sectionEntry.Id);
+                        continue;
+                    }
+
+                    if (chunk is null)
+                    {
+                        continue;
+                    }
+
                     var existing = ResumeSectionChunk.Parse(vectorEntry.Content);
-                    if (existing.Chunk == sectionEntry.Content &&
+                    if (existing.Chunk == chunk.Chunk &&
                         existing.Metadata.TitleBreadcrumb.SequenceEqual(breadcrumb) &&
                         IsSerializedEmbeddingPayload(vectorEntry.EmbeddingPayload))
                     {
                         continue;
                     }
+                }
+                else if (!ResumeSectionEmbeddingPolicy.TryCreateChunk(sectionEntry, sourceFileName, breadcrumb, out chunk))
+                {
+                    continue;
+                }
+
+                if (chunk is null)
+                {
+                    continue;
                 }
 
                 var embeddingPayload = await _ragService.CreateEmbeddingPayloadAsync(chunk);
@@ -589,27 +617,6 @@ namespace BioTwin_AI.Services
 
             chain.Reverse();
             return chain;
-        }
-
-        private static ResumeSectionChunk BuildSectionChunk(
-            ResumeSection section,
-            string sourceFileName,
-            IReadOnlyList<string> titleBreadcrumb)
-        {
-            return new ResumeSectionChunk
-            {
-                Chunk = section.Content,
-                Metadata = new ResumeSectionChunkMetadata
-                {
-                    SectionTitle = section.Title,
-                    HeadingLevel = section.HeadingLevel,
-                    TitleBreadcrumb = titleBreadcrumb,
-                    ResumeSectionId = section.Id,
-                    ResumeEntryId = section.ResumeEntryId,
-                    SourceFile = sourceFileName,
-                    TenantId = section.TenantId
-                }
-            };
         }
 
         private bool IsSerializedEmbeddingPayload(string? embeddingPayload)
@@ -968,17 +975,35 @@ namespace BioTwin_AI.Services
         /// <summary>
         /// Delete a resume source entry and its sections.
         /// </summary>
-        public async Task DeleteEntryAsync(int id)
+        public async Task<bool> DeleteEntryAsync(int id)
         {
             var tenantId = GetTenantId();
             var entry = await _dbContext.ResumeEntries
                 .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId);
-            if (entry != null)
+            if (entry is null)
             {
-                _dbContext.ResumeEntries.Remove(entry);
-                await _dbContext.SaveChangesAsync();
-                _logger.LogInformation("Deleted resume entry ID: {Id} for tenant {TenantId}", id, tenantId);
+                return false;
             }
+
+            var sectionIds = await _dbContext.ResumeSections
+                .Where(section => section.ResumeEntryId == id && section.TenantId == tenantId)
+                .Select(section => section.Id)
+                .ToListAsync();
+
+            var vectors = await _dbContext.ResumeSectionVectors
+                .Where(vector => sectionIds.Contains(vector.ResumeSectionId))
+                .ToListAsync();
+            _dbContext.ResumeSectionVectors.RemoveRange(vectors);
+
+            var sections = await _dbContext.ResumeSections
+                .Where(section => sectionIds.Contains(section.Id))
+                .ToListAsync();
+            _dbContext.ResumeSections.RemoveRange(sections);
+
+            _dbContext.ResumeEntries.Remove(entry);
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Deleted resume entry ID: {Id} for tenant {TenantId}", id, tenantId);
+            return true;
         }
 
         /// <summary>

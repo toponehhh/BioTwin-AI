@@ -2,6 +2,7 @@ using BioTwin_AI.Data;
 using BioTwin_AI.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.JSInterop;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -36,7 +37,7 @@ namespace BioTwin_AI.Services
                 return (false, T("Username and password are required."));
             }
 
-            var exists = await _dbContext.UserAccounts.AnyAsync(u => u.Username == username);
+            var exists = await UsernameExistsAsync(username);
             if (exists)
             {
                 return (false, T("Username already exists."));
@@ -51,7 +52,7 @@ namespace BioTwin_AI.Services
 
             _dbContext.UserAccounts.Add(user);
             await _dbContext.SaveChangesAsync();
-            _session.SignIn(username);
+            _session.SignIn(user.Username, UserRole.Candidate, CreateSessionToken(user, UserRole.Candidate));
 
             return (true, T("Registered and signed in successfully."));
         }
@@ -64,7 +65,7 @@ namespace BioTwin_AI.Services
                 return (false, T("Username and password are required."));
             }
 
-            var user = await _dbContext.UserAccounts.FirstOrDefaultAsync(u => u.Username == username);
+            var user = await FindUserByNormalizedUsernameAsync(username);
             if (user == null)
             {
                 return (false, T("Invalid username or password."));
@@ -75,8 +76,53 @@ namespace BioTwin_AI.Services
                 return (false, T("Invalid username or password."));
             }
 
-            _session.SignIn(user.Username);
+            _session.SignIn(user.Username, UserRole.Candidate, CreateSessionToken(user, UserRole.Candidate));
             return (true, T("Logged in successfully."));
+        }
+
+        public async Task<bool> RestoreSessionAsync(IJSRuntime jsRuntime)
+        {
+            await _session.RestoreAsync(jsRuntime);
+            if (!_session.IsAuthenticated || string.IsNullOrWhiteSpace(_session.Username))
+            {
+                return false;
+            }
+
+            if (_session.IsInterviewer)
+            {
+                return true;
+            }
+
+            var username = NormalizeUsername(_session.Username);
+            if (string.IsNullOrWhiteSpace(_session.SessionToken))
+            {
+                await RejectPersistedSessionAsync(jsRuntime);
+                return false;
+            }
+
+            var user = await FindUserByNormalizedUsernameAsync(username, trackChanges: false);
+
+            if (user == null)
+            {
+                await RejectPersistedSessionAsync(jsRuntime);
+                return false;
+            }
+
+            var expectedToken = CreateSessionToken(user, UserRole.Candidate);
+            if (!IsSameToken(_session.SessionToken, expectedToken))
+            {
+                await RejectPersistedSessionAsync(jsRuntime);
+                return false;
+            }
+
+            if (!string.Equals(_session.Username, user.Username, StringComparison.Ordinal) ||
+                _session.Role != UserRole.Candidate)
+            {
+                _session.SignIn(user.Username, UserRole.Candidate, expectedToken);
+                await _session.PersistAsync(jsRuntime);
+            }
+
+            return true;
         }
 
         public void Logout()
@@ -89,9 +135,52 @@ namespace BioTwin_AI.Services
             return username.Trim().ToLowerInvariant();
         }
 
+        private Task<bool> UsernameExistsAsync(string normalizedUsername)
+        {
+            return _dbContext.UserAccounts
+                .AnyAsync(u => u.Username.Trim().ToLower() == normalizedUsername);
+        }
+
+        private Task<UserAccount?> FindUserByNormalizedUsernameAsync(
+            string normalizedUsername,
+            bool trackChanges = true)
+        {
+            var query = trackChanges
+                ? _dbContext.UserAccounts
+                : _dbContext.UserAccounts.AsNoTracking();
+
+            return query.FirstOrDefaultAsync(u => u.Username.Trim().ToLower() == normalizedUsername);
+        }
+
         private string T(string key)
         {
             return _localizer?[key].Value ?? key;
+        }
+
+        private async Task RejectPersistedSessionAsync(IJSRuntime jsRuntime)
+        {
+            _session.SignOut();
+            await _session.ClearPersistedAsync(jsRuntime);
+        }
+
+        private static string CreateSessionToken(UserAccount user, UserRole role)
+        {
+            var tokenMaterial = string.Join(
+                "|",
+                user.Id.ToString(),
+                user.Username,
+                role.ToString(),
+                user.PasswordHash,
+                user.CreatedAt.Ticks.ToString());
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tokenMaterial)));
+        }
+
+        private static bool IsSameToken(string actual, string expected)
+        {
+            var actualBytes = Encoding.UTF8.GetBytes(actual);
+            var expectedBytes = Encoding.UTF8.GetBytes(expected);
+            return actualBytes.Length == expectedBytes.Length &&
+                CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes);
         }
 
         private static string HashPassword(string password)

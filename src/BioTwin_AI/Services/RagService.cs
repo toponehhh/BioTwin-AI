@@ -15,6 +15,28 @@ namespace BioTwin_AI.Services
     /// </summary>
     public class RagService : IRagService
     {
+        private static readonly HashSet<string> QueryStopWords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "A", "AN", "THE", "AND", "OR", "TO", "OF", "IN", "ON", "AT", "BY", "FOR",
+            "WITH", "FROM", "ABOUT", "WHICH", "WHAT", "WHO", "WHEN", "WHERE", "WHY",
+            "HOW", "ME", "MY", "YOUR", "YOU", "I", "WE", "OUR", "HAVE", "HAS", "HAD",
+            "DO", "DID", "DOES", "BE", "AM", "IS", "ARE", "WAS", "WERE", "BEEN",
+            "BEFORE", "ANY", "SOME", "PLEASE", "SHOW", "TELL"
+        };
+
+        private static readonly HashSet<string> QueryIntentTerms = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "PROJECT", "PROJECTS", "EXPERIENCE", "EXPERIENCES", "WORK", "WORKED",
+            "WORKING", "JOB", "JOBS", "ROLE", "ROLES"
+        };
+
+        private static readonly string[] EntityLabels =
+        [
+            "Company", "Campany", "Employer", "Organization", "Client", "Customer",
+            "Project Name", "Project", "Product", "Role", "Title", "Institution",
+            "School", "University", "Degree", "Major", "Technology", "Tech Stack", "Skill", "Skills"
+        ];
+
         private readonly BioTwinDbContext _dbContext;
         private readonly ILogger<RagService> _logger;
         private readonly CurrentUserSession _session;
@@ -186,7 +208,7 @@ namespace BioTwin_AI.Services
 
                 var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query, _vectorSize);
                 var candidates = await LoadVectorCandidatesAsync(tenantId);
-                var ranked = RankCandidates(queryEmbedding, candidates);
+                var ranked = RankCandidates(query, queryEmbedding, candidates);
 
                 if (ranked.Count == 0)
                 {
@@ -195,7 +217,7 @@ namespace BioTwin_AI.Services
 
                 var vectorResults = ranked
                     .Take(Math.Max(limit, candidateLimit))
-                    .Select(candidate => (candidate.Content, candidate.VectorScore))
+                    .Select(candidate => (candidate.Content, candidate.DisplayScore))
                     .ToList();
 
                 if (!rerank || vectorResults.Count <= 1)
@@ -333,11 +355,14 @@ namespace BioTwin_AI.Services
             return await queryBase.ToListAsync();
         }
 
-        private List<SearchCandidate> RankCandidates(float[] queryEmbedding, IEnumerable<ResumeSectionVector> candidates)
+        private List<SearchCandidate> RankCandidates(string query, float[] queryEmbedding, IEnumerable<ResumeSectionVector> candidates)
         {
             var ranked = new List<SearchCandidate>();
+            var candidateList = candidates.ToList();
+            var profile = BuildLexicalProfile(candidateList);
+            var lexicalTerms = ExtractLexicalTerms(query, profile);
 
-            foreach (var candidate in candidates)
+            foreach (var candidate in candidateList)
             {
                 if (!TryParseVector(candidate.EmbeddingPayload, out var vector))
                 {
@@ -378,12 +403,219 @@ namespace BioTwin_AI.Services
                     : candidate.Content;   // plain-text fallback
 
                 var contentWithContext = $"{prefix}\n{chunkText}";
-                ranked.Add(new SearchCandidate(contentWithContext, score));
+                var lexicalScore = CalculateLexicalScore(lexicalTerms, contentWithContext);
+                ranked.Add(new SearchCandidate(contentWithContext, score, lexicalScore.EntityScore, lexicalScore.IntentScore));
             }
 
             return ranked
-                .OrderByDescending(candidate => candidate.VectorScore)
+                .OrderByDescending(candidate => candidate.RetrievalScore)
                 .ToList();
+        }
+
+        private static ResumeLexicalProfile BuildLexicalProfile(IEnumerable<ResumeSectionVector> candidates)
+        {
+            var entities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in candidates)
+            {
+                var chunk = ResumeSectionChunk.Parse(candidate.Content);
+                AddEntityValue(entities, candidate.SectionTitle);
+                AddEntityValue(entities, candidate.ParentSectionTitle);
+                AddEntityValue(entities, chunk.Metadata.SectionTitle);
+
+                foreach (var title in chunk.Metadata.TitleBreadcrumb)
+                {
+                    AddEntityValue(entities, title);
+                }
+
+                ExtractStructuredEntities(candidate.Content, entities);
+                ExtractStructuredEntities(chunk.Chunk, entities);
+            }
+
+            return new ResumeLexicalProfile(entities);
+        }
+
+        private static void ExtractStructuredEntities(string? text, ISet<string> entities)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            foreach (var line in text.Replace("\\n", "\n").Split('\n'))
+            {
+                foreach (var label in EntityLabels)
+                {
+                    var pattern = $@"^\s*(?:[-*]\s*)?(?:#+\s*)?{Regex.Escape(label)}\s*:?\s*\**\s*(.+?)\s*\**\s*$";
+                    var match = Regex.Match(line, pattern, RegexOptions.IgnoreCase);
+                    if (match.Success)
+                    {
+                        AddEntityValue(entities, match.Groups[1].Value);
+                    }
+                }
+            }
+        }
+
+        private static void AddEntityValue(ISet<string> entities, string? value)
+        {
+            var cleaned = CleanEntityValue(value);
+            if (string.IsNullOrWhiteSpace(cleaned))
+            {
+                return;
+            }
+
+            AddEntityAlias(entities, cleaned);
+
+            foreach (Match match in Regex.Matches(cleaned, @"[\p{L}\p{N}][\p{L}\p{N}._+#-]{1,}"))
+            {
+                var token = match.Value.Trim();
+                if (!QueryStopWords.Contains(token) && !QueryIntentTerms.Contains(token))
+                {
+                    AddEntityAlias(entities, token);
+                }
+            }
+        }
+
+        private static void AddEntityAlias(ISet<string> entities, string value)
+        {
+            var normalized = NormalizeEntityKey(value);
+            if (normalized.Length >= 2)
+            {
+                entities.Add(normalized);
+            }
+        }
+
+        private static string CleanEntityValue(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var cleaned = Regex.Replace(value, @"[*_`#>\[\]()]+", " ");
+            cleaned = Regex.Replace(cleaned, @"\s+", " ");
+            return cleaned.Trim(' ', ':', '-', '|');
+        }
+
+        private static string NormalizeEntityKey(string value)
+        {
+            var chars = value
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray();
+
+            return new string(chars);
+        }
+
+        private static LexicalQueryTerms ExtractLexicalTerms(string query, ResumeLexicalProfile profile)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return new LexicalQueryTerms(Array.Empty<string>(), Array.Empty<string>());
+            }
+
+            var entityTerms = new List<string>();
+            var intentTerms = new List<string>();
+            var tokens = Regex.Matches(query, @"[\p{L}\p{N}][\p{L}\p{N}._+#-]{1,}")
+                .Select(match => match.Value.Trim())
+                .Where(term => term.Length >= 2 && !IsMostlyCjk(term))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var rawToken in tokens)
+            {
+                var token = rawToken.ToUpperInvariant();
+                if (QueryStopWords.Contains(token))
+                {
+                    continue;
+                }
+
+                if (QueryIntentTerms.Contains(token))
+                {
+                    intentTerms.Add(NormalizeIntentTerm(token));
+                    continue;
+                }
+
+                if (profile.ContainsEntity(rawToken) || LooksLikeEntityToken(rawToken))
+                {
+                    entityTerms.Add(rawToken);
+                }
+            }
+
+            if (query.Contains("项目", StringComparison.Ordinal))
+            {
+                intentTerms.Add("PROJECT");
+            }
+
+            if (query.Contains("经历", StringComparison.Ordinal) ||
+                query.Contains("工作", StringComparison.Ordinal))
+            {
+                intentTerms.Add("EXPERIENCE");
+                intentTerms.Add("WORK");
+            }
+
+            return new LexicalQueryTerms(
+                entityTerms.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                intentTerms.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+        }
+
+        private static string NormalizeIntentTerm(string term)
+        {
+            return term.ToUpperInvariant() switch
+            {
+                "PROJECTS" => "PROJECT",
+                "EXPERIENCES" => "EXPERIENCE",
+                "WORKED" or "WORKING" => "WORK",
+                "JOBS" => "JOB",
+                "ROLES" => "ROLE",
+                _ => term.ToUpperInvariant()
+            };
+        }
+
+        private static bool IsMostlyCjk(string value)
+        {
+            var lettersOrDigits = value.Count(char.IsLetterOrDigit);
+            if (lettersOrDigits == 0)
+            {
+                return false;
+            }
+
+            var cjk = value.Count(ch => ch >= '\u4e00' && ch <= '\u9fff');
+            return cjk > 0 && cjk >= lettersOrDigits / 2d;
+        }
+
+        private static bool LooksLikeEntityToken(string token)
+        {
+            return token.Any(char.IsDigit) ||
+                   token.Any(ch => ch is '.' or '#' or '+') ||
+                   token.Count(char.IsUpper) >= 2;
+        }
+
+        private static LexicalScore CalculateLexicalScore(LexicalQueryTerms terms, string content)
+        {
+            if ((terms.EntityTerms.Count == 0 && terms.IntentTerms.Count == 0) ||
+                string.IsNullOrWhiteSpace(content))
+            {
+                return new LexicalScore(0, 0);
+            }
+
+            var entityScore = terms.EntityTerms.Sum(term => HasEntityTerm(content, term) ? 1.1d : 0d);
+            var intentScore = terms.IntentTerms.Sum(term => HasWholeTerm(content, term) ? 0.08d : 0d);
+
+            return new LexicalScore(Math.Min(entityScore, 2.2d), Math.Min(intentScore, 0.24d));
+        }
+
+        private static bool HasWholeTerm(string content, string term)
+        {
+            return Regex.IsMatch(
+                content,
+                $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(term)}(?![\p{{L}}\p{{N}}])",
+                RegexOptions.IgnoreCase);
+        }
+
+        private static bool HasEntityTerm(string content, string term)
+        {
+            return HasWholeTerm(content, term) ||
+                   NormalizeEntityKey(content).Contains(NormalizeEntityKey(term), StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<List<(string Content, double Score)>> RerankCandidatesAsync(
@@ -403,7 +635,7 @@ namespace BioTwin_AI.Services
                     _logger.LogWarning("Rerank model returned no usable ordering. Falling back to vector ranking.");
                     return candidates
                         .Take(limit)
-                        .Select(candidate => (candidate.Content, candidate.VectorScore))
+                        .Select(candidate => (candidate.Content, candidate.DisplayScore))
                         .ToList();
                 }
 
@@ -440,7 +672,7 @@ namespace BioTwin_AI.Services
                     }
 
                     var candidate = candidates[i];
-                    reranked.Add((candidate.Content, candidate.VectorScore));
+                    reranked.Add((candidate.Content, candidate.DisplayScore));
                 }
 
                 return reranked;
@@ -450,7 +682,7 @@ namespace BioTwin_AI.Services
                 _logger.LogWarning(ex, "Rerank failed. Falling back to vector ranking.");
                 return candidates
                     .Take(limit)
-                    .Select(candidate => (candidate.Content, candidate.VectorScore))
+                    .Select(candidate => (candidate.Content, candidate.DisplayScore))
                     .ToList();
             }
         }
@@ -674,6 +906,23 @@ Do not include explanations.
             }
         }
 
-        private sealed record SearchCandidate(string Content, double VectorScore);
+        private sealed record LexicalQueryTerms(IReadOnlyList<string> EntityTerms, IReadOnlyList<string> IntentTerms);
+
+        private sealed record LexicalScore(double EntityScore, double IntentScore);
+
+        private sealed record ResumeLexicalProfile(IReadOnlySet<string> EntityKeys)
+        {
+            public bool ContainsEntity(string value)
+            {
+                return EntityKeys.Contains(NormalizeEntityKey(value));
+            }
+        }
+
+        private sealed record SearchCandidate(string Content, double VectorScore, double EntityScore, double IntentScore)
+        {
+            public double RetrievalScore => VectorScore + EntityScore + IntentScore;
+
+            public double DisplayScore => Math.Clamp(RetrievalScore, 0d, 1d);
+        }
     }
 }

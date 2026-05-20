@@ -170,6 +170,110 @@ namespace BioTwin_AI.Tests.Services
         }
 
         [Fact]
+        public async Task SearchForChatAsync_BoostsExactEntityMatchesInChineseQueries()
+        {
+            var dbContext = DbContextFactory.CreateInMemoryContext();
+            var session = new CurrentUserSession();
+            session.SignIn("candidate1");
+
+            var config = CreateConfig(enableRerank: false);
+            var embeddingServiceMock = new Mock<IEmbeddingService>();
+            embeddingServiceMock
+                .Setup(x => x.GetEmbeddingAsync("你在DELL有哪些项目经历", 768))
+                .ReturnsAsync(CreateVector(1f, 0f));
+
+            var loggerMock = new Mock<ILogger<RagService>>();
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+
+            dbContext.ResumeEntries.Add(CreateResumeEntry(
+                "candidate1",
+                "Generic Summary",
+                "Built internal .NET services for enterprise workflow.",
+                CreateVectorPayload(0.8f, 0f)));
+            dbContext.ResumeEntries.Add(CreateResumeEntry(
+                "candidate1",
+                "DELL Project",
+                "Project Name: Dell OS Recovery Tool\nProject Description: Created recovery media workflows for Dell PCs.",
+                CreateVectorPayload(0.3f, 0f)));
+            await dbContext.SaveChangesAsync();
+
+            var results = await ragService.SearchForChatAsync("你在DELL有哪些项目经历", limit: 2);
+
+            Assert.Equal(2, results.Count);
+            Assert.Contains("Dell OS Recovery Tool", results[0].Content);
+        }
+
+        [Fact]
+        public async Task SearchForChatAsync_DoesNotLetGenericEnglishQuestionTermsOutrankCompanyEntity()
+        {
+            var dbContext = DbContextFactory.CreateInMemoryContext();
+            var session = new CurrentUserSession();
+            session.SignIn("candidate1");
+
+            var config = CreateConfig(enableRerank: false);
+            var embeddingServiceMock = new Mock<IEmbeddingService>();
+            embeddingServiceMock
+                .Setup(x => x.GetEmbeddingAsync("which projects you have worked for Marykay", 768))
+                .ReturnsAsync(CreateVector(1f, 0f));
+
+            var loggerMock = new Mock<ILogger<RagService>>();
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+
+            dbContext.ResumeEntries.Add(CreateResumeEntry(
+                "candidate1",
+                "Reed Elsevier Project",
+                "Project Name: LLM Proxy Gateway\nWorked on enterprise projects for AI platforms.",
+                CreateVectorPayload(0.9f, 0f)));
+            dbContext.ResumeEntries.Add(CreateResumeEntry(
+                "candidate1",
+                "Marykay Project",
+                "Company: MaryKay\nProject Name: Order Backend Management System\nProject Description: Managed consultant order and inventory workflows.",
+                CreateVectorPayload(0.2f, 0f)));
+            await dbContext.SaveChangesAsync();
+
+            var results = await ragService.SearchForChatAsync("which projects you have worked for Marykay", limit: 2);
+
+            Assert.Equal(2, results.Count);
+            Assert.Contains("MaryKay", results[0].Content);
+            Assert.Contains("Order Backend Management System", results[0].Content);
+        }
+
+        [Fact]
+        public async Task SearchForChatAsync_UsesResumeEntityProfileForSpacedCompanyAliases()
+        {
+            var dbContext = DbContextFactory.CreateInMemoryContext();
+            var session = new CurrentUserSession();
+            session.SignIn("candidate1");
+
+            var config = CreateConfig(enableRerank: false);
+            var embeddingServiceMock = new Mock<IEmbeddingService>();
+            embeddingServiceMock
+                .Setup(x => x.GetEmbeddingAsync("which projects you have worked for Marykay", 768))
+                .ReturnsAsync(CreateVector(1f, 0f));
+
+            var loggerMock = new Mock<ILogger<RagService>>();
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+
+            dbContext.ResumeEntries.Add(CreateResumeEntry(
+                "candidate1",
+                "Reed Elsevier Project",
+                "Project Name: LLM Proxy Gateway\nWorked on enterprise projects for AI platforms.",
+                CreateVectorPayload(0.9f, 0f)));
+            dbContext.ResumeEntries.Add(CreateResumeEntry(
+                "candidate1",
+                "Mary Kay Project",
+                "Company: Mary Kay\nProject Name: Order Backend Management System\nProject Description: Managed consultant order and inventory workflows.",
+                CreateVectorPayload(0.2f, 0f)));
+            await dbContext.SaveChangesAsync();
+
+            var results = await ragService.SearchForChatAsync("which projects you have worked for Marykay", limit: 2);
+
+            Assert.Equal(2, results.Count);
+            Assert.Contains("Mary Kay", results[0].Content);
+            Assert.Contains("Order Backend Management System", results[0].Content);
+        }
+
+        [Fact]
         public async Task CreateEmbeddingPayloadAsync_CallsEmbeddingService()
         {
             var dbContext = DbContextFactory.CreateInMemoryContext();

@@ -87,6 +87,18 @@
   <data name="DefaultResumeTitle" xml:space="preserve">
     <value>简历</value>
   </data>
+  <data name="ConfirmDeleteResume" xml:space="preserve">
+    <value>确认删除“{0}”？这会删除该简历、所有分节和搜索向量。</value>
+  </data>
+  <data name="DeleteResume" xml:space="preserve">
+    <value>删除简历</value>
+  </data>
+  <data name="DeleteResumeFailed" xml:space="preserve">
+    <value>删除简历失败：{0}</value>
+  </data>
+  <data name="ResumeDeleted" xml:space="preserve">
+    <value>已删除简历“{0}”。</value>
+  </data>
   <data name="DetectedMarkdownSectionTree" xml:space="preserve">
     <value>检测到的 Markdown 分节树</value>
   </data>

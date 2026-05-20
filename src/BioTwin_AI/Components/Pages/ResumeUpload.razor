@@ -5,6 +5,7 @@
 @inject ResumeUploadService UploadService
 @inject NavigationManager Navigation
 @inject BioTwin_AI.Services.CurrentUserSession Session
+@inject AuthService AuthService
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> L
 
@@ -258,7 +259,7 @@ else
             return;
         }
 
-        await Session.RestoreAsync(JS);
+        await AuthService.RestoreSessionAsync(JS);
         _sessionResolved = true;
         StateHasChanged();
 

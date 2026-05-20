@@ -7,7 +7,9 @@
 @rendermode InteractiveServer
 @inject BioTwinDbContext DbContext
 @inject IRagService RagService
+@inject ResumeUploadService UploadService
 @inject CurrentUserSession Session
+@inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> L
@@ -34,9 +36,6 @@ else
                     <h2>@L["ResumeBuilder"]</h2>
                     <span>@ResumeBuilderSummary</span>
                 </div>
-                <button class="icon-action" title="@L["NewResume"]" @onclick="CreateResumeDraft">
-                    +
-                </button>
             </div>
 
             <div class="section-actions">
@@ -124,6 +123,11 @@ else
                     {
                         <button class="btn btn-primary" @onclick="SaveWholeResumeAsync" disabled="@(_isSaving || string.IsNullOrWhiteSpace(_wholeResumeMarkdown))">
                             @(_isSaving ? L["Saving"] : L["SaveResume"])
+                        </button>
+                        <button class="btn btn-outline-danger"
+                                @onclick="DeleteCurrentResumeAsync"
+                                disabled="@_isSaving">
+                            @L["DeleteResume"]
                         </button>
                     }
                 </div>
@@ -477,7 +481,7 @@ else
             return;
         }
 
-        await Session.RestoreAsync(JS);
+        await AuthService.RestoreSessionAsync(JS);
         _sessionResolved = true;
 
         if (!Session.IsAuthenticated)
@@ -525,6 +529,7 @@ else
 
         if (resumeEntry is null)
         {
+            _wholeResumeMarkdown = string.Empty;
             return;
         }
 
@@ -541,6 +546,55 @@ else
         _entries.AddRange(sections);
         _selectedEntry = _entries.FirstOrDefault();
         RefreshWholeResumeMarkdown();
+    }
+
+    private async Task DeleteCurrentResumeAsync()
+    {
+        if (_selectedResumeEntry is null)
+        {
+            return;
+        }
+
+        _message = string.Empty;
+        _error = string.Empty;
+
+        var resumeToDelete = _selectedResumeEntry;
+        var resumeTitle = GetResumeTitle(resumeToDelete);
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            L["ConfirmDeleteResume", resumeTitle].Value);
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            _isSaving = true;
+
+            if (resumeToDelete.Id != 0)
+            {
+                var deleted = await UploadService.DeleteEntryAsync(resumeToDelete.Id);
+                if (!deleted)
+                {
+                    _error = L["SelectedResumeCouldNotBeFound"].Value;
+                    return;
+                }
+            }
+
+            _resumeEntries.Remove(resumeToDelete);
+            SelectResume(_resumeEntries.FirstOrDefault());
+            _message = L["ResumeDeleted", resumeTitle].Value;
+        }
+        catch (Exception ex)
+        {
+            _error = L["DeleteResumeFailed", ex.Message].Value;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
     }
 
     private void OnResumeChanged(ChangeEventArgs args)
@@ -903,30 +957,31 @@ else
         IReadOnlyDictionary<int, ResumeSection>? sectionLookup = null)
     {
         var titleBreadcrumb = await GetTitleBreadcrumbAsync(entry, sectionLookup);
-        var chunk = new ResumeSectionChunk
-        {
-            Chunk = entry.Content,
-            Metadata = new ResumeSectionChunkMetadata
-            {
-                SectionTitle = entry.Title,
-                HeadingLevel = entry.HeadingLevel,
-                TitleBreadcrumb = titleBreadcrumb,
-                ResumeSectionId = entry.Id,
-                ResumeEntryId = entry.ResumeEntryId,
-                SourceFile = GetSourceFileName(entry),
-                TenantId = entry.TenantId
-            }
-        };
-
         var parentSectionTitle = titleBreadcrumb.Count > 1 ? titleBreadcrumb[^2] : null;
-        var embeddingPayload = await RagService.CreateEmbeddingPayloadAsync(chunk);
-
         var vectorEntry = entry.Vector;
         if (vectorEntry is null && entry.Id != 0)
         {
             vectorEntry = await DbContext.ResumeSectionVectors
                 .FirstOrDefaultAsync(vector => vector.ResumeSectionId == entry.Id);
         }
+
+        if (!ResumeSectionEmbeddingPolicy.TryCreateChunk(
+            entry,
+            GetSourceFileName(entry),
+            titleBreadcrumb,
+            out var chunk) ||
+            chunk is null)
+        {
+            if (vectorEntry is not null)
+            {
+                DbContext.ResumeSectionVectors.Remove(vectorEntry);
+                entry.Vector = null;
+            }
+
+            return;
+        }
+
+        var embeddingPayload = await RagService.CreateEmbeddingPayloadAsync(chunk);
 
         if (vectorEntry is null)
         {

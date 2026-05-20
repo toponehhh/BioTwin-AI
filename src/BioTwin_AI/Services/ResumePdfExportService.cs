@@ -28,14 +28,14 @@ public sealed class ResumePdfExportService
         _localizer = localizer;
     }
 
-    public byte[] GeneratePdf(string markdown, string title)
+    public byte[] GeneratePdf(string markdown, string? title)
     {
         if (string.IsNullOrWhiteSpace(markdown))
         {
             throw new ArgumentException(T("MarkdownContentRequired", "Markdown content is required."), nameof(markdown));
         }
 
-        var documentTitle = string.IsNullOrWhiteSpace(title) ? T("DefaultResumeTitle", "Resume") : title.Trim();
+        var documentTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
         var pageLabel = T("PdfPageLabel", "Page ");
         var pageOfLabel = T("PdfPageOfLabel", " of ");
         var markdownDocument = Markdown.Parse(markdown, Pipeline);
@@ -49,14 +49,17 @@ public sealed class ResumePdfExportService
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(style => style.FontSize(10).FontColor(Colors.Grey.Darken3));
 
-                page.Header()
-                    .PaddingBottom(10)
-                    .BorderBottom(1)
-                    .BorderColor(Colors.Grey.Lighten2)
-                    .Text(documentTitle)
-                    .SemiBold()
-                    .FontSize(12)
-                    .FontColor(Colors.Blue.Darken3);
+                if (!string.IsNullOrWhiteSpace(documentTitle))
+                {
+                    page.Header()
+                        .PaddingBottom(10)
+                        .BorderBottom(1)
+                        .BorderColor(Colors.Grey.Lighten2)
+                        .Text(documentTitle)
+                        .SemiBold()
+                        .FontSize(12)
+                        .FontColor(Colors.Blue.Darken3);
+                }
 
                 page.Content()
                     .PaddingVertical(16)

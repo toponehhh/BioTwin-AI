@@ -6,6 +6,7 @@
 @rendermode InteractiveServer
 @inject BioTwinDbContext DbContext
 @inject CurrentUserSession Session
+@inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ResumePdfExportService PdfExportService
@@ -112,7 +113,7 @@ else
             return;
         }
 
-        await Session.RestoreAsync(JS);
+        await AuthService.RestoreSessionAsync(JS);
         _sessionResolved = true;
 
         if (!Session.IsAuthenticated)
@@ -181,19 +182,7 @@ else
             return;
         }
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"# {GetSelectedResumeTitle()}");
-        sb.AppendLine();
-
-        foreach (var item in sections)
-        {
-            sb.AppendLine($"{new string('#', Math.Clamp(item.HeadingLevel, 1, 6))} {item.Title}");
-            sb.AppendLine();
-            sb.AppendLine(item.Content);
-            sb.AppendLine();
-        }
-
-        _markdown = sb.ToString().Trim();
+        _markdown = ResumeExportMarkdownBuilder.BuildMarkdown(sections, GetSelectedResumeTitle());
     }
 
     private async Task OnResumeChangedAsync(ChangeEventArgs args)
@@ -239,7 +228,8 @@ else
         {
             _isExportingPdf = true;
             var fileName = $"{BuildSafeFileName(GetSelectedResumeTitle())}.pdf";
-            var pdfBytes = await Task.Run(() => PdfExportService.GeneratePdf(_markdown, GetSelectedResumeTitle()));
+            var pdfHeaderTitle = ResumeExportMarkdownBuilder.GetPdfHeaderTitle(_markdown, GetSelectedResumeTitle());
+            var pdfBytes = await Task.Run(() => PdfExportService.GeneratePdf(_markdown, pdfHeaderTitle));
             await DownloadBytesAsync(fileName, "application/pdf", pdfBytes);
             _message = L["PdfDownloadStarted"].Value;
         }

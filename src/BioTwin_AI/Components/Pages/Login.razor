@@ -347,7 +347,7 @@
             return;
         }
 
-        await Session.RestoreAsync(JS);
+        await AuthService.RestoreSessionAsync(JS);
         if (Session.IsAuthenticated)
         {
             Navigation.NavigateTo("/chat");

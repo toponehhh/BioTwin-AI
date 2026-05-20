@@ -87,6 +87,18 @@
   <data name="DefaultResumeTitle" xml:space="preserve">
     <value>Resume</value>
   </data>
+  <data name="ConfirmDeleteResume" xml:space="preserve">
+    <value>Delete "{0}"? This removes the resume, its sections, and search vectors.</value>
+  </data>
+  <data name="DeleteResume" xml:space="preserve">
+    <value>Delete Resume</value>
+  </data>
+  <data name="DeleteResumeFailed" xml:space="preserve">
+    <value>Delete resume failed: {0}</value>
+  </data>
+  <data name="ResumeDeleted" xml:space="preserve">
+    <value>Deleted resume "{0}".</value>
+  </data>
   <data name="DetectedMarkdownSectionTree" xml:space="preserve">
     <value>Detected Markdown section tree</value>
   </data>
