@@ -69,7 +69,9 @@ public static class AiClientServiceCollectionExtensions
 
     private static string GetApiKey(IConfiguration configuration)
     {
-        var apiKey = configuration["LLM:ApiKey"];
+        var apiKey = configuration["OpenRouter:ApiKey"]
+                     ?? configuration["LLM:ApiKey"]
+                     ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
         return string.IsNullOrWhiteSpace(apiKey) ? "not-needed" : apiKey;
     }
 }

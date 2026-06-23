@@ -122,22 +122,18 @@ namespace BioTwin_AI.Services
             }
 
             await _modelSelectionLock.WaitAsync();
+            _selectedEmbeddingModel = "auto";
             try
             {
-                if (!string.IsNullOrWhiteSpace(_selectedEmbeddingModel))
-                {
-                    return _selectedEmbeddingModel;
-                }
-
                 if (!string.IsNullOrWhiteSpace(_configuredEmbeddingModel) &&
                     !string.Equals(_configuredEmbeddingModel, "auto", StringComparison.OrdinalIgnoreCase))
                 {
                     _selectedEmbeddingModel = _configuredEmbeddingModel;
-                    return _selectedEmbeddingModel;
+                    //return _selectedEmbeddingModel;
                 }
-
-                _selectedEmbeddingModel = await SelectFreeEmbeddingModelAsync();
                 return _selectedEmbeddingModel;
+                //_selectedEmbeddingModel = await SelectFreeEmbeddingModelAsync();
+                //return _selectedEmbeddingModel;
             }
             finally
             {
