@@ -21,7 +21,7 @@ namespace BioTwin_AI.Tests.Services
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    { "LLM:Provider", "Ollama" },
+                    { "LLM:Provider", "OpenRouter" },
                     { "LLM:BaseUrl", "http://localhost:11434" },
                     { "LLM:Model", "qwen2.5:7b" },
                     { "LLM:Temperature", "0.2" },
@@ -57,7 +57,7 @@ namespace BioTwin_AI.Tests.Services
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    { "LLM:Provider", "Ollama" },
+                    { "LLM:Provider", "OpenRouter" },
                     { "LLM:BaseUrl", "http://localhost:11434" },
                     { "LLM:Model", "qwen2.5:7b" },
                     { "LLM:Temperature", "0.2" },
@@ -93,7 +93,7 @@ namespace BioTwin_AI.Tests.Services
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    { "LLM:Provider", "Ollama" },
+                    { "LLM:Provider", "OpenRouter" },
                     { "LLM:BaseUrl", "http://localhost:11434" },
                     { "LLM:Model", "qwen2.5:7b" },
                     { "LLM:Temperature", "0.2" },
@@ -133,7 +133,7 @@ namespace BioTwin_AI.Tests.Services
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    { "LLM:Provider", "Ollama" },
+                    { "LLM:Provider", "OpenRouter" },
                     { "LLM:BaseUrl", "http://localhost:11434" },
                     { "LLM:Model", "qwen2.5:7b" },
                     { "LLM:Temperature", "0.2" },

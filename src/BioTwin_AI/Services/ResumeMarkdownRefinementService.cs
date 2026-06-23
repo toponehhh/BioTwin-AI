@@ -1,7 +1,5 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Localization;
-using OllamaSharp;
-using OllamaSharp.Models;
 using System.Text.RegularExpressions;
 
 namespace BioTwin_AI.Services
@@ -14,13 +12,10 @@ namespace BioTwin_AI.Services
         private readonly IChatClient _chatClient;
         private readonly ILogger<ResumeMarkdownRefinementService> _logger;
         private readonly IStringLocalizer<SharedResource> _localizer;
-        private readonly bool _isOllamaProvider;
         private readonly string _model;
         private readonly bool _enabled;
         private readonly double _temperature;
         private readonly int _maxTokens;
-        private readonly int _numPredict;
-        private readonly int _numCtx;
         private readonly int _maxInputChars;
 
         public ResumeMarkdownRefinementService(
@@ -32,13 +27,15 @@ namespace BioTwin_AI.Services
             _chatClient = chatClient;
             _logger = logger;
             _localizer = localizer;
-            _isOllamaProvider = string.Equals(config["LLM:Provider"] ?? "Ollama", "Ollama", StringComparison.OrdinalIgnoreCase);
-            _model = config["ResumeMarkdownRefinement:Model"] ?? config["LLM:Model"] ?? "gemma4:e2b";
+
+            var configuredModel = config["ResumeMarkdownRefinement:Model"];
+            _model = string.IsNullOrWhiteSpace(configuredModel) || string.Equals(configuredModel, "auto", StringComparison.OrdinalIgnoreCase)
+                ? config["LLM:Model"] ?? "openrouter/free"
+                : configuredModel.Trim();
+
             _enabled = config.GetValue("ResumeMarkdownRefinement:Enabled", true);
             _temperature = config.GetValue("ResumeMarkdownRefinement:Temperature", 0.1);
             _maxTokens = config.GetValue("ResumeMarkdownRefinement:MaxTokens", 3000);
-            _numPredict = config.GetValue("ResumeMarkdownRefinement:NumPredict", 3000);
-            _numCtx = config.GetValue("ResumeMarkdownRefinement:NumCtx", 8192);
             _maxInputChars = config.GetValue("ResumeMarkdownRefinement:MaxInputChars", 24000);
         }
 
@@ -94,16 +91,17 @@ namespace BioTwin_AI.Services
         private static string BuildSystemPrompt()
         {
             return """
-You are a resume Markdown editor.
-Rewrite converted resume Markdown into a clean, structured resume outline.
+You are a resume Markdown cleanup assistant.
+The input is converted resume Markdown that may contain noisy symbols, broken paragraphs, repeated separators, and formatting artifacts.
+Your job is to rewrite it into a clean, structured resume outline that is easy to read, preserves all factual content, and is optimized for downstream embedding chunking.
 
 Rules:
-- Return Markdown only. Do not wrap it in code fences.
-- Preserve all factual content. Do not invent companies, dates, metrics, tools, education, or contact details.
-- Improve hierarchy beyond only H1/H2 when useful. Use H1 for the resume/person title, H2 for major sections, H3 for roles/projects/education items, and H4 for nested details only when helpful.
-- Keep bullets concise and grouped under the most relevant heading.
-- Keep original language and wording as much as possible while removing obvious conversion noise.
-- Do not add commentary, explanations, or placeholders.
+- Return Markdown only. Do not wrap output in code fences.
+- Preserve all original facts. Do not invent companies, dates, metrics, skills, education, or contact details.
+- Remove meaningless symbols, stray characters, duplicate separators, inline noise, and obvious conversion artifacts.
+- Organize sections with clear headings and concise bullets.
+- Rewrite long text into clean, short paragraphs and bullet groups to make the content easier to segment for embeddings.
+- Keep the resume structure logical and readable, without adding commentary or analysis.
 """;
         }
 
@@ -132,23 +130,12 @@ Converted Markdown:
 
         private ChatOptions CreateChatOptions()
         {
-            var maxOutputTokens = _isOllamaProvider ? _numPredict : _maxTokens;
-            var options = new ChatOptions
+            return new ChatOptions
             {
                 ModelId = _model,
                 Temperature = (float)_temperature,
-                MaxOutputTokens = maxOutputTokens
+                MaxOutputTokens = _maxTokens
             };
-
-            if (_isOllamaProvider)
-            {
-                options.AddOllamaOption(OllamaOption.NumPredict, _numPredict);
-                options.AddOllamaOption(OllamaOption.NumCtx, _numCtx);
-                options.AddOllamaOption(OllamaOption.Think, false);
-                options.Reasoning = new ReasoningOptions { Output = ReasoningOutput.None };
-            }
-
-            return options;
         }
 
         private static string CleanModelMarkdown(string markdown)

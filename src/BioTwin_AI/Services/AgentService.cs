@@ -1,6 +1,4 @@
 using Microsoft.Extensions.AI;
-using OllamaSharp;
-using OllamaSharp.Models;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -21,15 +19,11 @@ namespace BioTwin_AI.Services
         private readonly ILogger<AgentService> _logger;
         private readonly IChatClient _chatClient;
         private readonly CurrentUserSession _session;
-        private readonly bool _isOllamaProvider;
         private readonly string _model;
         private readonly double _temperature;
         private readonly int _maxTokens;
         private readonly int _maxContextChars;
         private readonly int _maxSnippetChars;
-        private readonly int _chatNumPredict;
-        private readonly int _chatNumCtx;
-        private readonly bool _ollamaThink;
 
         public AgentService(
             IRagService ragService,
@@ -42,15 +36,11 @@ namespace BioTwin_AI.Services
             _logger = logger;
             _chatClient = chatClient;
             _session = session;
-            _isOllamaProvider = string.Equals(config["LLM:Provider"] ?? "Ollama", "Ollama", StringComparison.OrdinalIgnoreCase);
-            _model = config["LLM:Model"] ?? "gemma4:e2b";
+            _model = config["LLM:Model"] ?? "openrouter/free";
             _temperature = config.GetValue("LLM:Temperature", 0.2);
             _maxTokens = config.GetValue("LLM:MaxTokens", 800);
             _maxContextChars = config.GetValue("LLM:MaxContextChars", 6000);
             _maxSnippetChars = config.GetValue("LLM:MaxSnippetChars", 2000);
-            _chatNumPredict = config.GetValue("LLM:ChatNumPredict", 256);
-            _chatNumCtx = config.GetValue("LLM:ChatNumCtx", 2048);
-            _ollamaThink = config.GetValue("LLM:Think", false);
         }
 
         /// <summary>
@@ -108,29 +98,11 @@ namespace BioTwin_AI.Services
             var (systemPrompt, userPrompt) = BuildPrompts(question, context);
             var messages = BuildChatMessages(systemPrompt, userPrompt);
 
-            var emittedAnswer = false;
-            var maxOutputTokens = _isOllamaProvider ? _chatNumPredict : _maxTokens;
-            var options = CreateChatOptions(_ollamaThink, maxOutputTokens, _chatNumCtx);
+            var options = CreateChatOptions(_maxTokens);
 
             await foreach (var chunk in StreamChatAsync(messages, options, cancellationToken))
             {
-                if (chunk.Kind == AgentStreamChunk.Answer)
-                {
-                    emittedAnswer = true;
-                }
-
                 yield return chunk;
-            }
-
-            if (!emittedAnswer && _isOllamaProvider && _ollamaThink && !cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning("Ollama returned no visible content with thinking enabled. Retrying once with thinking disabled.");
-                var retryOptions = CreateChatOptions(false, maxOutputTokens, _chatNumCtx);
-
-                await foreach (var chunk in StreamChatAsync(messages, retryOptions, cancellationToken))
-                {
-                    yield return chunk;
-                }
             }
         }
 
@@ -219,27 +191,14 @@ Resume Context:
             ];
         }
 
-        private ChatOptions CreateChatOptions(bool think, int maxOutputTokens, int numCtx)
+        private ChatOptions CreateChatOptions(int maxOutputTokens)
         {
-            var options = new ChatOptions
+            return new ChatOptions
             {
                 ModelId = _model,
                 Temperature = (float)_temperature,
                 MaxOutputTokens = maxOutputTokens
             };
-
-            if (_isOllamaProvider)
-            {
-                options.AddOllamaOption(OllamaOption.NumPredict, maxOutputTokens);
-                options.AddOllamaOption(OllamaOption.NumCtx, numCtx);
-                options.AddOllamaOption(OllamaOption.Think, think);
-                options.Reasoning = new ReasoningOptions
-                {
-                    Output = think ? ReasoningOutput.Full : ReasoningOutput.None
-                };
-            }
-
-            return options;
         }
 
         private async IAsyncEnumerable<AgentStreamChunk> StreamChatAsync(

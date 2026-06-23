@@ -1,5 +1,7 @@
 using Microsoft.Extensions.AI;
+using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 
 namespace BioTwin_AI.Services
 {
@@ -12,19 +14,26 @@ namespace BioTwin_AI.Services
         private const int MaxOllamaChunkTokens = 8000;
         private const int TargetChunkTokens = 7000;
         private const int MaxChunkChars = 8000;
+        private const string DefaultEmbeddingModel = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
+        private const string OpenRouterHttpClientName = "BioTwin_AI.OpenRouter";
 
         private readonly ILogger<EmbeddingService> _logger;
         private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
-        private readonly string _embeddingModel;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly string _configuredEmbeddingModel;
+        private readonly SemaphoreSlim _modelSelectionLock = new(1, 1);
+        private string? _selectedEmbeddingModel;
 
         public EmbeddingService(
             ILogger<EmbeddingService> logger,
             IConfiguration config,
-            IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator)
+            IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+            IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
             _embeddingGenerator = embeddingGenerator;
-            _embeddingModel = config["LLM:EmbeddingModel"] ?? "nomic-embed-text";
+            _httpClientFactory = httpClientFactory;
+            _configuredEmbeddingModel = config["LLM:EmbeddingModel"] ?? "auto";
         }
 
         /// <summary>
@@ -94,15 +103,113 @@ namespace BioTwin_AI.Services
 
         private async Task<float[]> GenerateEmbeddingAsync(string text, int vectorSize)
         {
+            var modelId = await GetEmbeddingModelAsync();
             var options = new EmbeddingGenerationOptions
             {
-                ModelId = _embeddingModel,
+                ModelId = modelId,
                 Dimensions = vectorSize
             };
 
             var vector = await _embeddingGenerator.GenerateVectorAsync(text, options);
             return TrimOrPad(vector.ToArray(), vectorSize);
         }
+
+        private async Task<string> GetEmbeddingModelAsync()
+        {
+            if (!string.IsNullOrWhiteSpace(_selectedEmbeddingModel))
+            {
+                return _selectedEmbeddingModel;
+            }
+
+            await _modelSelectionLock.WaitAsync();
+            _selectedEmbeddingModel = "auto";
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(_configuredEmbeddingModel) &&
+                    !string.Equals(_configuredEmbeddingModel, "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    _selectedEmbeddingModel = _configuredEmbeddingModel;
+                    //return _selectedEmbeddingModel;
+                }
+                return _selectedEmbeddingModel;
+                //_selectedEmbeddingModel = await SelectFreeEmbeddingModelAsync();
+                //return _selectedEmbeddingModel;
+            }
+            finally
+            {
+                _modelSelectionLock.Release();
+            }
+        }
+
+        private async Task<string> SelectFreeEmbeddingModelAsync()
+        {
+            try
+            {
+                var client = _httpClientFactory.CreateClient(OpenRouterHttpClientName);
+                var response = await client.GetAsync("models?output_modalities=embeddings&sort=pricing-low-to-high");
+                response.EnsureSuccessStatusCode();
+
+                var payload = await response.Content.ReadFromJsonAsync<OpenRouterModelsResponse>(new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                var model = payload?.Data?
+                    .Where(modelInfo => modelInfo.OutputModalities?.Contains("embeddings", StringComparer.OrdinalIgnoreCase) == true)
+                    .OrderBy(modelInfo => modelInfo.Pricing?.Prompt ?? decimal.MaxValue)
+                    .ThenBy(modelInfo => modelInfo.Pricing?.Completion ?? decimal.MaxValue)
+                    .ThenBy(modelInfo => modelInfo.Pricing?.Embedding ?? decimal.MaxValue)
+                    .FirstOrDefault(modelInfo => IsFreeModel(modelInfo))
+                    ?? payload?.Data?
+                    .Where(modelInfo => modelInfo.OutputModalities?.Contains("embeddings", StringComparer.OrdinalIgnoreCase) == true)
+                    .FirstOrDefault();
+
+                if (model is not null)
+                {
+                    var selected = model.Id ?? model.CanonicalSlug ?? model.Name;
+                    if (!string.IsNullOrWhiteSpace(selected))
+                    {
+                        _logger.LogInformation("Selected OpenRouter free embedding model: {Model}", selected);
+                        return selected;
+                    }
+                }
+
+                _logger.LogWarning("No free embedding model could be discovered from OpenRouter. Falling back to {Model}.", DefaultEmbeddingModel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to discover free embedding model from OpenRouter. Falling back to {Model}.", DefaultEmbeddingModel);
+            }
+
+            return DefaultEmbeddingModel;
+        }
+
+        private static bool IsFreeModel(OpenRouterModelInfo? model)
+        {
+            if (model?.Pricing == null)
+            {
+                return false;
+            }
+
+            return (model.Pricing.Prompt ?? decimal.MaxValue) == 0m
+                || (model.Pricing.Completion ?? decimal.MaxValue) == 0m
+                || (model.Pricing.Embedding ?? decimal.MaxValue) == 0m
+                || (model.Pricing.Request ?? decimal.MaxValue) == 0m;
+        }
+
+        private sealed record OpenRouterModelsResponse(List<OpenRouterModelInfo>? Data);
+        private sealed record OpenRouterModelInfo(
+            [property: System.Text.Json.Serialization.JsonPropertyName("id")] string? Id,
+            [property: System.Text.Json.Serialization.JsonPropertyName("canonical_slug")] string? CanonicalSlug,
+            [property: System.Text.Json.Serialization.JsonPropertyName("name")] string? Name,
+            [property: System.Text.Json.Serialization.JsonPropertyName("modality")] string? Modality,
+            [property: System.Text.Json.Serialization.JsonPropertyName("output_modalities")] string[]? OutputModalities,
+            [property: System.Text.Json.Serialization.JsonPropertyName("pricing")] OpenRouterModelPricing? Pricing);
+        private sealed record OpenRouterModelPricing(
+            decimal? Prompt,
+            decimal? Completion,
+            decimal? Embedding,
+            decimal? Request);
 
         private static List<string> SplitMarkdownForEmbedding(string text)
         {
