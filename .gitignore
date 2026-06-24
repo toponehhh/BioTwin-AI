@@ -11,7 +11,11 @@ TestReport*.md
 TestReport*.html
 .local-logs/
 src/BioTwin_AI/logs/
-src/BioTwin_AI/LLM/
+src/BioTwin_AI/LLM/*
+!src/BioTwin_AI/LLM/
+!src/BioTwin_AI/LLM/README.md
+!src/BioTwin_AI/LLM/download-bge-m3-onnx.ps1
+!src/BioTwin_AI/LLM/download-bge-m3-onnx.sh
 EmbedddingLLM/
 artifacts/
 database/
