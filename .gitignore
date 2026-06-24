@@ -10,6 +10,9 @@ TestResults/
 TestReport*.md
 TestReport*.html
 .local-logs/
+src/BioTwin_AI/logs/
+src/BioTwin_AI/LLM/
+EmbedddingLLM/
 artifacts/
 database/
 COMMIT_REPORT.md

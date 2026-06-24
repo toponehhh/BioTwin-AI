@@ -1,25 +1,15 @@
 using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
-using OpenAI.Embeddings;
 using System.ClientModel;
 
 namespace BioTwin_AI.Services;
 
 public static class AiClientServiceCollectionExtensions
 {
-    private const string OpenRouterHttpClientName = "BioTwin_AI.OpenRouter";
-
     public static IServiceCollection AddBioTwinAiClients(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddHttpClient(OpenRouterHttpClientName, client =>
-        {
-            client.BaseAddress = GetOpenAiCompatibleEndpoint(configuration);
-            client.Timeout = TimeSpan.FromSeconds(configuration.GetValue("LLM:EmbeddingTimeoutSeconds", 300));
-        });
-
         services.AddChatClient(CreateChatClient);
-        services.AddEmbeddingGenerator<string, Embedding<float>>(CreateEmbeddingGenerator);
 
         return services;
     }
@@ -35,19 +25,6 @@ public static class AiClientServiceCollectionExtensions
             new OpenAIClientOptions { Endpoint = GetOpenAiCompatibleEndpoint(configuration) });
 
         return chatClient.AsIChatClient();
-    }
-
-    private static IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(IServiceProvider services)
-    {
-        var configuration = services.GetRequiredService<IConfiguration>();
-        var embeddingModel = configuration["LLM:EmbeddingModel"] ?? "text-embedding-3-large";
-        var credential = new ApiKeyCredential(GetApiKey(configuration));
-        var embeddingClient = new EmbeddingClient(
-            embeddingModel,
-            credential,
-            new OpenAIClientOptions { Endpoint = GetOpenAiCompatibleEndpoint(configuration) });
-
-        return embeddingClient.AsIEmbeddingGenerator();
     }
 
     private static Uri GetOpenAiCompatibleEndpoint(IConfiguration configuration)
@@ -69,10 +46,17 @@ public static class AiClientServiceCollectionExtensions
 
     private static string GetApiKey(IConfiguration configuration)
     {
-        var apiKey = configuration["OpenRouter:ApiKey"]
-                     ?? configuration["LLM:ApiKey"]
-                     ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
-        return string.IsNullOrWhiteSpace(apiKey) ? "not-needed" : apiKey;
+        var apiKey = FirstNonBlank(
+            configuration["OpenRouter:ApiKey"],
+            configuration["LLM:ApiKey"],
+            Environment.GetEnvironmentVariable("OPENROUTER_API_KEY"));
+
+        return apiKey ?? "not-needed";
+    }
+
+    private static string? FirstNonBlank(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
     }
 }
 

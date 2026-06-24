@@ -1,12 +1,12 @@
 namespace BioTwin_AI.Services
 {
     /// <summary>
-    /// Interface for text embedding service via LLM.
+    /// Interface for text embedding service.
     /// </summary>
     public interface IEmbeddingService
     {
         /// <summary>
-        /// Generate embeddings for text using the configured LLM embedding model.
+        /// Generate embeddings for text using the configured embedding model.
         /// </summary>
         /// <param name="text">Text to embed</param>
         /// <param name="vectorSize">Expected vector size (default 768)</param>

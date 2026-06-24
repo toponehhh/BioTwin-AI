@@ -4,10 +4,19 @@ using BioTwin_AI.Services;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
 QuestPDF.Settings.License = LicenseType.Community;
+
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext();
+});
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -25,10 +34,11 @@ builder.Services.AddDbContext<BioTwinDbContext>(options =>
 // Configure RAG Service
 builder.Services.AddScoped<IRagService, RagService>();
 
-// Configure Microsoft.Extensions.AI chat and embedding clients
+// Configure Microsoft.Extensions.AI chat client
 builder.Services.AddBioTwinAiClients(builder.Configuration);
 
 // Configure Embedding Service
+builder.Services.AddSingleton<ILocalEmbeddingModel, BgeM3OnnxEmbeddingModel>();
 builder.Services.AddScoped<EmbeddingService>();
 builder.Services.AddScoped<IEmbeddingService>(provider =>
     provider.GetRequiredService<EmbeddingService>());
@@ -51,10 +61,6 @@ builder.Services.AddHttpClient<ResumeUploadService>((provider, client) =>
     var timeoutSeconds = configuration.GetValue("All2MD:TimeoutSeconds", 600);
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
-
-// Add logging
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
 
 var app = builder.Build();
 

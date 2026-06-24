@@ -1,43 +1,30 @@
-using Microsoft.Extensions.AI;
-using System.Net.Http.Json;
 using System.Text;
-using System.Text.Json;
 
 namespace BioTwin_AI.Services
 {
     /// <summary>
-    /// Dedicated service for generating text embeddings via Microsoft.Extensions.AI.
+    /// Dedicated service for generating text embeddings with the local BGE-M3 ONNX model.
     /// Separated from AgentService to break circular dependency with RagService.
     /// </summary>
     public class EmbeddingService : IEmbeddingService
     {
-        private const int MaxOllamaChunkTokens = 8000;
+        private const int MaxEmbeddingChunkTokens = 8000;
         private const int TargetChunkTokens = 7000;
         private const int MaxChunkChars = 8000;
-        private const string DefaultEmbeddingModel = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
-        private const string OpenRouterHttpClientName = "BioTwin_AI.OpenRouter";
 
         private readonly ILogger<EmbeddingService> _logger;
-        private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly string _configuredEmbeddingModel;
-        private readonly SemaphoreSlim _modelSelectionLock = new(1, 1);
-        private string? _selectedEmbeddingModel;
+        private readonly ILocalEmbeddingModel _embeddingModel;
 
         public EmbeddingService(
             ILogger<EmbeddingService> logger,
-            IConfiguration config,
-            IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
-            IHttpClientFactory httpClientFactory)
+            ILocalEmbeddingModel embeddingModel)
         {
             _logger = logger;
-            _embeddingGenerator = embeddingGenerator;
-            _httpClientFactory = httpClientFactory;
-            _configuredEmbeddingModel = config["LLM:EmbeddingModel"] ?? "auto";
+            _embeddingModel = embeddingModel;
         }
 
         /// <summary>
-        /// Generate embeddings for text using the configured LLM embedding model.
+        /// Generate embeddings for text using the local BGE-M3 embedding model.
         /// </summary>
         public async Task<float[]> GetEmbeddingAsync(string text, int vectorSize = 768)
         {
@@ -58,7 +45,7 @@ namespace BioTwin_AI.Services
 
             if (chunks.Count == 1)
             {
-                return await EmbedChunkWithRetryAsync(chunks[0], vectorSize);
+                return await GenerateEmbeddingAsync(chunks[0], vectorSize);
             }
 
             _logger.LogInformation("Embedding long markdown in {ChunkCount} chunks", chunks.Count);
@@ -66,150 +53,17 @@ namespace BioTwin_AI.Services
             var vectors = new List<float[]>(chunks.Count);
             foreach (var chunk in chunks)
             {
-                vectors.Add(await EmbedChunkWithRetryAsync(chunk, vectorSize));
+                vectors.Add(await GenerateEmbeddingAsync(chunk, vectorSize));
             }
 
             return AverageVectors(vectors, vectorSize);
         }
 
-        private async Task<float[]> EmbedChunkWithRetryAsync(string chunk, int vectorSize)
+        private Task<float[]> GenerateEmbeddingAsync(string text, int vectorSize)
         {
-            try
-            {
-                return await GenerateEmbeddingAsync(chunk, vectorSize);
-            }
-            catch (InvalidOperationException ex) when (IsContextLengthExceeded(ex) && chunk.Length > 1)
-            {
-                var (left, right) = SplitIntoTwoParts(chunk);
-                if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-                {
-                    throw;
-                }
-
-                _logger.LogWarning("Embedding context exceeded. Splitting chunk and retrying embedding.");
-
-                var leftVector = await EmbedChunkWithRetryAsync(left, vectorSize);
-                var rightVector = await EmbedChunkWithRetryAsync(right, vectorSize);
-
-                return AverageVectors(new List<float[]> { leftVector, rightVector }, vectorSize);
-            }
+            var vector = _embeddingModel.GenerateEmbedding(text);
+            return Task.FromResult(TrimOrPad(vector, vectorSize));
         }
-
-        private static bool IsContextLengthExceeded(InvalidOperationException ex)
-        {
-            return ex.Message.Contains("input length exceeds the context length", StringComparison.OrdinalIgnoreCase)
-                || ex.Message.Contains("context length", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private async Task<float[]> GenerateEmbeddingAsync(string text, int vectorSize)
-        {
-            var modelId = await GetEmbeddingModelAsync();
-            var options = new EmbeddingGenerationOptions
-            {
-                ModelId = modelId,
-                Dimensions = vectorSize
-            };
-
-            var vector = await _embeddingGenerator.GenerateVectorAsync(text, options);
-            return TrimOrPad(vector.ToArray(), vectorSize);
-        }
-
-        private async Task<string> GetEmbeddingModelAsync()
-        {
-            if (!string.IsNullOrWhiteSpace(_selectedEmbeddingModel))
-            {
-                return _selectedEmbeddingModel;
-            }
-
-            await _modelSelectionLock.WaitAsync();
-            _selectedEmbeddingModel = "auto";
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(_configuredEmbeddingModel) &&
-                    !string.Equals(_configuredEmbeddingModel, "auto", StringComparison.OrdinalIgnoreCase))
-                {
-                    _selectedEmbeddingModel = _configuredEmbeddingModel;
-                    //return _selectedEmbeddingModel;
-                }
-                return _selectedEmbeddingModel;
-                //_selectedEmbeddingModel = await SelectFreeEmbeddingModelAsync();
-                //return _selectedEmbeddingModel;
-            }
-            finally
-            {
-                _modelSelectionLock.Release();
-            }
-        }
-
-        private async Task<string> SelectFreeEmbeddingModelAsync()
-        {
-            try
-            {
-                var client = _httpClientFactory.CreateClient(OpenRouterHttpClientName);
-                var response = await client.GetAsync("models?output_modalities=embeddings&sort=pricing-low-to-high");
-                response.EnsureSuccessStatusCode();
-
-                var payload = await response.Content.ReadFromJsonAsync<OpenRouterModelsResponse>(new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                var model = payload?.Data?
-                    .Where(modelInfo => modelInfo.OutputModalities?.Contains("embeddings", StringComparer.OrdinalIgnoreCase) == true)
-                    .OrderBy(modelInfo => modelInfo.Pricing?.Prompt ?? decimal.MaxValue)
-                    .ThenBy(modelInfo => modelInfo.Pricing?.Completion ?? decimal.MaxValue)
-                    .ThenBy(modelInfo => modelInfo.Pricing?.Embedding ?? decimal.MaxValue)
-                    .FirstOrDefault(modelInfo => IsFreeModel(modelInfo))
-                    ?? payload?.Data?
-                    .Where(modelInfo => modelInfo.OutputModalities?.Contains("embeddings", StringComparer.OrdinalIgnoreCase) == true)
-                    .FirstOrDefault();
-
-                if (model is not null)
-                {
-                    var selected = model.Id ?? model.CanonicalSlug ?? model.Name;
-                    if (!string.IsNullOrWhiteSpace(selected))
-                    {
-                        _logger.LogInformation("Selected OpenRouter free embedding model: {Model}", selected);
-                        return selected;
-                    }
-                }
-
-                _logger.LogWarning("No free embedding model could be discovered from OpenRouter. Falling back to {Model}.", DefaultEmbeddingModel);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to discover free embedding model from OpenRouter. Falling back to {Model}.", DefaultEmbeddingModel);
-            }
-
-            return DefaultEmbeddingModel;
-        }
-
-        private static bool IsFreeModel(OpenRouterModelInfo? model)
-        {
-            if (model?.Pricing == null)
-            {
-                return false;
-            }
-
-            return (model.Pricing.Prompt ?? decimal.MaxValue) == 0m
-                || (model.Pricing.Completion ?? decimal.MaxValue) == 0m
-                || (model.Pricing.Embedding ?? decimal.MaxValue) == 0m
-                || (model.Pricing.Request ?? decimal.MaxValue) == 0m;
-        }
-
-        private sealed record OpenRouterModelsResponse(List<OpenRouterModelInfo>? Data);
-        private sealed record OpenRouterModelInfo(
-            [property: System.Text.Json.Serialization.JsonPropertyName("id")] string? Id,
-            [property: System.Text.Json.Serialization.JsonPropertyName("canonical_slug")] string? CanonicalSlug,
-            [property: System.Text.Json.Serialization.JsonPropertyName("name")] string? Name,
-            [property: System.Text.Json.Serialization.JsonPropertyName("modality")] string? Modality,
-            [property: System.Text.Json.Serialization.JsonPropertyName("output_modalities")] string[]? OutputModalities,
-            [property: System.Text.Json.Serialization.JsonPropertyName("pricing")] OpenRouterModelPricing? Pricing);
-        private sealed record OpenRouterModelPricing(
-            decimal? Prompt,
-            decimal? Completion,
-            decimal? Embedding,
-            decimal? Request);
 
         private static List<string> SplitMarkdownForEmbedding(string text)
         {
@@ -217,7 +71,7 @@ namespace BioTwin_AI.Services
                 ? string.Empty
                 : text.Replace("\r\n", "\n");
 
-            if (normalized.Length <= MaxChunkChars && EstimateTokens(normalized) <= MaxOllamaChunkTokens)
+            if (normalized.Length <= MaxChunkChars && EstimateTokens(normalized) <= MaxEmbeddingChunkTokens)
             {
                 return new List<string> { normalized };
             }
@@ -286,7 +140,7 @@ namespace BioTwin_AI.Services
                 var takeLength = Math.Min(MaxChunkChars, remaining.Length);
                 var candidate = remaining[..takeLength];
 
-                if (EstimateTokens(candidate) > MaxOllamaChunkTokens)
+                if (EstimateTokens(candidate) > MaxEmbeddingChunkTokens)
                 {
                     takeLength = Math.Max(1, takeLength / 2);
                     candidate = remaining[..takeLength];
@@ -297,20 +151,6 @@ namespace BioTwin_AI.Services
             }
 
             return parts;
-        }
-
-        private static (string Left, string Right) SplitIntoTwoParts(string text)
-        {
-            var mid = text.Length / 2;
-            var splitAt = text.LastIndexOf('\n', mid);
-            if (splitAt <= 0)
-            {
-                splitAt = mid;
-            }
-
-            var left = text[..splitAt].Trim();
-            var right = text[splitAt..].Trim();
-            return (left, right);
         }
 
         private static int EstimateTokens(string text)
