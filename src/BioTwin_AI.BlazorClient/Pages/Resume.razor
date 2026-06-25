@@ -1,0 +1,103 @@
+@page "/resume"
+@inject IResumeApiClient IResumeApiClient
+@inject SessionState SessionState
+
+<PageTitle>Resume</PageTitle>
+
+<ProtectedArea Title="Resume workspace requires sign in" Description="Uploading, editing, exporting, and indexing resumes are private account features.">
+    <section class="workspace-header">
+        <p class="eyebrow">Resume Intelligence</p>
+        <h1>Resume Workspace</h1>
+        <p>Manage converted Markdown resumes, rebuild embeddings, and open editing or export workflows.</p>
+    </section>
+
+    <div class="action-row">
+        <a class="command-button" href="/resume/upload">Upload resume</a>
+        <button class="command-button secondary" @onclick="RebuildAsync">Rebuild embeddings</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="status-line">@message</p>
+    }
+
+    <section class="grid-section">
+        @foreach (var resume in resumes)
+        {
+            <article class="feature-card">
+                <span>@resume.SectionCount sections</span>
+                <h2>@resume.Title</h2>
+                <p>@resume.SourceFileName</p>
+                <div class="action-row">
+                    <a class="command-button secondary" href="@($"/resume/edit/{resume.Id}")">Edit</a>
+                    <a class="command-button secondary" href="@($"/resume/export/{resume.Id}")">Export</a>
+                    <button class="link-command" @onclick="() => DeleteAsync(resume.Id)">Delete</button>
+                </div>
+            </article>
+        }
+    </section>
+</ProtectedArea>
+
+@code {
+    private IReadOnlyList<ResumeSummaryDto> resumes = [];
+    private string message = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SessionState.RefreshAsync();
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            resumes = await IResumeApiClient.GetResumesAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task RebuildAsync()
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await IResumeApiClient.RebuildEmbeddingsAsync();
+            message = $"Rebuilt {result.SectionCount} sections across {result.ResumeCount} resumes.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(int resumeId)
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            await IResumeApiClient.DeleteAsync(resumeId);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+}

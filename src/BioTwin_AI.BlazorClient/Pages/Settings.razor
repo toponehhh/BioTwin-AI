@@ -1,0 +1,65 @@
+@page "/settings"
+@inject BioTwin_AI.BlazorClient.Services.ThemeState ThemeState
+@inject ISettingsApiClient ISettingsApiClient
+
+<PageTitle>Settings</PageTitle>
+
+<section class="workspace-header">
+    <p class="eyebrow">Control Surface</p>
+    <h1>Settings</h1>
+    <p>Manage the local theme, inspect the API endpoint, and verify backend health.</p>
+</section>
+
+<section class="two-column">
+    <div class="tool-panel">
+        <h2>Theme</h2>
+        <p>Current theme: @ThemeState.CurrentTheme</p>
+        <div class="action-row">
+            <button class="command-button" @onclick="UseDark">Dark</button>
+            <button class="command-button secondary" @onclick="UseLight">Light</button>
+        </div>
+    </div>
+    <div class="tool-panel">
+        <h2>API</h2>
+        <pre>@apiText</pre>
+        <button class="command-button secondary" @onclick="CheckHealthAsync">Check health</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <p class="status-line">@message</p>
+}
+
+@code {
+    private string apiText = string.Empty;
+    private string message = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        apiText = ISettingsApiClient.ApiBaseUrl;
+    }
+
+    private void UseDark()
+    {
+        ThemeState.SetTheme(BioTwin_AI.BlazorClient.Services.AppTheme.Dark);
+    }
+
+    private void UseLight()
+    {
+        ThemeState.SetTheme(BioTwin_AI.BlazorClient.Services.AppTheme.Light);
+    }
+
+    private async Task CheckHealthAsync()
+    {
+        try
+        {
+            var health = await ISettingsApiClient.GetHealthAsync();
+            message = $"{health.Status} at {health.CheckedAt:O}";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+}

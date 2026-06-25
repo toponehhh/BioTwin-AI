@@ -11,6 +11,7 @@ TestReport*.md
 TestReport*.html
 .local-logs/
 src/BioTwin_AI/logs/
+src/BioTwin_AI.AspNetCoreApi/logs/
 src/BioTwin_AI/LLM/*
 !src/BioTwin_AI/LLM/
 !src/BioTwin_AI/LLM/README.md

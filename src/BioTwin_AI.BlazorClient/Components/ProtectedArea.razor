@@ -1,0 +1,27 @@
+@inject SessionState SessionState
+@inject AuthModalState AuthModalState
+
+@if (SessionState.IsAuthenticated)
+{
+    @ChildContent
+}
+else
+{
+    <section class="tool-panel auth-required-panel">
+        <p class="eyebrow">Authentication Required</p>
+        <h1>@Title</h1>
+        <p>@Description</p>
+        <button class="command-button" @onclick="AuthModalState.OpenSignIn">Sign in to continue</button>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Sign in required";
+
+    [Parameter]
+    public string Description { get; set; } = "This workspace is available after signing in.";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

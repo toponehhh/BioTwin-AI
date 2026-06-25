@@ -1,0 +1,139 @@
+@implements IDisposable
+@inject AuthModalState AuthModalState
+@inject IAuthApiClient AuthApiClient
+@inject SessionState SessionState
+
+@if (AuthModalState.IsOpen)
+{
+    <div class="modal-scrim" @onclick="Close">
+        <section class="auth-modal mica-panel" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" tabindex="-1" @onclick:stopPropagation>
+            <button class="modal-close" title="Close" aria-label="Close sign in dialog" @onclick="Close">x</button>
+            <p class="eyebrow">Identity Gateway</p>
+            <h2 id="auth-modal-title">@(AuthModalState.IsRegisterMode ? "Create local account" : "Sign in")</h2>
+            <p class="muted-copy">Local account today, ready for GitHub, Google, Microsoft, Cloudflare Access, and Turnstile later.</p>
+
+            <label>Username</label>
+            <input autocomplete="username" placeholder="username" @bind="username" />
+            <label>Password</label>
+            <input type="password" autocomplete="current-password" placeholder="password" @bind="password" />
+
+            @if (!string.IsNullOrWhiteSpace(error))
+            {
+                <p class="error-line">@error</p>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <p class="status-line">@message</p>
+            }
+
+            <div class="action-row">
+                <button class="command-button" @onclick="SubmitAsync" disabled="@isBusy">
+                    @(isBusy ? "Working..." : AuthModalState.IsRegisterMode ? "Register" : "Login")
+                </button>
+                <button class="command-button secondary" @onclick="InterviewerLoginAsync" disabled="@isBusy">Interviewer</button>
+            </div>
+            <button class="link-command" @onclick="SwitchMode">
+                @(AuthModalState.IsRegisterMode ? "I already have an account" : "Create a local account")
+            </button>
+        </section>
+    </div>
+}
+
+@code {
+    private string username = string.Empty;
+    private string password = string.Empty;
+    private string message = string.Empty;
+    private string error = string.Empty;
+    private bool isBusy;
+
+    protected override void OnInitialized()
+    {
+        AuthModalState.Changed += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        AuthModalState.Changed -= StateHasChanged;
+    }
+
+    private async Task SubmitAsync()
+    {
+        error = string.Empty;
+        message = string.Empty;
+        isBusy = true;
+
+        try
+        {
+            var result = AuthModalState.IsRegisterMode
+                ? await AuthApiClient.RegisterAsync(new RegisterRequest(username, password))
+                : await AuthApiClient.LoginAsync(new LoginRequest(username, password));
+
+            if (result.Success)
+            {
+                message = result.Message;
+                await SessionState.RefreshAsync();
+                AuthModalState.Close();
+                return;
+            }
+
+            error = result.Message;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task InterviewerLoginAsync()
+    {
+        error = string.Empty;
+        message = string.Empty;
+        isBusy = true;
+
+        try
+        {
+            var result = await AuthApiClient.InterviewerLoginAsync();
+            if (result.Success)
+            {
+                message = result.Message;
+                await SessionState.RefreshAsync();
+                AuthModalState.Close();
+                return;
+            }
+
+            error = result.Message;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void SwitchMode()
+    {
+        if (AuthModalState.IsRegisterMode)
+        {
+            AuthModalState.UseSignIn();
+        }
+        else
+        {
+            AuthModalState.UseRegister();
+        }
+    }
+
+    private void Close()
+    {
+        error = string.Empty;
+        message = string.Empty;
+        AuthModalState.Close();
+    }
+}

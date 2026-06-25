@@ -1,4 +1,14 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BioTwin_AI.AspNetCoreApi/BioTwin_AI.AspNetCoreApi.csproj" />
+    <Project Path="src/BioTwin_AI.BlazorClient/BioTwin_AI.BlazorClient.csproj" />
+    <Project Path="src/BioTwin_AI.DotNetShared/BioTwin_AI.DotNetShared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BioTwin_AI.AspNetCoreApi.Tests/BioTwin_AI.AspNetCoreApi.Tests.csproj" />
+    <Project Path="tests/BioTwin_AI.BlazorClient.Tests/BioTwin_AI.BlazorClient.Tests.csproj" />
+    <Project Path="tests/BioTwin_AI.DotNetShared.Tests/BioTwin_AI.DotNetShared.Tests.csproj" />
+  </Folder>
   <Project Path="src\BioTwin_AI\BioTwin_AI.csproj" />
   <Project Path="tests\BioTwin_AI.Tests\BioTwin_AI.Tests.csproj" />
 </Solution>

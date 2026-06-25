@@ -1,0 +1,6 @@
+@BioTwin_AI.AspNetCoreApi_HostAddress = http://localhost:5014
+
+GET {{BioTwin_AI.AspNetCoreApi_HostAddress}}/api/health
+Accept: application/json
+
+###
