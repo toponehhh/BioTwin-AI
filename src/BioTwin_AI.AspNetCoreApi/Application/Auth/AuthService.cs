@@ -19,17 +19,21 @@ public sealed class AuthService(
             return new AuthResult(false, "Username and password are required.", null);
         }
 
-        if (await dbContext.UserAccounts.AnyAsync(user => user.Username == username, cancellationToken))
+        if (await dbContext.UserAccounts.IgnoreQueryFilters().AnyAsync(user => user.Username == username, cancellationToken))
         {
             return new AuthResult(false, "Username already exists.", null);
         }
 
+        var now = DateTimeOffset.UtcNow;
         var user = new UserAccount
         {
             Username = username,
+            Nickname = NormalizeNickname(request.Nickname, username),
+            Avatar = NormalizeAvatar(request.Avatar),
             PasswordHash = HashPassword(request.Password),
             Role = UserRole.Candidate.ToString(),
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
         dbContext.UserAccounts.Add(user);
@@ -53,7 +57,7 @@ public sealed class AuthService(
         }
 
         var user = await dbContext.UserAccounts
-            .FirstOrDefaultAsync(candidate => candidate.Username == username, cancellationToken);
+            .FirstOrDefaultAsync(candidate => candidate.Username == username && !candidate.IsDeleted, cancellationToken);
 
         if (user is null || !VerifyPassword(request.Password, user.PasswordHash))
         {
@@ -78,12 +82,16 @@ public sealed class AuthService(
 
         if (user is null)
         {
+            var now = DateTimeOffset.UtcNow;
             user = new UserAccount
             {
                 Username = username,
+                Nickname = "Interviewer",
+                Avatar = "🕵️",
                 PasswordHash = HashPassword(Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
-            Role = UserRole.Interviewer.ToString(),
-                CreatedAt = DateTimeOffset.UtcNow
+                Role = UserRole.Interviewer.ToString(),
+                CreatedAt = now,
+                UpdatedAt = now
             };
             dbContext.UserAccounts.Add(user);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -98,9 +106,49 @@ public sealed class AuthService(
         return new AuthResult(true, "Interviewer session started.", session);
     }
 
+    public async Task<AuthResult> UpdateProfileAsync(
+        string username,
+        UpdateProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var normalizedUsername = NormalizeUsername(username);
+        var user = await dbContext.UserAccounts
+            .FirstOrDefaultAsync(candidate => candidate.Username == normalizedUsername, cancellationToken);
+
+        if (user is null)
+        {
+            return new AuthResult(false, "Current user was not found.", null);
+        }
+
+        user.Nickname = NormalizeNickname(request.Nickname, user.Username);
+        user.Avatar = NormalizeAvatar(request.Avatar);
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var session = await sessionResponseFactory.CreateAuthenticatedAsync(
+            user.Id,
+            user.Username,
+            ParseRole(user.Role),
+            cancellationToken);
+
+        return new AuthResult(true, "Profile updated.", session);
+    }
+
     private static string NormalizeUsername(string username)
     {
         return (username ?? string.Empty).Trim().ToLowerInvariant();
+    }
+
+    private static string NormalizeNickname(string? nickname, string username)
+    {
+        var normalized = (nickname ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? username : normalized;
+    }
+
+    private static string NormalizeAvatar(string? avatar)
+    {
+        var normalized = (avatar ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? "🧑‍💻" : normalized;
     }
 
     private static string HashPassword(string password)

@@ -19,6 +19,7 @@ public class ControllerArchitectureTests
             "ResumeRefinementController",
             "ChatController",
             "RagController",
+            "ClientLogsController",
             "HealthController"
         ];
 
@@ -53,7 +54,8 @@ public class ControllerArchitectureTests
         var programText = File.ReadAllText(programPath);
 
         Assert.Contains("builder.Logging.ClearProviders()", programText, StringComparison.Ordinal);
-        Assert.Contains("builder.Logging.AddConsole()", programText, StringComparison.Ordinal);
+        Assert.Contains("builder.Host.UseSerilog", programText, StringComparison.Ordinal);
+        Assert.DoesNotContain("builder.Logging.AddConsole()", programText, StringComparison.Ordinal);
         Assert.Contains("!app.Environment.IsDevelopment()", programText, StringComparison.Ordinal);
         Assert.Contains("app.UseHttpsRedirection()", programText, StringComparison.Ordinal);
     }

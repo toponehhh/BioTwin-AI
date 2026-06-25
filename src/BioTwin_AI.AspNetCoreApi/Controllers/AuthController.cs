@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using BioTwin_AI.AspNetCoreApi.Application.Auth;
 using BioTwin_AI.DotNetShared.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
@@ -47,6 +48,22 @@ public sealed class AuthController(IAuthService authService, IExternalProviderCa
         return Ok(result);
     }
 
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult<AuthResult>> UpdateProfile(
+        UpdateProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var username = User.Identity?.Name ?? string.Empty;
+        var result = await authService.UpdateProfileAsync(username, request, cancellationToken);
+        if (result.Success && result.Session is not null)
+        {
+            await SignInAsync(result.Session);
+        }
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
@@ -64,9 +81,11 @@ public sealed class AuthController(IAuthService authService, IExternalProviderCa
     {
         var claims = new List<Claim>
         {
+            new(ClaimTypes.NameIdentifier, session.UserId?.ToString() ?? string.Empty),
             new(ClaimTypes.Name, session.Username ?? string.Empty),
             new(ClaimTypes.Role, session.Role.ToString()),
-            new("display_name", session.DisplayName ?? session.Username ?? string.Empty)
+            new("display_name", session.DisplayName ?? session.Username ?? string.Empty),
+            new("avatar", session.Avatar ?? string.Empty)
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

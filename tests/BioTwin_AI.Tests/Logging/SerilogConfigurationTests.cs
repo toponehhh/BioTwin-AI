@@ -34,11 +34,19 @@ public class SerilogConfigurationTests
     public void AppSettings_ConfiguresConsoleAndRollingFileSinks()
     {
         using var document = JsonDocument.Parse(File.ReadAllText(GetRepoPath("src", "BioTwin_AI", "appsettings.json")));
+        var logging = document.RootElement.GetProperty("Logging");
         var serilog = document.RootElement.GetProperty("Serilog");
+        var minimumLevel = serilog.GetProperty("MinimumLevel");
         var overrides = serilog.GetProperty("MinimumLevel").GetProperty("Override");
         var writeTo = serilog.GetProperty("WriteTo").EnumerateArray().ToList();
 
+        Assert.Equal("Information", logging.GetProperty("LogLevel").GetProperty("Default").GetString());
+        Assert.Equal("Information", logging.GetProperty("LogLevel").GetProperty("Microsoft.AspNetCore").GetString());
+        Assert.Equal("Information", minimumLevel.GetProperty("Default").GetString());
+        Assert.Equal("Information", overrides.GetProperty("Microsoft").GetString());
+        Assert.Equal("Information", overrides.GetProperty("Microsoft.AspNetCore").GetString());
         Assert.Equal("Information", overrides.GetProperty("Microsoft.Hosting.Lifetime").GetString());
+        Assert.Equal("Information", overrides.GetProperty("System").GetString());
         Assert.Contains(writeTo, sink => sink.GetProperty("Name").GetString() == "Console");
 
         var fileSink = Assert.Single(writeTo, sink => sink.GetProperty("Name").GetString() == "File");
@@ -47,6 +55,16 @@ public class SerilogConfigurationTests
         Assert.Equal("Day", args.GetProperty("rollingInterval").GetString());
         Assert.Equal(14, args.GetProperty("retainedFileCountLimit").GetInt32());
         Assert.True(args.GetProperty("shared").GetBoolean());
+    }
+
+    [Fact]
+    public void Program_LogsExplicitStartupCompletion()
+    {
+        var programText = File.ReadAllText(GetRepoPath("src", "BioTwin_AI", "Program.cs"));
+
+        Assert.Contains("ApplicationStarted.Register", programText);
+        Assert.Contains("started successfully", programText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("app.Logger.LogInformation", programText);
     }
 
     private static string GetRepoPath(params string[] parts)

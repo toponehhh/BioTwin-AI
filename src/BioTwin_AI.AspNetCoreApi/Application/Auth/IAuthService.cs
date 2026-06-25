@@ -9,4 +9,6 @@ public interface IAuthService
     Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken);
 
     Task<AuthResult> InterviewerLoginAsync(CancellationToken cancellationToken);
+
+    Task<AuthResult> UpdateProfileAsync(string username, UpdateProfileRequest request, CancellationToken cancellationToken);
 }

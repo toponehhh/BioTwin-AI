@@ -12,8 +12,10 @@ public sealed class SessionResponseFactory(
     {
         return new CurrentSessionResponse(
             IsAuthenticated: false,
+            UserId: null,
             Username: null,
             DisplayName: null,
+            Avatar: null,
             Role: UserRole.Candidate,
             ExternalProviders: externalProviderCatalog.GetProviders(new HashSet<string>()));
     }
@@ -24,16 +26,27 @@ public sealed class SessionResponseFactory(
         UserRole role,
         CancellationToken cancellationToken)
     {
+        var user = userId > 0
+            ? await dbContext.UserAccounts.AsNoTracking().FirstOrDefaultAsync(account => account.Id == userId, cancellationToken)
+            : await dbContext.UserAccounts.AsNoTracking().FirstOrDefaultAsync(account => account.Username == username, cancellationToken);
+
+        var resolvedUserId = user?.Id ?? userId;
+        var resolvedUsername = user?.Username ?? username;
+        var displayName = string.IsNullOrWhiteSpace(user?.Nickname) ? resolvedUsername : user.Nickname;
+        var avatar = string.IsNullOrWhiteSpace(user?.Avatar) ? "🧑‍💻" : user.Avatar;
+
         var linkedProviders = await dbContext.UserExternalIdentities
             .AsNoTracking()
-            .Where(identity => identity.UserId == userId)
+            .Where(identity => identity.UserId == resolvedUserId)
             .Select(identity => identity.Provider)
             .ToListAsync(cancellationToken);
 
         return new CurrentSessionResponse(
             IsAuthenticated: true,
-            Username: username,
-            DisplayName: username,
+            UserId: resolvedUserId > 0 ? resolvedUserId : null,
+            Username: resolvedUsername,
+            DisplayName: displayName,
+            Avatar: avatar,
             Role: role,
             ExternalProviders: externalProviderCatalog.GetProviders(linkedProviders.ToHashSet(StringComparer.OrdinalIgnoreCase)));
     }

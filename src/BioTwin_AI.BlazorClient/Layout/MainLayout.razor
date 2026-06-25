@@ -7,6 +7,50 @@
 <FluentDesignTheme Mode="@FluentThemeMode" StorageName="biotwin.fluent.theme" />
 <FluentToastProvider />
 <AuthModal />
+@if (isProfileEditorOpen)
+{
+    <div class="modal-scrim" @onclick="CloseProfileEditor">
+        <section class="auth-modal mica-panel profile-editor-modal" role="dialog" aria-modal="true" aria-labelledby="profile-editor-title" @onclick:stopPropagation>
+            <button class="modal-close" title="Close" aria-label="Close profile editor" @onclick="CloseProfileEditor">x</button>
+            <p class="eyebrow">Profile</p>
+            <h2 id="profile-editor-title">Edit profile</h2>
+            <p class="muted-copy">Update the nickname and avatar shown in your BioTwin AI workspace.</p>
+
+            <label>Nickname</label>
+            <input autocomplete="nickname" @bind="editNickname" />
+            <label>Avatar</label>
+            <div class="avatar-options" role="listbox" aria-label="Choose profile avatar">
+                @foreach (var avatar in avatarOptions)
+                {
+                    <button
+                        type="button"
+                        class="avatar-choice @(editAvatar == avatar ? "selected" : null)"
+                        aria-label="@($"Use avatar {avatar}")"
+                        aria-selected="@(editAvatar == avatar)"
+                        @onclick="() => editAvatar = avatar">
+                        @avatar
+                    </button>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(profileError))
+            {
+                <p class="error-line">@profileError</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(profileMessage))
+            {
+                <p class="status-line">@profileMessage</p>
+            }
+
+            <div class="action-row">
+                <button class="command-button" @onclick="SaveProfileAsync" disabled="@isSavingProfile">
+                    @(isSavingProfile ? "Saving..." : "Save profile")
+                </button>
+                <button class="command-button secondary" @onclick="CloseProfileEditor" disabled="@isSavingProfile">Cancel</button>
+            </div>
+        </section>
+    </div>
+}
 
 <div class="page theme-@ThemeState.CurrentTheme.ToString().ToLowerInvariant()">
     <div class="sidebar">
@@ -17,8 +61,20 @@
         <div class="top-row px-4">
             @if (SessionState.IsAuthenticated)
             {
-                <span class="session-pill">@SessionState.DisplayName</span>
-                <button class="theme-toggle" @onclick="LogoutAsync">Logout</button>
+                <div class="profile-shell">
+                    <span class="session-pill">Welcome @SessionState.DisplayName</span>
+                    <button class="avatar-button" title="Profile menu" aria-label="Open profile menu" @onclick="ToggleProfileMenu">
+                        @SessionState.Avatar
+                    </button>
+                    @if (isProfileMenuOpen)
+                    {
+                        <div class="profile-menu" role="menu">
+                            <button class="profile-menu-item" role="menuitem" @onclick="OpenProfileEditor">Edit profile</button>
+                            <a class="profile-menu-item" role="menuitem" href="/settings">Settings</a>
+                            <button class="profile-menu-item danger" role="menuitem" @onclick="LogoutAsync">Logout</button>
+                        </div>
+                    }
+                </div>
             }
             else
             {
@@ -26,8 +82,14 @@
                     Sign in
                 </button>
             }
-            <button class="theme-toggle" @onclick="ToggleTheme">
-                @ThemeState.CurrentTheme
+            <button class="@ThemeToggleClass" title="@ThemeToggleLabel" aria-label="@ThemeToggleLabel" @onclick="ToggleTheme">
+                <span class="lamp-head" aria-hidden="true">
+                    <span class="lamp-shade"></span>
+                    <span class="lamp-bulb"></span>
+                    <span class="lamp-glow"></span>
+                </span>
+                <span class="lamp-cord" aria-hidden="true"></span>
+                <span class="lamp-pull" aria-hidden="true"></span>
             </button>
         </div>
 
@@ -56,6 +118,24 @@
     private DesignThemeModes FluentThemeMode => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark
         ? DesignThemeModes.Dark
         : DesignThemeModes.Light;
+    private string ThemeToggleClass => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Light
+        ? "lamp-theme-toggle lamp-on"
+        : "lamp-theme-toggle lamp-off";
+    private string ThemeToggleLabel => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark
+        ? "Turn on light theme"
+        : "Turn off light theme";
+    private bool isProfileMenuOpen;
+    private bool isProfileEditorOpen;
+    private bool isSavingProfile;
+    private string editNickname = string.Empty;
+    private string editAvatar = "🧑‍💻";
+    private string profileMessage = string.Empty;
+    private string profileError = string.Empty;
+    private readonly string[] avatarOptions =
+    [
+        "🧑‍💻", "👩‍💻", "👨‍💻", "🧑‍🔬", "👩‍🔬", "👨‍🔬", "🧑‍🚀", "👩‍🚀",
+        "👨‍🚀", "🧑‍🎨", "👩‍🎨", "👨‍🎨", "🧑‍🏫", "👩‍🏫", "👨‍🏫", "🕵️"
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,6 +160,61 @@
 
     private async Task LogoutAsync()
     {
+        isProfileMenuOpen = false;
+        isProfileEditorOpen = false;
         await SessionState.LogoutAsync();
+    }
+
+    private void ToggleProfileMenu()
+    {
+        isProfileMenuOpen = !isProfileMenuOpen;
+    }
+
+    private void OpenProfileEditor()
+    {
+        editNickname = SessionState.DisplayName;
+        editAvatar = SessionState.Avatar;
+        profileMessage = string.Empty;
+        profileError = string.Empty;
+        isProfileMenuOpen = false;
+        isProfileEditorOpen = true;
+    }
+
+    private void CloseProfileEditor()
+    {
+        if (isSavingProfile)
+        {
+            return;
+        }
+
+        isProfileEditorOpen = false;
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        profileMessage = string.Empty;
+        profileError = string.Empty;
+        isSavingProfile = true;
+
+        try
+        {
+            var result = await SessionState.UpdateProfileAsync(new UpdateProfileRequest(editNickname, editAvatar));
+            if (result.Success)
+            {
+                profileMessage = result.Message;
+                isProfileEditorOpen = false;
+                return;
+            }
+
+            profileError = result.Message;
+        }
+        catch (Exception ex)
+        {
+            profileError = ex.Message;
+        }
+        finally
+        {
+            isSavingProfile = false;
+        }
     }
 }

@@ -2,18 +2,17 @@
 @inject IResumeApiClient IResumeApiClient
 @inject SessionState SessionState
 
-<PageTitle>Resume</PageTitle>
+<PageTitle>Resume Library</PageTitle>
 
-<ProtectedArea Title="Resume workspace requires sign in" Description="Uploading, editing, exporting, and indexing resumes are private account features.">
+<ProtectedArea Title="Resume library requires sign in" Description="Stored resumes and private indexes are available only after signing in.">
     <section class="workspace-header">
-        <p class="eyebrow">Resume Intelligence</p>
-        <h1>Resume Workspace</h1>
-        <p>Manage converted Markdown resumes, rebuild embeddings, and open editing or export workflows.</p>
+        <p class="eyebrow">Resume Library</p>
+        <h1>Indexed Resume Library</h1>
+        <p>Review stored resume records, rebuild the private search index, and remove outdated imports.</p>
     </section>
 
     <div class="action-row">
-        <a class="command-button" href="/resume/upload">Upload resume</a>
-        <button class="command-button secondary" @onclick="RebuildAsync">Rebuild embeddings</button>
+        <button class="command-button" @onclick="RebuildAsync">Rebuild embeddings</button>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(message))
@@ -22,18 +21,26 @@
     }
 
     <section class="grid-section">
-        @foreach (var resume in resumes)
+        @if (resumes.Count == 0)
         {
             <article class="feature-card">
-                <span>@resume.SectionCount sections</span>
-                <h2>@resume.Title</h2>
-                <p>@resume.SourceFileName</p>
-                <div class="action-row">
-                    <a class="command-button secondary" href="@($"/resume/edit/{resume.Id}")">Edit</a>
-                    <a class="command-button secondary" href="@($"/resume/export/{resume.Id}")">Export</a>
-                    <button class="link-command" @onclick="() => DeleteAsync(resume.Id)">Delete</button>
-                </div>
+                <span>0 records</span>
+                <h2>No indexed resumes</h2>
+                <p>The library will show saved resume records after an upload workflow completes.</p>
             </article>
+        }
+        else
+        {
+            @foreach (var resume in resumes)
+            {
+                <article class="feature-card">
+                    <span>@resume.SectionCount sections</span>
+                    <h2>@resume.Title</h2>
+                    <p>@(string.IsNullOrWhiteSpace(resume.SourceFileName) ? "Markdown source" : resume.SourceFileName)</p>
+                    <p>Created @resume.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</p>
+                    <button class="link-command" @onclick="() => DeleteAsync(resume.Id)">Delete</button>
+                </article>
+            }
         }
     </section>
 </ProtectedArea>

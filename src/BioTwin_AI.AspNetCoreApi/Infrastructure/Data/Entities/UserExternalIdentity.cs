@@ -20,6 +20,10 @@ public sealed class UserExternalIdentity
 
     public string? ProviderAvatarUrl { get; set; }
 
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
     public DateTimeOffset LinkedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? LastLoginAt { get; set; }
