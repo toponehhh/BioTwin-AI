@@ -1,0 +1,161 @@
+@page "/resume/edit/{ResumeId:int?}"
+@inject IResumeApiClient IResumeApiClient
+@inject SessionState SessionState
+
+<PageTitle>Edit Resume</PageTitle>
+
+<ProtectedArea Title="Resume editing requires sign in" Description="Editing and re-indexing resume Markdown is available only for signed-in users.">
+    <section class="workspace-header">
+        <p class="eyebrow">Markdown Source</p>
+        <h1>Edit Resume Markdown</h1>
+        <p>Only whole-document Markdown editing is enabled in M1. The section tree is read-only navigation context.</p>
+    </section>
+
+    <section class="two-column wide-left">
+        <div class="tool-panel">
+            <label>Resume</label>
+            <select @bind="selectedResumeId" @bind:after="LoadSelectedAsync">
+                <option value="">Select resume</option>
+                @foreach (var item in resumes)
+                {
+                    <option value="@item.Id">@item.Title</option>
+                }
+            </select>
+            <label>Title</label>
+            <input @bind="title" />
+            <label>Markdown</label>
+            <textarea rows="24" @bind="markdown"></textarea>
+            <div class="action-row">
+                <button class="command-button" @onclick="SaveAsync" disabled="@(selectedResumeId is null)">Save whole document</button>
+                <button class="command-button secondary" @onclick="RefineAsync" disabled="@string.IsNullOrWhiteSpace(markdown)">Refine Markdown</button>
+            </div>
+        </div>
+        <aside class="tool-panel">
+            <h2>Section tree</h2>
+            @foreach (var section in sections)
+            {
+                <div class="section-node" style="@($"margin-left:{(section.HeadingLevel - 1) * 12}px")">
+                    @section.Title
+                </div>
+            }
+        </aside>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="status-line">@message</p>
+    }
+</ProtectedArea>
+
+@code {
+    [Parameter]
+    public int? ResumeId { get; set; }
+
+    private IReadOnlyList<ResumeSummaryDto> resumes = [];
+    private IReadOnlyList<ResumeSectionDto> sections = [];
+    private int? selectedResumeId;
+    private string title = string.Empty;
+    private string markdown = string.Empty;
+    private string message = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SessionState.RefreshAsync();
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            resumes = await IResumeApiClient.GetResumesAsync();
+            selectedResumeId = ResumeId ?? resumes.FirstOrDefault()?.Id;
+            await LoadSelectedAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task LoadSelectedAsync()
+    {
+        if (selectedResumeId is null)
+        {
+            return;
+        }
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var detail = await IResumeApiClient.GetResumeAsync(selectedResumeId.Value);
+            var export = await IResumeApiClient.ExportMarkdownAsync(selectedResumeId.Value);
+            title = detail.Title;
+            markdown = export.Markdown;
+            sections = Flatten(detail.Sections);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (selectedResumeId is null)
+        {
+            return;
+        }
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var detail = await IResumeApiClient.ReplaceMarkdownAsync(
+                selectedResumeId.Value,
+                new SaveResumeMarkdownRequest(title, markdown, null, null, null));
+            sections = Flatten(detail.Sections);
+            message = "Saved and re-indexed.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task RefineAsync()
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await IResumeApiClient.RefineAsync(new RefineMarkdownRequest(markdown, title));
+            markdown = response.Markdown;
+            message = "Markdown refined locally.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private static IReadOnlyList<ResumeSectionDto> Flatten(IReadOnlyList<ResumeSectionDto> nodes)
+    {
+        var result = new List<ResumeSectionDto>();
+        foreach (var node in nodes)
+        {
+            result.Add(node);
+            result.AddRange(Flatten(node.Children));
+        }
+
+        return result;
+    }
+}

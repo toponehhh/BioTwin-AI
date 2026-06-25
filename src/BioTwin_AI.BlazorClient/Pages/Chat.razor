@@ -1,0 +1,96 @@
+@page "/chat"
+@inject IChatApiClient IChatApiClient
+@inject SessionState SessionState
+
+<PageTitle>AI Workspace</PageTitle>
+
+<ProtectedArea Title="AI workspace requires sign in" Description="Chat and RAG search use your indexed resume data, so they are only available after signing in.">
+    <section class="workspace-header">
+        <p class="eyebrow">RAG Console</p>
+        <h1>AI Workspace</h1>
+        <p>Ask questions against indexed resume sections and inspect the citations returned by the API.</p>
+    </section>
+
+    <section class="tool-panel">
+        <label>Question</label>
+        <textarea rows="4" @bind="question"></textarea>
+        <div class="action-row">
+            <button class="command-button" @onclick="AskAsync">Ask</button>
+            <button class="command-button secondary" @onclick="SearchAsync">Search only</button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(answer))
+    {
+        <section class="tool-panel">
+            <h2>Answer</h2>
+            <p>@answer</p>
+        </section>
+    }
+
+    @if (citations.Count > 0)
+    {
+        <section class="grid-section">
+            @foreach (var citation in citations)
+            {
+                <article class="feature-card">
+                    <span>@citation.Score.ToString("0.00")</span>
+                    <h2>@citation.ResumeTitle / @citation.SectionTitle</h2>
+                    <p>@citation.ContentPreview</p>
+                </article>
+            }
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <p class="error-line">@error</p>
+    }
+</ProtectedArea>
+
+@code {
+    private string question = "What projects demonstrate cloud and AI engineering experience?";
+    private string answer = string.Empty;
+    private string error = string.Empty;
+    private IReadOnlyList<RagCitationDto> citations = [];
+
+    private async Task AskAsync()
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            error = string.Empty;
+            var response = await IChatApiClient.AskAsync(new ChatRequest(question));
+            answer = response.Answer;
+            citations = response.Citations;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            error = string.Empty;
+            var response = await IChatApiClient.SearchAsync(new RagSearchRequest(question, Limit: 5));
+            citations = response.Results;
+            answer = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+}

@@ -1,0 +1,85 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject BioTwin_AI.BlazorClient.Services.ThemeState ThemeState
+@inject BioTwin_AI.BlazorClient.Services.AuthModalState AuthModalState
+@inject BioTwin_AI.BlazorClient.Services.SessionState SessionState
+
+<FluentDesignTheme Mode="@FluentThemeMode" StorageName="biotwin.fluent.theme" />
+<FluentToastProvider />
+<AuthModal />
+
+<div class="page theme-@ThemeState.CurrentTheme.ToString().ToLowerInvariant()">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            @if (SessionState.IsAuthenticated)
+            {
+                <span class="session-pill">@SessionState.DisplayName</span>
+                <button class="theme-toggle" @onclick="LogoutAsync">Logout</button>
+            }
+            else
+            {
+                <button class="theme-toggle primary" @onclick="AuthModalState.OpenSignIn">
+                    Sign in
+                </button>
+            }
+            <button class="theme-toggle" @onclick="ToggleTheme">
+                @ThemeState.CurrentTheme
+            </button>
+        </div>
+
+        <article class="content px-4">
+            <ErrorBoundary>
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="ex">
+                    <section class="tool-panel error-panel">
+                        <p class="eyebrow">Request interrupted</p>
+                        <h2>Backend call failed</h2>
+                        <p>@ex.Message</p>
+                        <div class="action-row">
+                            <button class="command-button" @onclick="AuthModalState.OpenSignIn">Sign in</button>
+                            <a class="command-button secondary" href="/settings">Check API</a>
+                        </div>
+                    </section>
+                </ErrorContent>
+            </ErrorBoundary>
+        </article>
+    </main>
+</div>
+
+@code {
+    private DesignThemeModes FluentThemeMode => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark
+        ? DesignThemeModes.Dark
+        : DesignThemeModes.Light;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ThemeState.Changed += StateHasChanged;
+        SessionState.Changed += StateHasChanged;
+        await ThemeState.InitializeAsync();
+        await SessionState.RefreshAsync();
+    }
+
+    public void Dispose()
+    {
+        ThemeState.Changed -= StateHasChanged;
+        SessionState.Changed -= StateHasChanged;
+    }
+
+    private void ToggleTheme()
+    {
+        ThemeState.SetTheme(ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark
+            ? BioTwin_AI.BlazorClient.Services.AppTheme.Light
+            : BioTwin_AI.BlazorClient.Services.AppTheme.Dark);
+    }
+
+    private async Task LogoutAsync()
+    {
+        await SessionState.LogoutAsync();
+    }
+}

@@ -1,0 +1,100 @@
+@page "/resume/upload"
+@inject IResumeApiClient IResumeApiClient
+@inject NavigationManager Navigation
+@inject SessionState SessionState
+
+<PageTitle>Upload Resume</PageTitle>
+
+<ProtectedArea Title="Resume upload requires sign in" Description="Resume files are private account data. Sign in before converting or saving a resume.">
+    <section class="workspace-header">
+        <p class="eyebrow">Import</p>
+        <h1>Upload Resume</h1>
+        <p>Convert a source file to Markdown, review it, then save it as indexed resume sections.</p>
+    </section>
+
+    <section class="tool-panel">
+        <label>Source file</label>
+        <InputFile OnChange="ConvertAsync" />
+        <label>Title</label>
+        <input @bind="title" />
+        <label>Markdown</label>
+        <textarea rows="18" @bind="markdown"></textarea>
+        <div class="action-row">
+            <button class="command-button" @onclick="SaveAsync" disabled="@string.IsNullOrWhiteSpace(markdown)">Save and index</button>
+            <a class="command-button secondary" href="/resume">Back</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="status-line">@message</p>
+    }
+</ProtectedArea>
+
+@code {
+    private string title = string.Empty;
+    private string markdown = string.Empty;
+    private string? sourceFileName;
+    private string? sourceContentType;
+    private long? sourceFileSize;
+    private string? sourceFileContentBase64;
+    private string message = string.Empty;
+
+    private async Task ConvertAsync(InputFileChangeEventArgs args)
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var file = args.File;
+            sourceFileName = file.Name;
+            sourceContentType = file.ContentType;
+            sourceFileSize = file.Size;
+
+            await using var browserStream = file.OpenReadStream(10 * 1024 * 1024);
+            using var memory = new MemoryStream();
+            await browserStream.CopyToAsync(memory);
+            sourceFileContentBase64 = Convert.ToBase64String(memory.ToArray());
+
+            memory.Position = 0;
+            var converted = await IResumeApiClient.ConvertUploadAsync(file.Name, file.ContentType, memory);
+            title = converted.Title;
+            markdown = converted.Markdown;
+            message = converted.IsDuplicate
+                ? $"Duplicate detected: {converted.ExistingResumeTitle}"
+                : "Converted. Review before saving.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = await IResumeApiClient.SaveResumeAsync(new SaveResumeMarkdownRequest(
+                title,
+                markdown,
+                sourceFileName,
+                sourceContentType,
+                sourceFileSize,
+                sourceFileContentBase64));
+
+            Navigation.NavigateTo($"/resume/edit/{saved.Id}");
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+}

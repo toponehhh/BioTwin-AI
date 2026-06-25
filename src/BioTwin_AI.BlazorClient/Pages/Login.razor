@@ -1,0 +1,13 @@
+@page "/login"
+@inject AuthModalState AuthModalState
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthModalState.OpenSignIn();
+        Navigation.NavigateTo("/", replace: true);
+    }
+}

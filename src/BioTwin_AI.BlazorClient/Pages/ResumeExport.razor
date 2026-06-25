@@ -1,0 +1,144 @@
+@page "/resume/export/{ResumeId:int?}"
+@inject IResumeApiClient IResumeApiClient
+@inject IJSRuntime JsRuntime
+@inject SessionState SessionState
+
+<PageTitle>Export Resume</PageTitle>
+
+<ProtectedArea Title="Resume export requires sign in" Description="Resume Markdown, PDF, and original files are private account artifacts.">
+    <section class="workspace-header">
+        <p class="eyebrow">Artifacts</p>
+        <h1>Export Resume</h1>
+        <p>Preview Markdown and download Markdown, PDF, or the original uploaded file.</p>
+    </section>
+
+    <section class="tool-panel">
+        <label>Resume</label>
+        <select @bind="selectedResumeId" @bind:after="LoadSelectedAsync">
+            <option value="">Select resume</option>
+            @foreach (var item in resumes)
+            {
+                <option value="@item.Id">@item.Title</option>
+            }
+        </select>
+        <div class="action-row">
+            <button class="command-button" @onclick="DownloadMarkdownAsync" disabled="@(selectedResumeId is null)">Markdown</button>
+            <button class="command-button secondary" @onclick="DownloadPdfAsync" disabled="@(selectedResumeId is null)">PDF</button>
+            <button class="command-button secondary" @onclick="DownloadOriginalAsync" disabled="@(selectedResumeId is null)">Original</button>
+        </div>
+        <pre class="markdown-preview">@markdown</pre>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="status-line">@message</p>
+    }
+</ProtectedArea>
+
+@code {
+    [Parameter]
+    public int? ResumeId { get; set; }
+
+    private IReadOnlyList<ResumeSummaryDto> resumes = [];
+    private int? selectedResumeId;
+    private string markdown = string.Empty;
+    private string fileName = "resume.md";
+    private string message = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SessionState.RefreshAsync();
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            resumes = await IResumeApiClient.GetResumesAsync();
+            selectedResumeId = ResumeId ?? resumes.FirstOrDefault()?.Id;
+            await LoadSelectedAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task LoadSelectedAsync()
+    {
+        if (selectedResumeId is null)
+        {
+            return;
+        }
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var export = await IResumeApiClient.ExportMarkdownAsync(selectedResumeId.Value);
+            markdown = export.Markdown;
+            fileName = export.FileName;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task DownloadMarkdownAsync()
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync("biotwinDownloadText", fileName, "text/markdown", markdown);
+    }
+
+    private async Task DownloadPdfAsync()
+    {
+        if (selectedResumeId is null)
+        {
+            return;
+        }
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var bytes = await IResumeApiClient.ExportPdfAsync(selectedResumeId.Value);
+            await JsRuntime.InvokeVoidAsync("biotwinDownloadBytes", Path.ChangeExtension(fileName, ".pdf"), "application/pdf", Convert.ToBase64String(bytes));
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task DownloadOriginalAsync()
+    {
+        if (selectedResumeId is null)
+        {
+            return;
+        }
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var bytes = await IResumeApiClient.DownloadOriginalAsync(selectedResumeId.Value);
+            await JsRuntime.InvokeVoidAsync("biotwinDownloadBytes", "original-" + fileName, "application/octet-stream", Convert.ToBase64String(bytes));
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+}

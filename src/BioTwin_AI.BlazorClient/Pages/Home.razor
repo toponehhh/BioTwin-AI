@@ -1,0 +1,83 @@
+﻿@page "/"
+
+@inject IResumeApiClient IResumeApiClient
+@inject SessionState SessionState
+@inject AuthModalState AuthModalState
+
+<PageTitle>BioTwin AI</PageTitle>
+
+<section class="hero-shell wordpress-hero">
+    <div class="hero-narrative">
+        <p class="eyebrow">.NET / AI / Cloudflare Migration</p>
+        <h1>BioTwin AI</h1>
+        <p class="hero-copy">
+            A modern technical portfolio and AI workspace for resume intelligence, RAG search,
+            interviewer discovery, and Cloudflare-ready application architecture.
+        </p>
+        <div class="hero-metrics">
+            <span><strong>ASP.NET</strong> API</span>
+            <span><strong>Blazor</strong> WASM</span>
+            <span><strong>BGE-M3</strong> ONNX</span>
+        </div>
+        <div class="action-row">
+            @if (SessionState.IsAuthenticated)
+            {
+                <a class="command-button" href="/chat">Open AI Workspace</a>
+                <a class="command-button secondary" href="/resume">Resume Console</a>
+            }
+            else
+            {
+                <button class="command-button" @onclick="AuthModalState.OpenSignIn">Sign in to open workspace</button>
+                <a class="command-button secondary" href="/skills">View public profile</a>
+            }
+        </div>
+    </div>
+    <div class="terminal-panel hero-console">
+        <div class="terminal-title">runtime status</div>
+        <pre>@statusText</pre>
+    </div>
+</section>
+
+<section class="grid-section">
+    <article class="feature-card">
+        <span>01</span>
+        <h2>Cloud-Native .NET</h2>
+        <p>ASP.NET Core API boundaries, Blazor WASM frontend, SQLite-first data model, and a migration path to D1/R2/Vectorize.</p>
+    </article>
+    <article class="feature-card">
+        <span>02</span>
+        <h2>AI Resume Intelligence</h2>
+        <p>Markdown conversion, section indexing, local embeddings, RAG citations, chat answers, and PDF export.</p>
+    </article>
+    <article class="feature-card">
+        <span>03</span>
+        <h2>Portfolio Workspace</h2>
+        <p>Skills, project narrative, resume editing, and interviewer-friendly discovery share one frontend surface.</p>
+    </article>
+</section>
+
+@code {
+    private string statusText = "loading session...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await SessionState.RefreshAsync();
+            var resumes = SessionState.IsAuthenticated
+                ? await IResumeApiClient.GetResumesAsync()
+                : [];
+
+            statusText = $"""
+user: {(SessionState.IsAuthenticated ? SessionState.Current?.Username : "anonymous")}
+role: {SessionState.Current?.Role}
+indexed resumes: {resumes.Count}
+api: connected
+""";
+        }
+        catch (Exception ex)
+        {
+            statusText = $"api: offline\nreason: {ex.Message}";
+        }
+    }
+}
