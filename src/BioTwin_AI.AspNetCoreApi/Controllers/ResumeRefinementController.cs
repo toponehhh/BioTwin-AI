@@ -11,8 +11,8 @@ public sealed class ResumeRefinementController(IResumeRefinementService refineme
 {
     [HttpPost]
     [Authorize]
-    public ActionResult<RefineMarkdownResponse> Refine(RefineMarkdownRequest request)
+    public async Task<ActionResult<RefineMarkdownResponse>> Refine(RefineMarkdownRequest request, CancellationToken cancellationToken)
     {
-        return Ok(refinementService.Refine(request));
+        return Ok(await refinementService.RefineAsync(request, cancellationToken));
     }
 }

@@ -26,5 +26,7 @@ public sealed class ResumeSection
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
     public ResumeSectionVector? Vector { get; set; }
 }

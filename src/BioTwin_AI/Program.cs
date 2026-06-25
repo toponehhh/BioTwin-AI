@@ -64,6 +64,8 @@ builder.Services.AddHttpClient<ResumeUploadService>((provider, client) =>
 
 var app = builder.Build();
 
+app.Logger.LogInformation("BioTwin AI web app initialization started in {EnvironmentName}.", app.Environment.EnvironmentName);
+
 var supportedCultureNames = new[] { "en", "zh-CN" };
 app.UseRequestLocalization(new RequestLocalizationOptions()
     .SetDefaultCulture("en")
@@ -79,6 +81,8 @@ using (var scope = app.Services.CreateScope())
     var ragService = scope.ServiceProvider.GetRequiredService<IRagService>();
     await ragService.InitializeAsync();
 }
+
+app.Logger.LogInformation("BioTwin AI web app startup initialization completed.");
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -119,5 +123,13 @@ app.MapGet("/culture/set", (HttpContext httpContext, string culture, string? red
 });
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    app.Logger.LogInformation(
+        "BioTwin AI web app started successfully in {EnvironmentName}. Listening on {Urls}",
+        app.Environment.EnvironmentName,
+        string.Join(", ", app.Urls));
+});
 
 app.Run();

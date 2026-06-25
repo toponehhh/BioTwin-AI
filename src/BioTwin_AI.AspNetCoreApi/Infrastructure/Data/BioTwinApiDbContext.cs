@@ -21,9 +21,15 @@ public sealed class BioTwinApiDbContext(DbContextOptions<BioTwinApiDbContext> op
         {
             entity.HasKey(user => user.Id);
             entity.Property(user => user.Username).IsRequired().HasMaxLength(100);
+            entity.Property(user => user.Nickname).IsRequired().HasMaxLength(100);
+            entity.Property(user => user.Avatar).IsRequired().HasMaxLength(32);
             entity.Property(user => user.PasswordHash).IsRequired();
             entity.Property(user => user.Role).IsRequired().HasMaxLength(40);
+            entity.Property(user => user.CreatedAt).IsRequired();
+            entity.Property(user => user.UpdatedAt).IsRequired();
+            entity.Property(user => user.IsDeleted).IsRequired();
             entity.HasIndex(user => user.Username).IsUnique();
+            entity.HasQueryFilter(user => !user.IsDeleted);
         });
 
         modelBuilder.Entity<UserExternalIdentity>(entity =>
@@ -34,7 +40,10 @@ public sealed class BioTwinApiDbContext(DbContextOptions<BioTwinApiDbContext> op
             entity.Property(identity => identity.ProviderEmail).HasMaxLength(320);
             entity.Property(identity => identity.ProviderDisplayName).HasMaxLength(200);
             entity.Property(identity => identity.ProviderAvatarUrl).HasMaxLength(1000);
+            entity.Property(identity => identity.CreatedAt).IsRequired();
+            entity.Property(identity => identity.UpdatedAt).IsRequired();
             entity.HasIndex(identity => new { identity.Provider, identity.ProviderUserId }).IsUnique();
+            entity.HasQueryFilter(identity => !identity.User!.IsDeleted);
             entity.HasOne(identity => identity.User)
                 .WithMany(user => user.ExternalIdentities)
                 .HasForeignKey(identity => identity.UserId)
@@ -49,6 +58,8 @@ public sealed class BioTwinApiDbContext(DbContextOptions<BioTwinApiDbContext> op
             entity.Property(resume => resume.SourceFileName).HasMaxLength(260);
             entity.Property(resume => resume.SourceContentType).HasMaxLength(200);
             entity.Property(resume => resume.SourceFileHash).HasMaxLength(64);
+            entity.Property(resume => resume.CreatedAt).IsRequired();
+            entity.Property(resume => resume.UpdatedAt).IsRequired();
             entity.HasIndex(resume => new { resume.TenantId, resume.CreatedAt });
             entity.HasIndex(resume => new { resume.TenantId, resume.SourceFileHash }).IsUnique();
             entity.HasMany(resume => resume.Sections)
@@ -63,6 +74,8 @@ public sealed class BioTwinApiDbContext(DbContextOptions<BioTwinApiDbContext> op
             entity.Property(section => section.TenantId).IsRequired().HasMaxLength(100);
             entity.Property(section => section.Title).IsRequired();
             entity.Property(section => section.Content).IsRequired();
+            entity.Property(section => section.CreatedAt).IsRequired();
+            entity.Property(section => section.UpdatedAt).IsRequired();
             entity.HasIndex(section => new { section.ResumeEntryId, section.SortOrder });
             entity.HasOne(section => section.ParentSection)
                 .WithMany(section => section.ChildSections)
@@ -82,6 +95,8 @@ public sealed class BioTwinApiDbContext(DbContextOptions<BioTwinApiDbContext> op
             entity.Property(vector => vector.SectionTitle).IsRequired();
             entity.Property(vector => vector.Content).IsRequired();
             entity.Property(vector => vector.EmbeddingPayload).IsRequired();
+            entity.Property(vector => vector.CreatedAt).IsRequired();
+            entity.Property(vector => vector.UpdatedAt).IsRequired();
             entity.HasIndex(vector => vector.ResumeSectionId).IsUnique();
             entity.HasIndex(vector => vector.TenantId);
         });

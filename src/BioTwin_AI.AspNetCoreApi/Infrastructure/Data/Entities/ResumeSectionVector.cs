@@ -19,4 +19,6 @@ public sealed class ResumeSectionVector
     public string EmbeddingPayload { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

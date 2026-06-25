@@ -4,5 +4,5 @@ namespace BioTwin_AI.AspNetCoreApi.Application.Refinement;
 
 public interface IResumeRefinementService
 {
-    RefineMarkdownResponse Refine(RefineMarkdownRequest request);
+    Task<RefineMarkdownResponse> RefineAsync(RefineMarkdownRequest request, CancellationToken cancellationToken);
 }

@@ -24,6 +24,11 @@ public sealed class AuthApiClient(HttpClient httpClient) : ApiClientBase(httpCli
         return SendJsonAsync<AuthResult>(HttpMethod.Post, "api/auth/interviewer-login", null, cancellationToken);
     }
 
+    public Task<AuthResult> UpdateProfileAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        return SendJsonAsync<AuthResult>(HttpMethod.Put, "api/auth/profile", request, cancellationToken);
+    }
+
     public Task LogoutAsync(CancellationToken cancellationToken = default)
     {
         return SendJsonAsync(HttpMethod.Post, "api/auth/logout", null, cancellationToken);

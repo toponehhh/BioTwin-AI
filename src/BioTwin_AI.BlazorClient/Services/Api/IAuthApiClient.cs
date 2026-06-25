@@ -12,6 +12,8 @@ public interface IAuthApiClient
 
     Task<AuthResult> InterviewerLoginAsync(CancellationToken cancellationToken = default);
 
+    Task<AuthResult> UpdateProfileAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default);
+
     Task LogoutAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ExternalIdentityProviderDto>> GetExternalProvidersAsync(CancellationToken cancellationToken = default);

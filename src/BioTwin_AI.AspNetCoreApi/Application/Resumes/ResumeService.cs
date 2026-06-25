@@ -117,7 +117,8 @@ public sealed class ResumeService(
             SourceFileSize = request.SourceFileSize,
             SourceFileContent = sourceBytes,
             SourceFileHash = sourceHash,
-            CreatedAt = now
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
         dbContext.ResumeEntries.Add(entry);
@@ -142,6 +143,7 @@ public sealed class ResumeService(
         entry.SourceFileName = request.SourceFileName ?? entry.SourceFileName;
         entry.SourceContentType = request.SourceContentType ?? entry.SourceContentType;
         entry.SourceFileSize = request.SourceFileSize ?? entry.SourceFileSize;
+        entry.UpdatedAt = DateTimeOffset.UtcNow;
 
         var sourceBytes = DecodeOptionalBase64(request.SourceFileContentBase64);
         if (sourceBytes is not null)
@@ -243,7 +245,8 @@ public sealed class ResumeService(
                 Title = section.Title,
                 Content = section.Content,
                 SortOrder = index,
-                CreatedAt = entry.CreatedAt.AddTicks(index)
+                CreatedAt = entry.CreatedAt.AddTicks(index),
+                UpdatedAt = entry.UpdatedAt.AddTicks(index)
             })
             .ToList();
 
@@ -283,7 +286,8 @@ public sealed class ResumeService(
                 ResumeSectionId = section.Id,
                 ResumeSection = section,
                 TenantId = entry.TenantId,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
             };
             dbContext.ResumeSectionVectors.Add(vector);
         }
@@ -292,6 +296,7 @@ public sealed class ResumeService(
         vector.SectionTitle = section.Title;
         vector.Content = section.Content;
         vector.EmbeddingPayload = payload;
+        vector.UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     private async Task<string> ConvertBytesToMarkdownAsync(string fileName, string? contentType, byte[] bytes, CancellationToken cancellationToken)
