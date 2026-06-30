@@ -799,8 +799,64 @@ The most relevant is index 2 because...
                 }
             }
 
+            // Fallback: Try to extract ordered indices from natural language response
+            // Look for patterns like "0:", "1:", "Index 0", "candidate 0", etc.
+            indexes = ExtractIndicesFromNaturalLanguage(cleaned, candidateCount);
+            if (indexes.Count > 0)
+            {
+                _logger.LogDebug("Natural language extraction succeeded with {Count} indexes", indexes.Count);
+                return indexes;
+            }
+
             _logger.LogDebug("All parsing methods failed for response: {Response}", cleaned);
             return new List<int>();
+        }
+
+        private List<int> ExtractIndicesFromNaturalLanguage(string response, int candidateCount)
+        {
+            var indexes = new List<int>();
+            
+            // Pattern 1: Look for "Index: N" or "N:" at the start of lines (common in model explanations)
+            var linePattern = Regex.Matches(response, @"^(?:Index\s*[:.]?\s*|candidate\s+|#?\s*)(\d+)\s*[:.]?", RegexOptions.Multiline);
+            foreach (Match match in linePattern)
+            {
+                if (int.TryParse(match.Groups[1].Value, out var index) && 
+                    index >= 0 && index < candidateCount && 
+                    !indexes.Contains(index))
+                {
+                    indexes.Add(index);
+                }
+            }
+
+            // Pattern 2: If line pattern didn't work, look for numbered references in text
+            if (indexes.Count == 0)
+            {
+                // Look for patterns like "0:", "1:", "2:" that indicate ranking order
+                var rankingPattern = Regex.Matches(response, @"\b(\d+)\s*[:\.]");
+                var seen = new HashSet<int>();
+                
+                foreach (Match match in rankingPattern)
+                {
+                    if (int.TryParse(match.Groups[1].Value, out var index) && 
+                        index >= 0 && index < candidateCount && 
+                        !seen.Contains(index))
+                    {
+                        // Check if this looks like a ranking indicator (followed by text about the candidate)
+                        var afterMatch = response.Substring(match.Index + match.Length);
+                        if (afterMatch.Length > 0 && !char.IsDigit(afterMatch[0]))
+                        {
+                            indexes.Add(index);
+                            seen.Add(index);
+                            
+                            // Stop after collecting all candidates or first few rankings
+                            if (indexes.Count >= candidateCount)
+                                break;
+                        }
+                    }
+                }
+            }
+
+            return indexes;
         }
 
         private static bool TryParseJsonIndexes(string cleaned, int candidateCount, out List<int> indexes)
