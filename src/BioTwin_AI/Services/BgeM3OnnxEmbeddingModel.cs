@@ -81,6 +81,12 @@ namespace BioTwin_AI.Services
             {
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
             };
+            
+            // Disable thread affinity to avoid issues on Linux/Docker environments
+            // where pthread_setaffinity_np may fail with EINVAL
+            options.InterOpNumThreads = 1;
+            options.IntraOpNumThreads = 1;
+            
             options.RegisterOrtExtensions();
             return options;
         }
