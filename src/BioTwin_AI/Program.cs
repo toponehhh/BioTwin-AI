@@ -8,6 +8,13 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure Kestrel to listen on 0.0.0.0 with configurable port
+var port = builder.Configuration.GetValue<int>("Port", 5000);
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(port);
+});
+
 QuestPDF.Settings.License = LicenseType.Community;
 
 builder.Host.UseSerilog((context, services, loggerConfiguration) =>
