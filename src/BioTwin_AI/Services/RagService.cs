@@ -624,6 +624,8 @@ namespace BioTwin_AI.Services
         {
             try
             {
+                _logger.LogDebug("Attempting LLM rerank with {CandidateCount} candidates", candidates.Count);
+
                 var response = await _chatClient.GetResponseAsync(
                     BuildRerankMessages(query, candidates),
                     CreateRerankChatOptions());
@@ -631,12 +633,15 @@ namespace BioTwin_AI.Services
                 var rerankedIndexes = ParseRerankIndexes(response.Text, candidates.Count);
                 if (rerankedIndexes.Count == 0)
                 {
-                    _logger.LogWarning("Rerank model returned no usable ordering. Falling back to vector ranking.");
+                    _logger.LogWarning("Rerank model returned no usable ordering. Response: {Response}. Falling back to vector ranking.", 
+                        response.Text?.Trim() ?? "(empty)");
                     return candidates
                         .Take(limit)
                         .Select(candidate => (candidate.Content, candidate.DisplayScore))
                         .ToList();
                 }
+
+                _logger.LogDebug("Rerank successful with {IndexCount} indexes", rerankedIndexes.Count);
 
                 var reranked = new List<(string Content, double Score)>();
                 var used = new HashSet<int>();
@@ -689,15 +694,26 @@ namespace BioTwin_AI.Services
         private ChatMessage[] BuildRerankMessages(string query, IReadOnlyList<SearchCandidate> candidates)
         {
             var systemPrompt = """
-You rank resume snippets for relevance to a user question.
-Return JSON only.
-Use one of these formats:
-{"rankedIndexes":[0,1,2]}
-or
-[0,1,2]
-Order indexes from most relevant to least relevant.
-Prefer snippets that directly answer the question with concrete factual evidence.
-Do not include explanations.
+You are a resume relevance reranker. Return ONLY a JSON array of integer indexes with NO other text.
+
+REQUIRED OUTPUT FORMAT (example):
+[2,0,1]
+
+DO NOT include:
+- Explanations or reasoning
+- Markdown code blocks (no ```json or ```)
+- Property names like "rankedIndexes"
+- Any text before or after the array
+
+Example of CORRECT output:
+[2,0,1]
+
+Example of INCORRECT output:
+The most relevant is index 2 because...
+```json
+[2,0,1]
+```
+{"rankedIndexes":[2,0,1]}
 """;
 
             var userPrompt = new System.Text.StringBuilder();
@@ -738,7 +754,7 @@ Do not include explanations.
             return options;
         }
 
-        private static List<int> ParseRerankIndexes(string? responseText, int candidateCount)
+        private List<int> ParseRerankIndexes(string? responseText, int candidateCount)
         {
             if (string.IsNullOrWhiteSpace(responseText))
             {
@@ -746,12 +762,45 @@ Do not include explanations.
             }
 
             var cleaned = responseText.Trim();
-            cleaned = Regex.Replace(cleaned, @"^```(?:json)?\s*", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\s*```$", string.Empty);
+            
+            _logger.LogDebug("Attempting to parse rerank response: {Response}", cleaned);
 
-            return TryParseJsonIndexes(cleaned, candidateCount, out var parsed)
-                ? parsed
-                : new List<int>();
+            // Try direct JSON parsing first
+            if (TryParseJsonIndexes(cleaned, candidateCount, out var indexes) && indexes.Count > 0)
+            {
+                _logger.LogDebug("Direct JSON parsing succeeded with {Count} indexes", indexes.Count);
+                return indexes;
+            }
+
+            // Extract JSON array from anywhere in the text using regex
+            // Look for patterns like [0,1,2] or [2, 0, 1]
+            var arrayMatch = Regex.Match(cleaned, @"\[(\d+(?:\s*,\s*\d+)*)\]");
+            if (arrayMatch.Success)
+            {
+                var numbersStr = arrayMatch.Groups[1].Value.Replace(" ", "");
+                var tempJson = $"[{numbersStr}]";
+                if (TryParseJsonIndexes(tempJson, candidateCount, out indexes) && indexes.Count > 0)
+                {
+                    _logger.LogDebug("Regex array extraction succeeded with {Count} indexes", indexes.Count);
+                    return indexes;
+                }
+            }
+
+            // Try to extract JSON object with rankedIndexes property
+            var objectMatch = Regex.Match(cleaned, @"\{[^}]*""rankedIndexes""\s*:\s*\[(\d+(?:\s*,\s*\d+)*)\][^}]*\}");
+            if (objectMatch.Success)
+            {
+                var numbersStr = objectMatch.Groups[1].Value.Replace(" ", "");
+                var tempJson = $"{{\"rankedIndexes\":[{numbersStr}]}}";
+                if (TryParseJsonIndexes(tempJson, candidateCount, out indexes) && indexes.Count > 0)
+                {
+                    _logger.LogDebug("Regex object extraction succeeded with {Count} indexes", indexes.Count);
+                    return indexes;
+                }
+            }
+
+            _logger.LogDebug("All parsing methods failed for response: {Response}", cleaned);
+            return new List<int>();
         }
 
         private static bool TryParseJsonIndexes(string cleaned, int candidateCount, out List<int> indexes)
