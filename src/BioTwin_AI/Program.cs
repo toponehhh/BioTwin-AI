@@ -29,6 +29,7 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddLocalization();
+builder.Services.AddHttpContextAccessor();
 
 // Configure SQLite DbContext
 var dbDirectory = Path.Combine(builder.Environment.ContentRootPath, "database");

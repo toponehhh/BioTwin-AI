@@ -2,6 +2,7 @@ using BioTwin_AI.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
 using Moq;
 using Xunit;
 
@@ -33,8 +34,10 @@ namespace BioTwin_AI.Tests.Services
             var chatClient = new FakeChatClient("Test response from candidate mode");
             var session = new CurrentUserSession();
             session.SignIn("testcandidate", UserRole.Candidate);
+            var httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+            httpContextAccessorMock.Setup(x => x.HttpContext).Returns((HttpContext?)null);
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session, httpContextAccessorMock.Object);
 
             // Act
             var response = await agentService.AnswerQuestionAsync("What is your experience with C#?");
@@ -69,8 +72,10 @@ namespace BioTwin_AI.Tests.Services
             var chatClient = new FakeChatClient("Test response from interviewer mode");
             var session = new CurrentUserSession();
             session.InterviewerLogin();
+            var httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+            httpContextAccessorMock.Setup(x => x.HttpContext).Returns((HttpContext?)null);
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session, httpContextAccessorMock.Object);
 
             // Act
             var response = await agentService.AnswerQuestionAsync("What is candidate1's C# experience?");
@@ -104,8 +109,10 @@ namespace BioTwin_AI.Tests.Services
             var loggerMock = new Mock<ILogger<AgentService>>();
             var chatClient = new FakeChatClient("Response");
             var session = new CurrentUserSession();
+            var httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+            httpContextAccessorMock.Setup(x => x.HttpContext).Returns((HttpContext?)null);
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session, httpContextAccessorMock.Object);
 
             // Act
             await agentService.AnswerQuestionAsync("Test question?");
@@ -144,8 +151,10 @@ namespace BioTwin_AI.Tests.Services
             var loggerMock = new Mock<ILogger<AgentService>>();
             var chatClient = new FakeChatClient("No context available");
             var session = new CurrentUserSession();
+            var httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+            httpContextAccessorMock.Setup(x => x.HttpContext).Returns((HttpContext?)null);
 
-            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session);
+            var agentService = new AgentService(ragServiceMock.Object, loggerMock.Object, config, chatClient, session, httpContextAccessorMock.Object);
 
             // Act
             var response = await agentService.AnswerQuestionAsync("Question with no context?");
