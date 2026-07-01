@@ -40,6 +40,7 @@ builder.Services.AddDbContext<BioTwinDbContext>(options =>
 );
 
 // Configure RAG Service
+builder.Services.AddSingleton<IRerankService, LocalBgeRerankService>();
 builder.Services.AddScoped<IRagService, RagService>();
 
 // Configure Microsoft.Extensions.AI chat client

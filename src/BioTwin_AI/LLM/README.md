@@ -1,8 +1,13 @@
-# Local BGE-M3 ONNX files
+# Local BGE ONNX files
 
-The application loads BGE-M3 embeddings from this directory at runtime.
+The application loads local BGE models from subdirectories at runtime:
 
-The model weights are not committed to Git because `bge_m3_model.onnx_data` is larger than 2 GB. Download the required files from Hugging Face:
+- Embeddings: `src/BioTwin_AI/LLM/bge_m3`
+- Rerank: `src/BioTwin_AI/LLM/bge_rerank_v2`
+
+## BGE-M3 embeddings
+
+The BGE-M3 model weights are not committed to Git because `bge_m3_model.onnx_data` is larger than 2 GB. Download the required files from Hugging Face:
 
 https://huggingface.co/yuniko-software/bge-m3-onnx/tree/main
 
@@ -11,6 +16,18 @@ Required files:
 - `bge_m3_model.onnx`
 - `bge_m3_model.onnx_data`
 - `bge_m3_tokenizer.onnx`
+
+Place these files in `src/BioTwin_AI/LLM/bge_m3`.
+
+## BGE rerank
+
+The local reranker loads these files from `src/BioTwin_AI/LLM/bge_rerank_v2`:
+
+- `model.onnx`
+- `tokenizer.json`
+- `config.json`
+- `special_tokens_map.json`
+- `tokenizer_config.json`
 
 ## Windows PowerShell
 

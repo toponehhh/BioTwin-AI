@@ -1,9 +1,7 @@
 using BioTwin_AI.Data;
 using BioTwin_AI.Models;
-using Microsoft.Extensions.AI;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace BioTwin_AI.Services
@@ -40,37 +38,29 @@ namespace BioTwin_AI.Services
         private readonly ILogger<RagService> _logger;
         private readonly CurrentUserSession _session;
         private readonly IEmbeddingService _embeddingService;
-        private readonly IChatClient _chatClient;
+        private readonly IRerankService _rerankService;
         private readonly int _vectorSize;
         private readonly bool _rerankEnabled;
         private readonly int _rerankCandidateLimit;
         private readonly int _rerankSnippetChars;
-        private readonly int _rerankMaxTokens;
-        private readonly bool _isOllamaProvider;
-        private readonly string _chatModel;
-        private readonly int _chatNumCtx;
 
         public RagService(
             BioTwinDbContext dbContext,
             ILogger<RagService> logger,
             CurrentUserSession session,
             IEmbeddingService embeddingService,
-            IChatClient chatClient,
+            IRerankService rerankService,
             IConfiguration config)
         {
             _dbContext = dbContext;
             _logger = logger;
             _session = session;
             _embeddingService = embeddingService;
-            _chatClient = chatClient;
+            _rerankService = rerankService;
             _vectorSize = config.GetValue("Rag:EmbeddingSize", 768);
             _rerankEnabled = config.GetValue("Rag:EnableRerank", true);
             _rerankCandidateLimit = Math.Max(2, config.GetValue("Rag:RerankCandidateLimit", 8));
             _rerankSnippetChars = Math.Max(200, config.GetValue("Rag:RerankSnippetChars", 1200));
-            _rerankMaxTokens = Math.Max(32, config.GetValue("Rag:RerankMaxTokens", 128));
-            _isOllamaProvider = string.Equals(config["LLM:Provider"] ?? "Ollama", "Ollama", StringComparison.OrdinalIgnoreCase);
-            _chatModel = config["LLM:Model"] ?? "gemma4:e2b";
-            _chatNumCtx = config.GetValue("LLM:ChatNumCtx", 2048);
         }
 
         private string? GetTenantIdOrNull()
@@ -181,7 +171,7 @@ namespace BioTwin_AI.Services
         }
 
         /// <summary>
-        /// Search for chat context using vector retrieval followed by optional LLM reranking.
+        /// Search for chat context using vector retrieval followed by optional local reranking.
         /// </summary>
         public async Task<List<(string Content, double Score)>> SearchForChatAsync(string query, int limit = 5)
         {
@@ -624,38 +614,42 @@ namespace BioTwin_AI.Services
         {
             try
             {
-                _logger.LogDebug("Attempting LLM rerank with {CandidateCount} candidates", candidates.Count);
+                _logger.LogDebug("Attempting local rerank with {CandidateCount} candidates", candidates.Count);
 
-                var response = await _chatClient.GetResponseAsync(
-                    BuildRerankMessages(query, candidates),
-                    CreateRerankChatOptions());
+                var documents = candidates
+                    .Select(candidate => TruncateForRerank(candidate.Content))
+                    .ToList();
+                var rerankedResults = await _rerankService.RerankAsync(query, documents, limit);
 
-                var rerankedIndexes = ParseRerankIndexes(response.Text, candidates.Count);
-                if (rerankedIndexes.Count == 0)
+                if (rerankedResults.Count == 0)
                 {
-                    _logger.LogWarning("Rerank model returned no usable ordering. Response: {Response}. Falling back to vector ranking.", 
-                        response.Text?.Trim() ?? "(empty)");
+                    _logger.LogWarning("Local rerank model returned no scores. Falling back to vector ranking.");
                     return candidates
                         .Take(limit)
                         .Select(candidate => (candidate.Content, candidate.DisplayScore))
                         .ToList();
                 }
 
-                _logger.LogDebug("Rerank successful with {IndexCount} indexes", rerankedIndexes.Count);
+                _logger.LogDebug("Local rerank successful with {IndexCount} indexes", rerankedResults.Count);
 
                 var reranked = new List<(string Content, double Score)>();
                 var used = new HashSet<int>();
 
-                foreach (var index in rerankedIndexes)
+                foreach (var result in rerankedResults.OrderByDescending(result => result.Score))
                 {
+                    var index = result.Index;
+                    if (index < 0 || index >= candidates.Count)
+                    {
+                        continue;
+                    }
+
                     if (!used.Add(index))
                     {
                         continue;
                     }
 
                     var candidate = candidates[index];
-                    var score = 1d - (reranked.Count / (double)Math.Max(limit, candidates.Count));
-                    reranked.Add((candidate.Content, score));
+                    reranked.Add((candidate.Content, result.Score));
 
                     if (reranked.Count == limit)
                     {
@@ -691,215 +685,14 @@ namespace BioTwin_AI.Services
             }
         }
 
-        private ChatMessage[] BuildRerankMessages(string query, IReadOnlyList<SearchCandidate> candidates)
+        private string TruncateForRerank(string content)
         {
-            var systemPrompt = """
-You are a resume relevance reranker. Return ONLY a JSON array of integer indexes with NO other text.
-
-REQUIRED OUTPUT FORMAT (example):
-[2,0,1]
-
-DO NOT include:
-- Explanations or reasoning
-- Markdown code blocks (no ```json or ```)
-- Property names like "rankedIndexes"
-- Any text before or after the array
-
-Example of CORRECT output:
-[2,0,1]
-
-Example of INCORRECT output:
-The most relevant is index 2 because...
-```json
-[2,0,1]
-```
-{"rankedIndexes":[2,0,1]}
-""";
-
-            var userPrompt = new System.Text.StringBuilder();
-            userPrompt.AppendLine("Question:");
-            userPrompt.AppendLine(query);
-            userPrompt.AppendLine();
-            userPrompt.AppendLine("Candidates:");
-
-            for (var i = 0; i < candidates.Count; i++)
+            if (content.Length <= _rerankSnippetChars)
             {
-                var snippet = candidates[i].Content;
-                if (snippet.Length > _rerankSnippetChars)
-                {
-                    snippet = snippet[.._rerankSnippetChars] + "\n...[truncated]";
-                }
-
-                userPrompt.AppendLine($"Index: {i}");
-                userPrompt.AppendLine(snippet);
-                userPrompt.AppendLine();
+                return content;
             }
 
-            return
-            [
-                new ChatMessage(ChatRole.System, systemPrompt),
-                new ChatMessage(ChatRole.User, userPrompt.ToString())
-            ];
-        }
-
-        private ChatOptions CreateRerankChatOptions()
-        {
-            var options = new ChatOptions
-            {
-                ModelId = _chatModel,
-                Temperature = 0,
-                MaxOutputTokens = _rerankMaxTokens
-            };
-
-            return options;
-        }
-
-        private List<int> ParseRerankIndexes(string? responseText, int candidateCount)
-        {
-            if (string.IsNullOrWhiteSpace(responseText))
-            {
-                return new List<int>();
-            }
-
-            var cleaned = responseText.Trim();
-            
-            _logger.LogDebug("Attempting to parse rerank response: {Response}", cleaned);
-
-            // Try direct JSON parsing first
-            if (TryParseJsonIndexes(cleaned, candidateCount, out var indexes) && indexes.Count > 0)
-            {
-                _logger.LogDebug("Direct JSON parsing succeeded with {Count} indexes", indexes.Count);
-                return indexes;
-            }
-
-            // Extract JSON array from anywhere in the text using regex
-            // Look for patterns like [0,1,2] or [2, 0, 1]
-            var arrayMatch = Regex.Match(cleaned, @"\[(\d+(?:\s*,\s*\d+)*)\]");
-            if (arrayMatch.Success)
-            {
-                var numbersStr = arrayMatch.Groups[1].Value.Replace(" ", "");
-                var tempJson = $"[{numbersStr}]";
-                if (TryParseJsonIndexes(tempJson, candidateCount, out indexes) && indexes.Count > 0)
-                {
-                    _logger.LogDebug("Regex array extraction succeeded with {Count} indexes", indexes.Count);
-                    return indexes;
-                }
-            }
-
-            // Try to extract JSON object with rankedIndexes property
-            var objectMatch = Regex.Match(cleaned, @"\{[^}]*""rankedIndexes""\s*:\s*\[(\d+(?:\s*,\s*\d+)*)\][^}]*\}");
-            if (objectMatch.Success)
-            {
-                var numbersStr = objectMatch.Groups[1].Value.Replace(" ", "");
-                var tempJson = $"{{\"rankedIndexes\":[{numbersStr}]}}";
-                if (TryParseJsonIndexes(tempJson, candidateCount, out indexes) && indexes.Count > 0)
-                {
-                    _logger.LogDebug("Regex object extraction succeeded with {Count} indexes", indexes.Count);
-                    return indexes;
-                }
-            }
-
-            // Fallback: Try to extract ordered indices from natural language response
-            // Look for patterns like "0:", "1:", "Index 0", "candidate 0", etc.
-            indexes = ExtractIndicesFromNaturalLanguage(cleaned, candidateCount);
-            if (indexes.Count > 0)
-            {
-                _logger.LogDebug("Natural language extraction succeeded with {Count} indexes", indexes.Count);
-                return indexes;
-            }
-
-            _logger.LogDebug("All parsing methods failed for response: {Response}", cleaned);
-            return new List<int>();
-        }
-
-        private List<int> ExtractIndicesFromNaturalLanguage(string response, int candidateCount)
-        {
-            var indexes = new List<int>();
-            
-            // Pattern 1: Look for "Index: N" or "N:" at the start of lines (common in model explanations)
-            var linePattern = Regex.Matches(response, @"^(?:Index\s*[:.]?\s*|candidate\s+|#?\s*)(\d+)\s*[:.]?", RegexOptions.Multiline);
-            foreach (Match match in linePattern)
-            {
-                if (int.TryParse(match.Groups[1].Value, out var index) && 
-                    index >= 0 && index < candidateCount && 
-                    !indexes.Contains(index))
-                {
-                    indexes.Add(index);
-                }
-            }
-
-            // Pattern 2: If line pattern didn't work, look for numbered references in text
-            if (indexes.Count == 0)
-            {
-                // Look for patterns like "0:", "1:", "2:" that indicate ranking order
-                var rankingPattern = Regex.Matches(response, @"\b(\d+)\s*[:\.]");
-                var seen = new HashSet<int>();
-                
-                foreach (Match match in rankingPattern)
-                {
-                    if (int.TryParse(match.Groups[1].Value, out var index) && 
-                        index >= 0 && index < candidateCount && 
-                        !seen.Contains(index))
-                    {
-                        // Check if this looks like a ranking indicator (followed by text about the candidate)
-                        var afterMatch = response.Substring(match.Index + match.Length);
-                        if (afterMatch.Length > 0 && !char.IsDigit(afterMatch[0]))
-                        {
-                            indexes.Add(index);
-                            seen.Add(index);
-                            
-                            // Stop after collecting all candidates or first few rankings
-                            if (indexes.Count >= candidateCount)
-                                break;
-                        }
-                    }
-                }
-            }
-
-            return indexes;
-        }
-
-        private static bool TryParseJsonIndexes(string cleaned, int candidateCount, out List<int> indexes)
-        {
-            indexes = new List<int>();
-
-            try
-            {
-                using var document = JsonDocument.Parse(cleaned);
-                JsonElement arrayElement;
-
-                if (document.RootElement.ValueKind == JsonValueKind.Array)
-                {
-                    arrayElement = document.RootElement;
-                }
-                else if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                         document.RootElement.TryGetProperty("rankedIndexes", out var rankedIndexes))
-                {
-                    arrayElement = rankedIndexes;
-                }
-                else
-                {
-                    return false;
-                }
-
-                if (arrayElement.ValueKind != JsonValueKind.Array)
-                {
-                    return false;
-                }
-
-                indexes = arrayElement.EnumerateArray()
-                    .Where(element => element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out _))
-                    .Select(element => element.GetInt32())
-                    .Where(index => index >= 0 && index < candidateCount)
-                    .Distinct()
-                    .ToList();
-
-                return indexes.Count > 0;
-            }
-            catch (JsonException)
-            {
-                return false;
-            }
+            return content[.._rerankSnippetChars] + "\n...[truncated]";
         }
 
         private async Task EnsureVectorStoreSchemaAsync()

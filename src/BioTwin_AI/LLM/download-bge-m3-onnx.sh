@@ -22,6 +22,7 @@ done
 
 base_url="https://huggingface.co/yuniko-software/bge-m3-onnx/resolve/main"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+target_dir="${script_dir}/bge_m3"
 files=(
   "bge_m3_model.onnx"
   "bge_m3_model.onnx_data"
@@ -30,12 +31,14 @@ files=(
 
 for file in "${files[@]}"; do
   url="${base_url}/${file}"
-  destination="${script_dir}/${file}"
+  destination="${target_dir}/${file}"
 
   if [[ "$dry_run" == "1" ]]; then
     echo "Would download ${url} -> ${destination}"
     continue
   fi
+
+  mkdir -p "$target_dir"
 
   if [[ -f "$destination" && "$force" != "1" ]]; then
     echo "Skipping existing file: ${destination}"
@@ -61,5 +64,5 @@ done
 if [[ "$dry_run" == "1" ]]; then
   echo "Dry run complete. No files were downloaded."
 else
-  echo "BGE-M3 ONNX files are ready in ${script_dir}"
+  echo "BGE-M3 ONNX files are ready in ${target_dir}"
 fi

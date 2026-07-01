@@ -2,7 +2,6 @@ using BioTwin_AI.Data;
 using BioTwin_AI.Models;
 using BioTwin_AI.Services;
 using BioTwin_AI.Tests.Fixtures;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -27,7 +26,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             dbContext.ResumeEntries.AddRange(
                 CreateResumeEntry("candidate1", "Candidate1 Resume", "Experience in C#"),
@@ -54,7 +59,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             dbContext.ResumeEntries.AddRange(
                 CreateResumeEntry("candidate1", "Candidate1 Resume", "Experience in C#"),
@@ -81,7 +92,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             var results = await ragService.SearchAsync("nonexistent", limit: 5);
 
@@ -102,7 +119,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(new float[768]);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             for (int i = 0; i < 10; i++)
             {
@@ -116,7 +139,7 @@ namespace BioTwin_AI.Tests.Services
         }
 
         [Fact]
-        public async Task SearchForChatAsync_UsesRerankOrderWhenAvailable()
+        public async Task SearchForChatAsync_UsesLocalRerankOrderWhenAvailable()
         {
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
@@ -128,8 +151,15 @@ namespace BioTwin_AI.Tests.Services
                 .Setup(x => x.GetEmbeddingAsync("csharp", 768))
                 .ReturnsAsync(CreateVector(1f, 0f));
 
+            var rerankService = new RecordingRerankService([new RerankResult(1, 0.95), new RerankResult(0, 0.25)]);
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[1,0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                rerankService,
+                config);
 
             dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Strong Match", "C# direct", CreateVectorPayload(1f, 0f)));
             dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Weak Match", "LLM reranked", CreateVectorPayload(0.2f, 0.9f)));
@@ -140,10 +170,12 @@ namespace BioTwin_AI.Tests.Services
             Assert.Equal(2, results.Count);
             Assert.Contains("Weak Match", results[0].Content);
             Assert.Contains("Strong Match", results[1].Content);
+            Assert.Equal("csharp", rerankService.Query);
+            Assert.Equal(2, rerankService.Documents.Count);
         }
 
         [Fact]
-        public async Task SearchForChatAsync_FallsBackToVectorRankingWhenRerankResponseInvalid()
+        public async Task SearchForChatAsync_FallsBackToVectorRankingWhenLocalRerankReturnsNoScores()
         {
             var dbContext = DbContextFactory.CreateInMemoryContext();
             var session = new CurrentUserSession();
@@ -156,7 +188,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(CreateVector(1f, 0f));
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("not-json"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new RecordingRerankService([]),
+                config);
 
             dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Strong Match", "C# direct", CreateVectorPayload(1f, 0f)));
             dbContext.ResumeEntries.Add(CreateResumeEntry("candidate1", "Weak Match", "LLM reranked", CreateVectorPayload(0.2f, 0.9f)));
@@ -183,7 +221,7 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(CreateVector(1f, 0f));
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new NoOpRerankService(), config);
 
             dbContext.ResumeEntries.Add(CreateResumeEntry(
                 "candidate1",
@@ -217,7 +255,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(CreateVector(1f, 0f));
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             dbContext.ResumeEntries.Add(CreateResumeEntry(
                 "candidate1",
@@ -252,7 +296,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(CreateVector(1f, 0f));
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             dbContext.ResumeEntries.Add(CreateResumeEntry(
                 "candidate1",
@@ -287,7 +337,13 @@ namespace BioTwin_AI.Tests.Services
                 .ReturnsAsync(testEmbedding);
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             var payload = await ragService.CreateEmbeddingPayloadAsync(
                 "test content",
@@ -317,7 +373,13 @@ namespace BioTwin_AI.Tests.Services
             var embeddingServiceMock = new Mock<IEmbeddingService>();
 
             var loggerMock = new Mock<ILogger<RagService>>();
-            var ragService = CreateRagService(dbContext, loggerMock.Object, session, embeddingServiceMock.Object, new FakeChatClient("[0]"), config);
+            var ragService = CreateRagService(
+                dbContext,
+                loggerMock.Object,
+                session,
+                embeddingServiceMock.Object,
+                new NoOpRerankService(),
+                config);
 
             await ragService.InitializeAsync();
 
@@ -336,10 +398,10 @@ namespace BioTwin_AI.Tests.Services
             ILogger<RagService> logger,
             CurrentUserSession session,
             IEmbeddingService embeddingService,
-            IChatClient chatClient,
+            IRerankService rerankService,
             IConfiguration config)
         {
-            return new RagService(dbContext, logger, session, embeddingService, chatClient, config);
+            return new RagService(dbContext, logger, session, embeddingService, rerankService, config);
         }
 
         private static IConfiguration CreateConfig(bool enableRerank = false, int rerankCandidateLimit = 8)
@@ -395,39 +457,40 @@ namespace BioTwin_AI.Tests.Services
             return "[" + string.Join(",", CreateVector(first, second).Select(value => value.ToString("G9", CultureInfo.InvariantCulture))) + "]";
         }
 
-        private sealed class FakeChatClient : IChatClient
+        private sealed class NoOpRerankService : IRerankService
         {
-            private readonly string _responseText;
-
-            public FakeChatClient(string responseText)
-            {
-                _responseText = responseText;
-            }
-
-            public Task<ChatResponse> GetResponseAsync(
-                IEnumerable<ChatMessage> messages,
-                ChatOptions? options = null,
+            public Task<IReadOnlyList<RerankResult>> RerankAsync(
+                string query,
+                IReadOnlyList<string> documents,
+                int limit,
                 CancellationToken cancellationToken = default)
             {
-                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, _responseText)));
+                return Task.FromResult<IReadOnlyList<RerankResult>>(Array.Empty<RerankResult>());
+            }
+        }
+
+        private sealed class RecordingRerankService : IRerankService
+        {
+            private readonly IReadOnlyList<RerankResult> _results;
+
+            public RecordingRerankService(IReadOnlyList<RerankResult> results)
+            {
+                _results = results;
             }
 
-            public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-                IEnumerable<ChatMessage> messages,
-                ChatOptions? options = null,
-                [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-            {
-                await Task.Yield();
-                yield return new ChatResponseUpdate(ChatRole.Assistant, _responseText);
-            }
+            public string? Query { get; private set; }
 
-            public object? GetService(Type serviceType, object? serviceKey = null)
-            {
-                return null;
-            }
+            public IReadOnlyList<string> Documents { get; private set; } = Array.Empty<string>();
 
-            public void Dispose()
+            public Task<IReadOnlyList<RerankResult>> RerankAsync(
+                string query,
+                IReadOnlyList<string> documents,
+                int limit,
+                CancellationToken cancellationToken = default)
             {
+                Query = query;
+                Documents = documents;
+                return Task.FromResult(_results);
             }
         }
     }

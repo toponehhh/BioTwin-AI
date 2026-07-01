@@ -7,7 +7,7 @@ namespace BioTwin_AI.Services
     public sealed class BgeM3OnnxEmbeddingModel : ILocalEmbeddingModel, IDisposable
     {
         private const int DefaultMaxTokens = 8192;
-        private const string DefaultModelDirectory = "LLM";
+        private static readonly string DefaultModelDirectory = Path.Combine("LLM", "bge_m3");
         private const string DefaultModelFileName = "bge_m3_model.onnx";
         private const string DefaultTokenizerFileName = "bge_m3_tokenizer.onnx";
 

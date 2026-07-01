@@ -12,7 +12,11 @@ $files = @(
     "bge_m3_tokenizer.onnx"
 )
 
-$targetDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+$targetDirectory = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "bge_m3"
+
+if (-not $DryRun -and -not (Test-Path -LiteralPath $targetDirectory -PathType Container)) {
+    New-Item -ItemType Directory -Path $targetDirectory | Out-Null
+}
 
 foreach ($file in $files) {
     $url = "$baseUrl/$file"
