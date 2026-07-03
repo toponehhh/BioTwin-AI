@@ -7,7 +7,7 @@ namespace BioTwin_AI.AspNetCoreApi.Application.Embeddings;
 public sealed class BgeM3OnnxEmbeddingService : IEmbeddingService, IDisposable
 {
     private const int DefaultMaxTokens = 8192;
-    private const string DefaultModelDirectory = "../BioTwin_AI/LLM";
+    private static readonly string DefaultModelDirectory = Path.Combine("LLM", "bge_m3");
     private const string DefaultModelFileName = "bge_m3_model.onnx";
     private const string DefaultTokenizerFileName = "bge_m3_tokenizer.onnx";
 
@@ -143,7 +143,45 @@ public sealed class BgeM3OnnxEmbeddingService : IEmbeddingService, IDisposable
 
     private static string ResolveModelDirectory(IHostEnvironment environment, IConfiguration configuration)
     {
-        return ResolvePath(environment.ContentRootPath, configuration["Embedding:ModelDirectory"] ?? DefaultModelDirectory);
+        var configuredDirectory = configuration["Embedding:ModelDirectory"];
+        if (!string.IsNullOrWhiteSpace(configuredDirectory))
+        {
+            var configuredPath = ResolvePath(environment.ContentRootPath, configuredDirectory);
+            if (Directory.Exists(configuredPath))
+            {
+                return configuredPath;
+            }
+
+            var publishRelativePath = GetPathFromLlmSegment(configuredDirectory);
+            if (publishRelativePath is not null)
+            {
+                var publishPath = ResolvePath(AppContext.BaseDirectory, publishRelativePath);
+                if (Directory.Exists(publishPath))
+                {
+                    return publishPath;
+                }
+            }
+
+            return configuredPath;
+        }
+
+        var solutionRoot = FindSolutionRoot(environment.ContentRootPath);
+        if (solutionRoot is not null)
+        {
+            var sharedDirectory = Path.Combine(solutionRoot, DefaultModelDirectory);
+            if (Directory.Exists(sharedDirectory))
+            {
+                return sharedDirectory;
+            }
+        }
+
+        var contentRootDirectory = Path.Combine(environment.ContentRootPath, DefaultModelDirectory);
+        if (Directory.Exists(contentRootDirectory))
+        {
+            return contentRootDirectory;
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, DefaultModelDirectory);
     }
 
     private static string ResolveModelFile(string modelDirectory, string? configuredPath, string defaultFileName)
@@ -160,5 +198,30 @@ public sealed class BgeM3OnnxEmbeddingService : IEmbeddingService, IDisposable
     private static string ResolvePath(string basePath, string path)
     {
         return Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(basePath, path));
+    }
+
+    private static string? FindSolutionRoot(string startPath)
+    {
+        var current = new DirectoryInfo(startPath);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "BioTwin_AI.slnx")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
+    private static string? GetPathFromLlmSegment(string path)
+    {
+        var segments = path.Split(
+            new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+            StringSplitOptions.RemoveEmptyEntries);
+        var llmIndex = Array.FindIndex(segments, segment => string.Equals(segment, "LLM", StringComparison.OrdinalIgnoreCase));
+        return llmIndex < 0 ? null : Path.Combine(segments[llmIndex..]);
     }
 }

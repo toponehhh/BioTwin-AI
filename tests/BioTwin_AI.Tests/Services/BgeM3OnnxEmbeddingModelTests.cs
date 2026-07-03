@@ -10,9 +10,10 @@ namespace BioTwin_AI.Tests.Services;
 public class BgeM3OnnxEmbeddingModelTests
 {
     [Fact]
-    public void DefaultEmbeddingModelPathsResolveToMovedBgeM3Directory()
+    public void DefaultEmbeddingModelPathsResolveToSharedRootBgeM3Directory()
     {
         var contentRoot = GetApplicationContentRoot();
+        var solutionRoot = GetSolutionRoot();
         var environmentMock = new Mock<IHostEnvironment>();
         environmentMock.SetupGet(environment => environment.ContentRootPath).Returns(contentRoot);
 
@@ -22,17 +23,18 @@ public class BgeM3OnnxEmbeddingModelTests
         var modelPath = InvokeResolveModelFile(modelDirectory, null, "bge_m3_model.onnx");
         var tokenizerPath = InvokeResolveModelFile(modelDirectory, null, "bge_m3_tokenizer.onnx");
 
-        Assert.Equal(Path.Combine(contentRoot, "LLM", "bge_m3"), modelDirectory);
-        Assert.Equal(Path.Combine(contentRoot, "LLM", "bge_m3", "bge_m3_model.onnx"), modelPath);
-        Assert.Equal(Path.Combine(contentRoot, "LLM", "bge_m3", "bge_m3_tokenizer.onnx"), tokenizerPath);
+        Assert.Equal(Path.Combine(solutionRoot, "LLM", "bge_m3"), modelDirectory);
+        Assert.Equal(Path.Combine(solutionRoot, "LLM", "bge_m3", "bge_m3_model.onnx"), modelPath);
+        Assert.Equal(Path.Combine(solutionRoot, "LLM", "bge_m3", "bge_m3_tokenizer.onnx"), tokenizerPath);
     }
 
     [Theory]
     [InlineData("appsettings.json")]
     [InlineData("appsettings.Development.json")]
-    public void AppSettingsEmbeddingPathsResolveToMovedBgeM3Directory(string fileName)
+    public void AppSettingsEmbeddingPathsResolveToSharedRootBgeM3Directory(string fileName)
     {
         var contentRoot = GetApplicationContentRoot();
+        var solutionRoot = GetSolutionRoot();
         var configuration = new ConfigurationBuilder()
             .SetBasePath(contentRoot)
             .AddJsonFile(fileName)
@@ -42,8 +44,8 @@ public class BgeM3OnnxEmbeddingModelTests
         var modelPath = Path.GetFullPath(Path.Combine(modelDirectory, configuration["Embedding:ModelPath"]!));
         var tokenizerPath = Path.GetFullPath(Path.Combine(modelDirectory, configuration["Embedding:TokenizerPath"]!));
 
-        Assert.Equal(Path.Combine(contentRoot, "LLM", "bge_m3", "bge_m3_model.onnx"), modelPath);
-        Assert.Equal(Path.Combine(contentRoot, "LLM", "bge_m3", "bge_m3_tokenizer.onnx"), tokenizerPath);
+        Assert.Equal(Path.Combine(solutionRoot, "LLM", "bge_m3", "bge_m3_model.onnx"), modelPath);
+        Assert.Equal(Path.Combine(solutionRoot, "LLM", "bge_m3", "bge_m3_tokenizer.onnx"), tokenizerPath);
         Assert.True(File.Exists(modelPath), $"Expected model file to exist: {modelPath}");
         Assert.True(File.Exists(tokenizerPath), $"Expected tokenizer file to exist: {tokenizerPath}");
     }
@@ -83,5 +85,22 @@ public class BgeM3OnnxEmbeddingModelTests
         }
 
         throw new DirectoryNotFoundException("Could not find src/BioTwin_AI/BioTwin_AI.csproj from the test output directory.");
+    }
+
+    private static string GetSolutionRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "BioTwin_AI.slnx");
+            if (File.Exists(candidate))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not find BioTwin_AI.slnx from the test output directory.");
     }
 }

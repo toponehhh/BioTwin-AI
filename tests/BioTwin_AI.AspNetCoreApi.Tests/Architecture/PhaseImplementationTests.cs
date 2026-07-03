@@ -51,6 +51,18 @@ public sealed class PhaseImplementationTests
     }
 
     [Fact]
+    public void Api_project_overrides_vulnerable_openapi_transitive_dependency()
+    {
+        var apiDirectory = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.AspNetCoreApi"));
+        var projectText = File.ReadAllText(Path.Combine(apiDirectory, "BioTwin_AI.AspNetCoreApi.csproj"));
+
+        Assert.Contains("PackageReference Include=\"Microsoft.AspNetCore.OpenApi\" Version=\"10.0.9\" ExcludeAssets=\"analyzers\" PrivateAssets=\"all\"", projectText, StringComparison.Ordinal);
+        Assert.Contains("PackageReference Include=\"Microsoft.OpenApi\" Version=\"3.7.0\" PrivateAssets=\"all\"", projectText, StringComparison.Ordinal);
+        Assert.DoesNotContain("PackageReference Include=\"Microsoft.OpenApi\" Version=\"2.0.0\"", projectText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Api_logging_defaults_to_information_visibility_and_explicit_startup_success()
     {
         var apiDirectory = Path.GetFullPath(
@@ -112,6 +124,68 @@ public sealed class PhaseImplementationTests
 
         Assert.Contains("\"BioTwinApi\": \"Data Source=database/biotwin-api.db\"", appsettingsText, StringComparison.Ordinal);
         Assert.Contains("\"ApiUrl\": \"http://localhost:8000\"", developmentText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Api_embedding_configuration_uses_shared_solution_llm_directory()
+    {
+        var solutionRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var apiDirectory = Path.Combine(solutionRoot, "src", "BioTwin_AI.AspNetCoreApi");
+        var appsettingsText = File.ReadAllText(Path.Combine(apiDirectory, "appsettings.json"));
+
+        Assert.Contains("\"ModelDirectory\": \"../../LLM/bge_m3\"", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("\"ModelPath\": \"bge_m3_model.onnx\"", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("\"TokenizerPath\": \"bge_m3_tokenizer.onnx\"", appsettingsText, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(solutionRoot, "LLM", "bge_m3", "bge_m3_model.onnx")));
+        Assert.True(File.Exists(Path.Combine(solutionRoot, "LLM", "bge_m3", "bge_m3_tokenizer.onnx")));
+    }
+
+    [Fact]
+    public void Backend_projects_link_shared_llm_assets_for_publish()
+    {
+        var solutionRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var legacyProjectText = File.ReadAllText(Path.Combine(solutionRoot, "src", "BioTwin_AI", "BioTwin_AI.csproj"));
+        var apiProjectText = File.ReadAllText(Path.Combine(solutionRoot, "src", "BioTwin_AI.AspNetCoreApi", "BioTwin_AI.AspNetCoreApi.csproj"));
+
+        foreach (var projectText in new[] { legacyProjectText, apiProjectText })
+        {
+            Assert.Contains("..\\..\\LLM\\README.md", projectText, StringComparison.Ordinal);
+            Assert.Contains("..\\..\\LLM\\download-bge-m3-onnx.ps1", projectText, StringComparison.Ordinal);
+            Assert.Contains("..\\..\\LLM\\download-bge-m3-onnx.sh", projectText, StringComparison.Ordinal);
+            Assert.Contains("..\\..\\LLM\\download-bge-reranker-v2-m3-onnx.ps1", projectText, StringComparison.Ordinal);
+            Assert.Contains("..\\..\\LLM\\download-bge-reranker-v2-m3-onnx.sh", projectText, StringComparison.Ordinal);
+            Assert.Contains("Link=\"LLM\\%(Filename)%(Extension)\"", projectText, StringComparison.Ordinal);
+            Assert.Contains("CopyToPublishDirectory=\"PreserveNewest\"", projectText, StringComparison.Ordinal);
+            Assert.Contains("IncludeLocalModels", projectText, StringComparison.Ordinal);
+            Assert.Contains("..\\..\\LLM\\bge_m3\\**\\*", projectText, StringComparison.Ordinal);
+            Assert.Contains("..\\..\\LLM\\bge_rerank_v2\\**\\*", projectText, StringComparison.Ordinal);
+            Assert.Contains("Condition=\"'$(IncludeLocalModels)' == 'true'\"", projectText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Shared_llm_directory_has_download_scripts_for_embedding_and_rerank_models()
+    {
+        var solutionRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var llmDirectory = Path.Combine(solutionRoot, "LLM");
+        var rerankPowerShell = File.ReadAllText(Path.Combine(llmDirectory, "download-bge-reranker-v2-m3-onnx.ps1"));
+        var rerankBash = File.ReadAllText(Path.Combine(llmDirectory, "download-bge-reranker-v2-m3-onnx.sh"));
+        var readme = File.ReadAllText(Path.Combine(llmDirectory, "README.md"));
+
+        foreach (var scriptText in new[] { rerankPowerShell, rerankBash })
+        {
+            Assert.Contains("https://huggingface.co/kftof/bge-reranker-v2-m3-onnx-int8-avx2/resolve/main", scriptText, StringComparison.Ordinal);
+            Assert.Contains("model.onnx", scriptText, StringComparison.Ordinal);
+            Assert.Contains("tokenizer.json", scriptText, StringComparison.Ordinal);
+            Assert.Contains("config.json", scriptText, StringComparison.Ordinal);
+            Assert.Contains("special_tokens_map.json", scriptText, StringComparison.Ordinal);
+            Assert.Contains("tokenizer_config.json", scriptText, StringComparison.Ordinal);
+            Assert.Contains("bge_rerank_v2", scriptText, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("download-bge-m3-onnx.ps1", readme, StringComparison.Ordinal);
+        Assert.Contains("download-bge-reranker-v2-m3-onnx.ps1", readme, StringComparison.Ordinal);
+        Assert.Contains("download-bge-reranker-v2-m3-onnx.sh", readme, StringComparison.Ordinal);
     }
 
     [Fact]

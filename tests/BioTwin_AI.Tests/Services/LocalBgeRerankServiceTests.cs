@@ -45,6 +45,7 @@ public class LocalBgeRerankServiceTests
     public void AppSettingsRerankPathsResolveToLocalBgeRerankModel(string fileName)
     {
         var contentRoot = GetApplicationContentRoot();
+        var solutionRoot = GetSolutionRoot();
         var configuration = new ConfigurationBuilder()
             .SetBasePath(contentRoot)
             .AddJsonFile(fileName)
@@ -54,8 +55,8 @@ public class LocalBgeRerankServiceTests
         var modelPath = Path.GetFullPath(Path.Combine(modelDirectory, configuration["Rerank:ModelPath"]!));
         var tokenizerPath = Path.GetFullPath(Path.Combine(modelDirectory, configuration["Rerank:TokenizerPath"]!));
 
-        Assert.Equal(Path.Combine(contentRoot, "LLM", "bge_rerank_v2", "model.onnx"), modelPath);
-        Assert.Equal(Path.Combine(contentRoot, "LLM", "bge_rerank_v2", "tokenizer.json"), tokenizerPath);
+        Assert.Equal(Path.Combine(solutionRoot, "LLM", "bge_rerank_v2", "model.onnx"), modelPath);
+        Assert.Equal(Path.Combine(solutionRoot, "LLM", "bge_rerank_v2", "tokenizer.json"), tokenizerPath);
         Assert.True(File.Exists(modelPath), $"Expected rerank model file to exist: {modelPath}");
         Assert.True(File.Exists(tokenizerPath), $"Expected rerank tokenizer file to exist: {tokenizerPath}");
     }
@@ -75,5 +76,22 @@ public class LocalBgeRerankServiceTests
         }
 
         throw new DirectoryNotFoundException("Could not find src/BioTwin_AI/BioTwin_AI.csproj from the test output directory.");
+    }
+
+    private static string GetSolutionRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "BioTwin_AI.slnx");
+            if (File.Exists(candidate))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not find BioTwin_AI.slnx from the test output directory.");
     }
 }

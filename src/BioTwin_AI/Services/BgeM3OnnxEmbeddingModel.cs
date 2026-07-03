@@ -164,7 +164,33 @@ namespace BioTwin_AI.Services
             var configuredDirectory = configuration["Embedding:ModelDirectory"];
             if (!string.IsNullOrWhiteSpace(configuredDirectory))
             {
-                return ResolvePath(environment.ContentRootPath, configuredDirectory);
+                var configuredPath = ResolvePath(environment.ContentRootPath, configuredDirectory);
+                if (Directory.Exists(configuredPath))
+                {
+                    return configuredPath;
+                }
+
+                var publishRelativePath = GetPathFromLlmSegment(configuredDirectory);
+                if (publishRelativePath is not null)
+                {
+                    var publishPath = ResolvePath(AppContext.BaseDirectory, publishRelativePath);
+                    if (Directory.Exists(publishPath))
+                    {
+                        return publishPath;
+                    }
+                }
+
+                return configuredPath;
+            }
+
+            var solutionRoot = FindSolutionRoot(environment.ContentRootPath);
+            if (solutionRoot is not null)
+            {
+                var sharedDirectory = Path.Combine(solutionRoot, DefaultModelDirectory);
+                if (Directory.Exists(sharedDirectory))
+                {
+                    return sharedDirectory;
+                }
             }
 
             var contentRootDirectory = Path.Combine(environment.ContentRootPath, DefaultModelDirectory);
@@ -195,6 +221,31 @@ namespace BioTwin_AI.Services
             return Path.IsPathRooted(path)
                 ? path
                 : Path.GetFullPath(Path.Combine(basePath, path));
+        }
+
+        private static string? FindSolutionRoot(string startPath)
+        {
+            var current = new DirectoryInfo(startPath);
+            while (current is not null)
+            {
+                if (File.Exists(Path.Combine(current.FullName, "BioTwin_AI.slnx")))
+                {
+                    return current.FullName;
+                }
+
+                current = current.Parent;
+            }
+
+            return null;
+        }
+
+        private static string? GetPathFromLlmSegment(string path)
+        {
+            var segments = path.Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries);
+            var llmIndex = Array.FindIndex(segments, segment => string.Equals(segment, "LLM", StringComparison.OrdinalIgnoreCase));
+            return llmIndex < 0 ? null : Path.Combine(segments[llmIndex..]);
         }
     }
 }
