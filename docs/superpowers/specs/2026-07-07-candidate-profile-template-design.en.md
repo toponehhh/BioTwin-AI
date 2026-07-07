@@ -66,6 +66,62 @@ Admin
 
 Existing single-role data should be migrated into `UserRoles`. The old `UserAccounts.Role` column can remain temporarily during migration, but new authorization checks should read from `UserRoles`.
 
+## Generated Profile Information Store
+
+Timeline and other display data should be generated from the candidate's resume by calling the local large language model. The model extracts structured JSON that can be applied directly to the public candidate profile template.
+
+Users must be able to manually correct the generated data. Generated data and manual corrections should be stored as versions rather than overwriting the previous value. The latest version for each information type becomes the current source for rendering.
+
+All semi-structured display data can live in one table:
+
+```text
+CandidateProfileInfos
+- Id integer primary key
+- UserId integer not null
+- InfoType text not null
+- Version integer not null
+- JsonData text not null
+- Source text not null
+- SourceResumeVersion integer null
+- BasedOnInfoId integer null
+- ModelName text null
+- PromptVersion text null
+- IsCurrent integer not null default 0
+- CreatedAt datetime not null
+- UpdatedAt datetime not null
+- CreatedByUserId integer null
+- unique(UserId, InfoType, Version)
+```
+
+`InfoType` identifies which template data the record contains. Initial values should include:
+
+```text
+careertimeline
+worktimeline
+```
+
+The table should allow future values such as:
+
+```text
+skillmatrix
+educationtimeline
+projectgallery
+profilesummary
+```
+
+`Source` identifies how the version was created:
+
+```text
+llm_generated
+manual_edit
+admin_edit
+imported
+```
+
+When a candidate changes resume content, the system should load the latest current `CandidateProfileInfos` version for each affected `InfoType` and pass it to the model as reference context. The model then generates the next version instead of starting from scratch. This helps preserve user corrections and gives the model continuity between resume revisions.
+
+Manual correction should create a new version with `Source = manual_edit`, `BasedOnInfoId` pointing to the generated or previous version, and `IsCurrent = true`. Older versions remain stored for traceability and future model reference.
+
 ## Profile Hash Rotation
 
 `ProfileHash` is a current-version sharing token. It must change whenever the candidate changes any content that appears in the public profile template.
@@ -74,9 +130,8 @@ Public profile content includes:
 
 - Display name, nickname, avatar, and public headline.
 - Public summary or bio.
-- Career timeline items.
-- Work/project timeline items.
-- Skills, education, certifications, and visible resume sections.
+- Current `CandidateProfileInfos` records such as `careertimeline`, `worktimeline`, and future `skillmatrix` data.
+- Skills, education, certifications, and visible resume sections when they are rendered directly or represented by current `CandidateProfileInfos` records.
 - Public contact fields if the template includes them.
 
 Changes that should not rotate the hash:
@@ -95,6 +150,8 @@ CandidateProfileVersion += 1
 ProfileHash = GenerateRandomProfileHash()
 ProfileHashUpdatedAt = now
 ```
+
+When resume changes trigger LLM extraction, the public link should also be invalidated before the newly generated display data is shared. Once the user reviews or accepts the generated JSON, the current `CandidateProfileInfos` versions become the source for the new shared profile.
 
 Old anonymous links become invalid immediately. Anonymous users should see a generic unavailable or expired-link state. The response should not reveal whether a user exists.
 
@@ -143,6 +200,8 @@ This keeps the public home page stable while still letting administrators choose
 ## Candidate Profile Template DTO
 
 The frontend should render one shared template for both default and shared-link profiles.
+
+The backend should build this DTO from the latest current `CandidateProfileInfos` record for each `InfoType`, plus the candidate account/profile metadata.
 
 ```text
 CandidateProfileDto
@@ -215,6 +274,9 @@ Backend tests:
 
 - Migrates existing `UserAccounts.Role` values into `UserRoles`.
 - Enforces one default candidate.
+- Stores LLM-extracted display JSON in `CandidateProfileInfos`.
+- Creates a new `CandidateProfileInfos` version for manual corrections.
+- Passes the latest current version to the LLM as reference when regenerating after resume changes.
 - Resolves default candidate without `uid`.
 - Resolves current candidate by `ProfileHash`.
 - Rejects old `ProfileHash` after resume changes.
@@ -242,3 +304,5 @@ Generate profile hashes in application code using `RandomNumberGenerator`, then 
 Hash rotation should be centralized in a candidate profile service so future resume-edit endpoints cannot forget to invalidate old public links.
 
 The implementation should avoid storing historical public hashes unless audit requirements appear later. For the first version, only the current `ProfileHash` is valid.
+
+Profile display JSON schemas should be validated per `InfoType` before a version is marked current. Invalid model output should be stored only as a failed generation artifact or rejected before publication.

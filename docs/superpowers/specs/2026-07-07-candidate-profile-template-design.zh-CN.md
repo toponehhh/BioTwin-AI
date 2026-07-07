@@ -66,6 +66,62 @@ Admin
 
 现有单 role 数据需要迁移到 `UserRoles`。旧的 `UserAccounts.Role` 字段可以在迁移期间暂时保留，但新的授权检查应从 `UserRoles` 读取。
 
+## 生成式资料展示数据存储
+
+Timeline 和其他用于展示用户信息的数据，应由系统根据 candidate 的简历内容调用本地大模型抽取为结构化 JSON，然后应用到公开 candidate profile 模板上。
+
+用户必须可以手工修正这些生成数据。大模型生成的数据和用户手工修正的数据都不应覆盖旧值，而应以版本形式保存。每一种信息类型的最新版本作为当前渲染来源。
+
+所有半结构化展示数据可以放在同一张表中：
+
+```text
+CandidateProfileInfos
+- Id integer primary key
+- UserId integer not null
+- InfoType text not null
+- Version integer not null
+- JsonData text not null
+- Source text not null
+- SourceResumeVersion integer null
+- BasedOnInfoId integer null
+- ModelName text null
+- PromptVersion text null
+- IsCurrent integer not null default 0
+- CreatedAt datetime not null
+- UpdatedAt datetime not null
+- CreatedByUserId integer null
+- unique(UserId, InfoType, Version)
+```
+
+`InfoType` 用来表示这条记录对应哪一种模板数据。第一版至少包含：
+
+```text
+careertimeline
+worktimeline
+```
+
+这张表需要允许未来扩展更多类型，例如：
+
+```text
+skillmatrix
+educationtimeline
+projectgallery
+profilesummary
+```
+
+`Source` 用来表示该版本如何产生：
+
+```text
+llm_generated
+manual_edit
+admin_edit
+imported
+```
+
+当 candidate 修改简历内容时，系统应读取每个受影响 `InfoType` 当前最新的 `CandidateProfileInfos` 版本，并把这些 JSON 作为参考上下文传给大模型。大模型基于上一版结果生成下一版，而不是每次都从零开始。这样可以保留用户手工修正过的内容，也能让模型在多次简历修改之间保持连续性。
+
+用户手工修正时，应创建一个新版本，`Source = manual_edit`，`BasedOnInfoId` 指向被修正的生成版本或上一版本，并将新版本设为 `IsCurrent = true`。旧版本继续保留，用于追踪和之后的大模型参考。
+
 ## Profile Hash 轮换
 
 `ProfileHash` 是当前版本的分享 token。只要 candidate 修改了任何会出现在公开资料模板中的内容，就必须更新该值。
@@ -74,9 +130,8 @@ Admin
 
 - 显示名称、昵称、头像和公开 headline。
 - 公开 summary 或 bio。
-- Career timeline 项。
-- Work/project timeline 项。
-- 技能、教育经历、证书和可见简历 section。
+- 当前 `CandidateProfileInfos` 记录，例如 `careertimeline`、`worktimeline`，以及未来的 `skillmatrix` 等数据。
+- 当技能、教育经历、证书和可见简历 section 被直接渲染，或由当前 `CandidateProfileInfos` 记录表示时，也属于公开资料内容。
 - 如果模板包含公开联系方式，也包括这些字段。
 
 不应触发 hash 轮换的变更：
@@ -95,6 +150,8 @@ CandidateProfileVersion += 1
 ProfileHash = GenerateRandomProfileHash()
 ProfileHashUpdatedAt = now
 ```
+
+当简历变更触发大模型抽取时，公开链接也应在新的展示数据被分享前失效。用户检查或接受生成的 JSON 后，当前 `CandidateProfileInfos` 版本才成为新分享 profile 的渲染来源。
 
 旧匿名链接立即失效。匿名用户应看到通用的不可用或链接已过期状态。响应不应泄露用户是否存在。
 
@@ -143,6 +200,8 @@ GET /api/interviewer/candidates/{id}
 ## Candidate Profile 模板 DTO
 
 前端应使用同一套共享模板来渲染 default profile 和分享链接 profile。
+
+后端应基于每个 `InfoType` 当前最新的 `CandidateProfileInfos` 记录，加上 candidate 账号/profile 元数据，组装这个 DTO。
 
 ```text
 CandidateProfileDto
@@ -215,6 +274,9 @@ Candidate 编辑简历时，只要公开 profile 内容成功保存，就应自�
 
 - 将现有 `UserAccounts.Role` 值迁移到 `UserRoles`。
 - 强制一个数据库只能有一个 default candidate。
+- 将大模型抽取出的展示 JSON 存入 `CandidateProfileInfos`。
+- 用户手工修正时创建新的 `CandidateProfileInfos` 版本。
+- 简历修改后重新生成时，把当前最新版本作为参考传给大模型。
 - 在没有 `uid` 时解析 default candidate。
 - 按当前 `ProfileHash` 解析 candidate。
 - 简历修改后拒绝旧的 `ProfileHash`。
@@ -242,3 +304,5 @@ Candidate 编辑简历时，只要公开 profile 内容成功保存，就应自�
 Hash 轮换逻辑应集中放在 candidate profile service 中，避免未来新增 resume-edit endpoint 时忘记让旧公开链接失效。
 
 除非未来出现审计需求，第一版不应存储历史公开 hash。第一版中只有当前 `ProfileHash` 有效。
+
+不同 `InfoType` 的展示 JSON 应有各自的 schema 校验。只有校验通过的版本才能被标记为 current；无效的大模型输出应仅作为失败生成记录保存，或在发布前被拒绝。
