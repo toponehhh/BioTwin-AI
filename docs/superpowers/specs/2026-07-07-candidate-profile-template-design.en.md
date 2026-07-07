@@ -17,15 +17,23 @@ The same template must support:
 
 Use a profile hash as an opaque public sharing token, not as a deterministic hash of username, user ID, or resume content.
 
-The field can be named `ProfileHash` to match the URL shape, but its value should be generated with a cryptographically strong random token. This prevents guessing profile links from usernames or sequential IDs.
+The field can be named `ProfileHash` to match the URL shape, but its value should be generated as a short, cryptographically random share code. It must not be derived from username, user ID, or resume content. This prevents guessing profile links from usernames or sequential IDs while keeping the link easy to share.
+
+The share code should be short enough to type manually. Use an unambiguous uppercase alphabet such as Crockford Base32 and exclude confusing characters like `0`, `O`, `1`, `I`, and `L`. The production default should be 8 characters. Six characters can be supported as a configurable lower bound, but 8 characters is the recommended default for anonymous public access.
 
 The public URL format is:
 
 ```text
-/?uid=<current-profile-hash>
+/?uid=<current-profile-code>
 ```
 
-When `uid` is absent, the page shows the default candidate. When `uid` is present, the page resolves the candidate whose current `ProfileHash` matches the value.
+Example:
+
+```text
+/?uid=K7X4Q9MF
+```
+
+When `uid` is absent, the page shows the default candidate. When `uid` is present, the page normalizes the value to the canonical uppercase form and resolves the candidate whose current `ProfileHash` matches it.
 
 ## Database Shape
 
@@ -166,11 +174,13 @@ GET /api/public/candidate-profile?uid=<profile-hash>
 Behavior:
 
 - If `uid` is present, resolve by current `UserAccounts.ProfileHash`.
+- Normalize `uid` to the canonical uppercase share-code format before lookup.
 - If `uid` is absent, resolve the default candidate.
 - Require `IsProfilePublic = true`.
 - Require the user to have the `Candidate` role.
 - Require the user to be active and not deleted.
 - Return 404 or a generic unavailable response when no profile can be shown.
+- Rate-limit anonymous lookup attempts to reduce guessing risk for short share codes.
 
 Authenticated interviewer access is separate:
 
@@ -274,6 +284,9 @@ Backend tests:
 
 - Migrates existing `UserAccounts.Role` values into `UserRoles`.
 - Enforces one default candidate.
+- Generates short unique `ProfileHash` values with the configured length.
+- Normalizes `uid` casing before lookup.
+- Handles `ProfileHash` collisions by retrying generation.
 - Stores LLM-extracted display JSON in `CandidateProfileInfos`.
 - Creates a new `CandidateProfileInfos` version for manual corrections.
 - Passes the latest current version to the LLM as reference when regenerating after resume changes.
@@ -299,7 +312,9 @@ Visual verification:
 
 ## Open Implementation Notes
 
-Generate profile hashes in application code using `RandomNumberGenerator`, then encode with base64url or hex. Prefer at least 128 bits of entropy; 192 bits is a comfortable default.
+Generate profile hashes in application code using `RandomNumberGenerator`, then encode with an unambiguous uppercase alphabet. The default production code length should be 8 characters. Check the database unique index before publishing a new code and retry generation on collision.
+
+Because the share code is intentionally short, the public lookup endpoint should include rate limiting and generic error responses. The code is a public locator, not an authentication credential.
 
 Hash rotation should be centralized in a candidate profile service so future resume-edit endpoints cannot forget to invalidate old public links.
 

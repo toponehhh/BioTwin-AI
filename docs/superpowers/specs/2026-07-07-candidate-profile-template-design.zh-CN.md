@@ -17,15 +17,23 @@ BioTwin_AI 需要一套可复用的候选人资料模板，用于展示任意 ca
 
 使用 profile hash 作为不透明的公开分享 token，而不是用户名、用户 ID 或简历内容的确定性 hash。
 
-字段可以命名为 `ProfileHash`，以匹配 URL 里的 `uid=<hash>` 形式，但它的值应使用密码学安全的随机 token 生成。这样可以避免别人根据用户名或自增 ID 猜出公开资料链接。
+字段可以命名为 `ProfileHash`，以匹配 URL 里的 `uid=<hash>` 形式，但它的值应生成为较短的密码学安全随机分享码。它不能由 username、user ID 或简历内容推导出来。这样既能避免别人根据用户名或自增 ID 猜出公开资料链接，也方便用户分享。
+
+分享码需要短到可以手工输入。建议使用类似 Crockford Base32 的大写、低混淆字符集，并排除 `0`、`O`、`1`、`I`、`L` 等容易混淆的字符。生产默认长度应为 8 位。可以把 6 位作为可配置下限，但匿名公开访问场景推荐默认使用 8 位。
 
 公开 URL 格式为：
 
 ```text
-/?uid=<current-profile-hash>
+/?uid=<current-profile-code>
 ```
 
-当 `uid` 缺失时，页面展示 default candidate。当 `uid` 存在时，页面解析当前 `ProfileHash` 与该值匹配的 candidate。
+示例：
+
+```text
+/?uid=K7X4Q9MF
+```
+
+当 `uid` 缺失时，页面展示 default candidate。当 `uid` 存在时，页面先把该值规范化为标准大写格式，再解析当前 `ProfileHash` 与该值匹配的 candidate。
 
 ## 数据库结构
 
@@ -166,11 +174,13 @@ GET /api/public/candidate-profile?uid=<profile-hash>
 行为：
 
 - 如果 `uid` 存在，则按当前 `UserAccounts.ProfileHash` 解析。
+- 查询前将 `uid` 规范化为标准大写分享码格式。
 - 如果 `uid` 缺失，则解析 default candidate。
 - 要求 `IsProfilePublic = true`。
 - 要求该用户拥有 `Candidate` role。
 - 要求该用户处于 active 且未删除状态。
 - 如果无法展示 profile，则返回 404 或通用不可用响应。
+- 对匿名查询接口做限流，降低短分享码被猜测的风险。
 
 已登录 interviewer 的访问路径单独设计：
 
@@ -274,6 +284,9 @@ Candidate 编辑简历时，只要公开 profile 内容成功保存，就应自�
 
 - 将现有 `UserAccounts.Role` 值迁移到 `UserRoles`。
 - 强制一个数据库只能有一个 default candidate。
+- 生成指定长度的短且唯一的 `ProfileHash`。
+- 查询前规范化 `uid` 大小写。
+- 生成 `ProfileHash` 发生碰撞时自动重试。
 - 将大模型抽取出的展示 JSON 存入 `CandidateProfileInfos`。
 - 用户手工修正时创建新的 `CandidateProfileInfos` 版本。
 - 简历修改后重新生成时，把当前最新版本作为参考传给大模型。
@@ -299,7 +312,9 @@ Candidate 编辑简历时，只要公开 profile 内容成功保存，就应自�
 
 ## 实现备注
 
-在应用代码中使用 `RandomNumberGenerator` 生成 profile hash，然后用 base64url 或 hex 编码。熵至少应为 128 bit；192 bit 是更稳妥的默认值。
+在应用代码中使用 `RandomNumberGenerator` 生成 profile hash，然后使用低混淆的大写字符集编码。生产默认长度应为 8 位。发布新 code 前必须通过数据库唯一索引检查，发生碰撞时重新生成。
+
+因为分享码刻意设计得较短，公开查询接口应包含限流和通用错误响应。这个 code 是公开定位符，不是认证凭据。
 
 Hash 轮换逻辑应集中放在 candidate profile service 中，避免未来新增 resume-edit endpoint 时忘记让旧公开链接失效。
 
