@@ -1,0 +1,60 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+
+<textarea @ref="textarea" class="@CssClass" placeholder="@Placeholder">@Value</textarea>
+
+@code {
+    private ElementReference textarea;
+    private DotNetObjectReference<MarkdownEditor>? selfReference;
+    private string lastAppliedValue = string.Empty;
+    private bool initialized;
+
+    [Parameter]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter]
+    public string CssClass { get; set; } = "markdown-editor";
+
+    [Parameter]
+    public string Placeholder { get; set; } = "Write Markdown...";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            selfReference = DotNetObjectReference.Create(this);
+            await JsRuntime.InvokeVoidAsync("markdownEditor.initialize", textarea, Value, selfReference);
+            lastAppliedValue = Value;
+            initialized = true;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (initialized && !string.Equals(Value, lastAppliedValue, StringComparison.Ordinal))
+        {
+            await JsRuntime.InvokeVoidAsync("markdownEditor.setValue", textarea, Value);
+            lastAppliedValue = Value;
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyMarkdownChanged(string value)
+    {
+        lastAppliedValue = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (initialized)
+        {
+            await JsRuntime.InvokeVoidAsync("markdownEditor.dispose", textarea);
+        }
+
+        selfReference?.Dispose();
+    }
+}

@@ -52,48 +52,68 @@
     </div>
 }
 
-<div class="page theme-@ThemeState.CurrentTheme.ToString().ToLowerInvariant()">
-    <div class="sidebar">
-        <NavMenu />
+<div class="page app-shell theme-@ThemeState.CurrentTheme.ToString().ToLowerInvariant()">
+    <div class="ambient-mask" aria-hidden="true"></div>
+    @if (isAdminMenuOpen)
+    {
+        <button type="button" class="admin-menu-backdrop" aria-label="Close admin menu" @onclick="CloseAdminMenu"></button>
+    }
+
+    <a class="floating-brand brand-lockup" href="/" aria-label="BioTwin AI home" @onclick="CloseAdminMenu">
+        <span class="brand-mark">BT</span>
+        <span>BioTwin AI</span>
+    </a>
+
+    <nav class="floating-menu public-nav" aria-label="Primary navigation">
+        <NavLink class="top-nav-link nav-home" href="" Match="NavLinkMatch.All" @onclick="CloseAdminMenu">Home</NavLink>
+        <NavLink class="top-nav-link nav-projects" href="projects" @onclick="CloseAdminMenu">Projects</NavLink>
+        <NavLink class="top-nav-link nav-skills" href="skills" @onclick="CloseAdminMenu">Skills</NavLink>
+        @if (SessionState.IsAuthenticated)
+        {
+            <div class="admin-shell" @onclick:stopPropagation>
+                <button class="top-nav-link admin-menu-trigger nav-admin @(isAdminMenuOpen ? "active" : null)" title="Admin menu" aria-label="Open admin menu" @onclick="ToggleAdminMenu">
+                    <span>Admin</span>
+                    <span class="admin-avatar">@SessionState.Avatar</span>
+                </button>
+                @if (isAdminMenuOpen)
+                {
+                    <div class="admin-menu profile-menu" role="menu">
+                        <span class="session-pill">Welcome @SessionState.DisplayName</span>
+                        <a class="profile-menu-item" role="menuitem" href="/chat" @onclick="CloseAdminMenu">Chat</a>
+                        <a class="profile-menu-item" role="menuitem" href="/resume/workspace" @onclick="CloseAdminMenu">Resume Workspace</a>
+                        <a class="profile-menu-item" role="menuitem" href="/resume" @onclick="CloseAdminMenu">Resume Library</a>
+                        <a class="profile-menu-item" role="menuitem" href="/resume/upload" @onclick="CloseAdminMenu">Upload</a>
+                        <a class="profile-menu-item" role="menuitem" href="/resume/edit" @onclick="CloseAdminMenu">Edit</a>
+                        <a class="profile-menu-item" role="menuitem" href="/resume/export" @onclick="CloseAdminMenu">Export</a>
+                        <a class="profile-menu-item" role="menuitem" href="/settings" @onclick="CloseAdminMenu">Settings</a>
+                        <button class="profile-menu-item" role="menuitem" @onclick="OpenProfileEditor">Profile</button>
+                        <button class="profile-menu-item danger" role="menuitem" @onclick="LogoutAsync">Logout</button>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <button class="top-nav-link menu-action-link nav-signin" @onclick="AuthModalState.OpenSignIn">
+                Sign in
+            </button>
+        }
+    </nav>
+
+    <div class="floating-theme-control">
+        <button class="@ThemeToggleClass" title="@ThemeToggleLabel" aria-label="@ThemeToggleLabel" @onclick="ToggleTheme">
+            <span class="lamp-head" aria-hidden="true">
+                <span class="lamp-shade"></span>
+                <span class="lamp-bulb"></span>
+                <span class="lamp-glow"></span>
+            </span>
+            <span class="lamp-cord" aria-hidden="true"></span>
+            <span class="lamp-pull" aria-hidden="true"></span>
+        </button>
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            @if (SessionState.IsAuthenticated)
-            {
-                <div class="profile-shell">
-                    <span class="session-pill">Welcome @SessionState.DisplayName</span>
-                    <button class="avatar-button" title="Profile menu" aria-label="Open profile menu" @onclick="ToggleProfileMenu">
-                        @SessionState.Avatar
-                    </button>
-                    @if (isProfileMenuOpen)
-                    {
-                        <div class="profile-menu" role="menu">
-                            <button class="profile-menu-item" role="menuitem" @onclick="OpenProfileEditor">Edit profile</button>
-                            <a class="profile-menu-item" role="menuitem" href="/settings">Settings</a>
-                            <button class="profile-menu-item danger" role="menuitem" @onclick="LogoutAsync">Logout</button>
-                        </div>
-                    }
-                </div>
-            }
-            else
-            {
-                <button class="theme-toggle primary" @onclick="AuthModalState.OpenSignIn">
-                    Sign in
-                </button>
-            }
-            <button class="@ThemeToggleClass" title="@ThemeToggleLabel" aria-label="@ThemeToggleLabel" @onclick="ToggleTheme">
-                <span class="lamp-head" aria-hidden="true">
-                    <span class="lamp-shade"></span>
-                    <span class="lamp-bulb"></span>
-                    <span class="lamp-glow"></span>
-                </span>
-                <span class="lamp-cord" aria-hidden="true"></span>
-                <span class="lamp-pull" aria-hidden="true"></span>
-            </button>
-        </div>
-
-        <article class="content px-4">
+    <main class="app-main">
+        <article class="content page-content px-4">
             <ErrorBoundary>
                 <ChildContent>
                     @Body
@@ -124,7 +144,7 @@
     private string ThemeToggleLabel => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark
         ? "Turn on light theme"
         : "Turn off light theme";
-    private bool isProfileMenuOpen;
+    private bool isAdminMenuOpen;
     private bool isProfileEditorOpen;
     private bool isSavingProfile;
     private string editNickname = string.Empty;
@@ -160,14 +180,19 @@
 
     private async Task LogoutAsync()
     {
-        isProfileMenuOpen = false;
+        isAdminMenuOpen = false;
         isProfileEditorOpen = false;
         await SessionState.LogoutAsync();
     }
 
-    private void ToggleProfileMenu()
+    private void ToggleAdminMenu()
     {
-        isProfileMenuOpen = !isProfileMenuOpen;
+        isAdminMenuOpen = !isAdminMenuOpen;
+    }
+
+    private void CloseAdminMenu()
+    {
+        isAdminMenuOpen = false;
     }
 
     private void OpenProfileEditor()
@@ -176,7 +201,7 @@
         editAvatar = SessionState.Avatar;
         profileMessage = string.Empty;
         profileError = string.Empty;
-        isProfileMenuOpen = false;
+        isAdminMenuOpen = false;
         isProfileEditorOpen = true;
     }
 

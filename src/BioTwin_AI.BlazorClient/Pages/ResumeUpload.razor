@@ -17,6 +17,11 @@
         <InputFile OnChange="ConvertAsync" />
         <label>Title</label>
         <input @bind="title" />
+        <label>Language</label>
+        <select @bind="language">
+            <option value="@ResumeLanguages.SimplifiedChinese">Simplified Chinese</option>
+            <option value="@ResumeLanguages.English">English</option>
+        </select>
         <label>Markdown</label>
         <textarea rows="18" @bind="markdown"></textarea>
         <div class="action-row">
@@ -34,6 +39,7 @@
 @code {
     private string title = string.Empty;
     private string markdown = string.Empty;
+    private string language = ResumeLanguages.SimplifiedChinese;
     private string? sourceFileName;
     private string? sourceContentType;
     private long? sourceFileSize;
@@ -63,6 +69,7 @@
             var converted = await IResumeApiClient.ConvertUploadAsync(file.Name, file.ContentType, memory);
             title = converted.Title;
             markdown = converted.Markdown;
+            language = converted.DetectedLanguage;
             message = converted.IsDuplicate
                 ? $"Duplicate detected: {converted.ExistingResumeTitle}"
                 : "Converted. Review before saving.";
@@ -85,6 +92,7 @@
             var saved = await IResumeApiClient.SaveResumeAsync(new SaveResumeMarkdownRequest(
                 title,
                 markdown,
+                language,
                 sourceFileName,
                 sourceContentType,
                 sourceFileSize,

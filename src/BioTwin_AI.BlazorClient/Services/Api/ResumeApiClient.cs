@@ -40,6 +40,11 @@ public sealed class ResumeApiClient(HttpClient httpClient) : ApiClientBase(httpC
         return SendJsonAsync<ResumeDetailDto>(HttpMethod.Put, $"api/resumes/{resumeId}/markdown", request, cancellationToken);
     }
 
+    public Task<MergeResumeMarkdownResponse> MergePreviewAsync(MergeResumeMarkdownRequest request, CancellationToken cancellationToken = default)
+    {
+        return SendJsonAsync<MergeResumeMarkdownResponse>(HttpMethod.Post, "api/resumes/merge-preview", request, cancellationToken);
+    }
+
     public Task DeleteAsync(int resumeId, CancellationToken cancellationToken = default)
     {
         return SendJsonAsync(HttpMethod.Delete, $"api/resumes/{resumeId}", null, cancellationToken);

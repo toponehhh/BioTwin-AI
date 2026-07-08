@@ -83,10 +83,10 @@ public sealed class AuthController(IAuthService authService, IExternalProviderCa
         {
             new(ClaimTypes.NameIdentifier, session.UserId?.ToString() ?? string.Empty),
             new(ClaimTypes.Name, session.Username ?? string.Empty),
-            new(ClaimTypes.Role, session.Role.ToString()),
             new("display_name", session.DisplayName ?? session.Username ?? string.Empty),
             new("avatar", session.Avatar ?? string.Empty)
         };
+        claims.AddRange(session.Roles.Select(role => new Claim(ClaimTypes.Role, role.ToString())));
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         return HttpContext.SignInAsync(

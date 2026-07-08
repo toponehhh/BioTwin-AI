@@ -1,0 +1,17 @@
+<li class="outline-node outline-level-@Node.Level">
+    <span>@Node.Title</span>
+    @if (Node.Children.Count > 0)
+    {
+        <ol>
+            @foreach (var child in Node.Children)
+            {
+                <OutlineNode Node="child" />
+            }
+        </ol>
+    }
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public OutlineTreeItem Node { get; set; } = default!;
+}

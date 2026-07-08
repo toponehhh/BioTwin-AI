@@ -1,5 +1,7 @@
 using BioTwin_AI.AspNetCoreApi.Application.Auth;
 using BioTwin_AI.DotNetShared.Auth;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -25,6 +27,12 @@ public sealed class SessionController(ISessionResponseFactory sessionResponseFac
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         _ = int.TryParse(userIdClaim, out var userId);
 
-        return Ok(await sessionResponseFactory.CreateAuthenticatedAsync(userId, username, role, cancellationToken));
+        var session = await sessionResponseFactory.CreateAuthenticatedAsync(userId, username, role, cancellationToken);
+        if (!session.IsAuthenticated)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+
+        return Ok(session);
     }
 }

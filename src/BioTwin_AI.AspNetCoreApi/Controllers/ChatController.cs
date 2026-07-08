@@ -39,6 +39,6 @@ public sealed class ChatController(IChatService chatService) : ControllerBase
 
     private bool IsInterviewer()
     {
-        return string.Equals(User.FindFirstValue(ClaimTypes.Role), UserRole.Interviewer.ToString(), StringComparison.OrdinalIgnoreCase);
+        return User.IsInRole(UserRole.Interviewer.ToString()) || User.IsInRole(UserRole.Admin.ToString());
     }
 }

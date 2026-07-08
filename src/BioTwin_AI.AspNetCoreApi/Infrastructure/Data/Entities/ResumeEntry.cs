@@ -6,6 +6,8 @@ public sealed class ResumeEntry
 
     public string TenantId { get; set; } = string.Empty;
 
+    public string Language { get; set; } = "zh-CN";
+
     public string Title { get; set; } = string.Empty;
 
     public string? SourceFileName { get; set; }

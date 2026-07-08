@@ -28,6 +28,7 @@ builder.Services.AddScoped(_ => apiHttpClient);
 builder.Services.AddScoped<IAuthApiClient, AuthApiClient>();
 builder.Services.AddScoped<IChatApiClient, ChatApiClient>();
 builder.Services.AddScoped<IResumeApiClient, ResumeApiClient>();
+builder.Services.AddScoped<IPublicProfileApiClient, PublicProfileApiClient>();
 builder.Services.AddScoped<ISettingsApiClient, SettingsApiClient>();
 
 var host = builder.Build();

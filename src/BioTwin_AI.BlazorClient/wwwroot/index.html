@@ -8,6 +8,27 @@
     <base href="/" />
     <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <script>
+        tailwind = {
+            corePlugins: {
+                preflight: false
+            },
+            theme: {
+                extend: {
+                    colors: {
+                        biotwin: {
+                            cyan: "#67e8f9",
+                            lime: "#a3e635",
+                            rose: "#f472b6"
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- EasyMDE Markdown editor stylesheet -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="BioTwin_AI.BlazorClient.styles.css" rel="stylesheet" />
@@ -30,6 +51,9 @@
     </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
     <script src="js/downloads.js"></script>
+    <!-- EasyMDE Markdown editor runtime -->
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <script src="js/markdownEditor.js"></script>
 </body>
 
 </html>

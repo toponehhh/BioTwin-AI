@@ -36,7 +36,7 @@ public sealed class ResumesController(IResumeService resumeService) : Controller
     [Authorize]
     public async Task<ActionResult<ResumeDetailDto>> SaveResume(SaveResumeMarkdownRequest request, CancellationToken cancellationToken)
     {
-        var resume = await resumeService.SaveAsync(GetTenantId(), request, cancellationToken);
+        var resume = await resumeService.SaveAsync(GetTenantId(), request, GetUserId(), cancellationToken);
         return CreatedAtAction(nameof(GetResume), new { resumeId = resume.Id }, resume);
     }
 
@@ -44,8 +44,16 @@ public sealed class ResumesController(IResumeService resumeService) : Controller
     [Authorize]
     public async Task<ActionResult<ResumeDetailDto>> ReplaceResumeMarkdown(int resumeId, SaveResumeMarkdownRequest request, CancellationToken cancellationToken)
     {
-        var resume = await resumeService.ReplaceMarkdownAsync(GetTenantId(), resumeId, request, cancellationToken);
+        var resume = await resumeService.ReplaceMarkdownAsync(GetTenantId(), resumeId, request, GetUserId(), cancellationToken);
         return resume is null ? NotFound() : Ok(resume);
+    }
+
+    [HttpPost("merge-preview")]
+    [Authorize]
+    public async Task<ActionResult<MergeResumeMarkdownResponse>> MergePreview(MergeResumeMarkdownRequest request, CancellationToken cancellationToken)
+    {
+        var preview = await resumeService.MergePreviewAsync(GetTenantId(), request, cancellationToken);
+        return preview is null ? NotFound() : Ok(preview);
     }
 
     [HttpDelete("{resumeId:int}")]
@@ -73,5 +81,12 @@ public sealed class ResumesController(IResumeService resumeService) : Controller
     private string GetTenantId()
     {
         return User.Identity?.Name ?? User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+    }
+
+    private int? GetUserId()
+    {
+        return int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            ? userId
+            : null;
     }
 }

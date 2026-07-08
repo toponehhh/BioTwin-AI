@@ -6,7 +6,8 @@ namespace BioTwin_AI.AspNetCoreApi.Application.Auth;
 
 public sealed class SessionResponseFactory(
     BioTwinApiDbContext dbContext,
-    IExternalProviderCatalog externalProviderCatalog) : ISessionResponseFactory
+    IExternalProviderCatalog externalProviderCatalog,
+    IUserRoleService userRoleService) : ISessionResponseFactory
 {
     public CurrentSessionResponse CreateAnonymous()
     {
@@ -16,7 +17,7 @@ public sealed class SessionResponseFactory(
             Username: null,
             DisplayName: null,
             Avatar: null,
-            Role: UserRole.Candidate,
+            Roles: [UserRole.Candidate],
             ExternalProviders: externalProviderCatalog.GetProviders(new HashSet<string>()));
     }
 
@@ -30,8 +31,13 @@ public sealed class SessionResponseFactory(
             ? await dbContext.UserAccounts.AsNoTracking().FirstOrDefaultAsync(account => account.Id == userId, cancellationToken)
             : await dbContext.UserAccounts.AsNoTracking().FirstOrDefaultAsync(account => account.Username == username, cancellationToken);
 
-        var resolvedUserId = user?.Id ?? userId;
-        var resolvedUsername = user?.Username ?? username;
+        if (user is null)
+        {
+            return CreateAnonymous();
+        }
+
+        var resolvedUserId = user.Id;
+        var resolvedUsername = user.Username;
         var displayName = string.IsNullOrWhiteSpace(user?.Nickname) ? resolvedUsername : user.Nickname;
         var avatar = string.IsNullOrWhiteSpace(user?.Avatar) ? "🧑‍💻" : user.Avatar;
 
@@ -41,13 +47,17 @@ public sealed class SessionResponseFactory(
             .Select(identity => identity.Provider)
             .ToListAsync(cancellationToken);
 
+        var roles = resolvedUserId > 0
+            ? await userRoleService.GetRolesAsync(resolvedUserId, cancellationToken)
+            : [role];
+
         return new CurrentSessionResponse(
             IsAuthenticated: true,
             UserId: resolvedUserId > 0 ? resolvedUserId : null,
             Username: resolvedUsername,
             DisplayName: displayName,
             Avatar: avatar,
-            Role: role,
+            Roles: roles.Count > 0 ? roles : [role],
             ExternalProviders: externalProviderCatalog.GetProviders(linkedProviders.ToHashSet(StringComparer.OrdinalIgnoreCase)));
     }
 }

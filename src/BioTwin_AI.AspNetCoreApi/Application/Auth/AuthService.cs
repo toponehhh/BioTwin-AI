@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using BioTwin_AI.AspNetCoreApi.Application.Profiles;
 using BioTwin_AI.AspNetCoreApi.Infrastructure.Data;
 using BioTwin_AI.AspNetCoreApi.Infrastructure.Data.Entities;
 using BioTwin_AI.DotNetShared.Auth;
@@ -9,7 +10,9 @@ namespace BioTwin_AI.AspNetCoreApi.Application.Auth;
 
 public sealed class AuthService(
     BioTwinApiDbContext dbContext,
-    ISessionResponseFactory sessionResponseFactory) : IAuthService
+    ISessionResponseFactory sessionResponseFactory,
+    IUserRoleService userRoleService,
+    IProfileShareCodeGenerator profileShareCodeGenerator) : IAuthService
 {
     public async Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -32,12 +35,15 @@ public sealed class AuthService(
             Avatar = NormalizeAvatar(request.Avatar),
             PasswordHash = HashPassword(request.Password),
             Role = UserRole.Candidate.ToString(),
+            ProfileHash = await GenerateUniqueProfileHashAsync(cancellationToken),
+            ProfileHashUpdatedAt = now,
             CreatedAt = now,
             UpdatedAt = now
         };
 
         dbContext.UserAccounts.Add(user);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await userRoleService.EnsureRoleAsync(user.Id, UserRole.Candidate, cancellationToken);
 
         var session = await sessionResponseFactory.CreateAuthenticatedAsync(
             user.Id,
@@ -90,12 +96,15 @@ public sealed class AuthService(
                 Avatar = "🕵️",
                 PasswordHash = HashPassword(Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
                 Role = UserRole.Interviewer.ToString(),
+                ProfileHash = await GenerateUniqueProfileHashAsync(cancellationToken),
+                ProfileHashUpdatedAt = now,
                 CreatedAt = now,
                 UpdatedAt = now
             };
             dbContext.UserAccounts.Add(user);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+        await userRoleService.EnsureRoleAsync(user.Id, UserRole.Interviewer, cancellationToken);
 
         var session = await sessionResponseFactory.CreateAuthenticatedAsync(
             user.Id,
@@ -122,6 +131,9 @@ public sealed class AuthService(
 
         user.Nickname = NormalizeNickname(request.Nickname, user.Username);
         user.Avatar = NormalizeAvatar(request.Avatar);
+        user.ProfileHash = await GenerateUniqueProfileHashAsync(cancellationToken);
+        user.ProfileHashUpdatedAt = DateTimeOffset.UtcNow;
+        user.CandidateProfileVersion++;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -189,5 +201,16 @@ public sealed class AuthService(
         return Enum.TryParse<UserRole>(role, ignoreCase: true, out var parsed)
             ? parsed
             : UserRole.Candidate;
+    }
+
+    private async Task<string> GenerateUniqueProfileHashAsync(CancellationToken cancellationToken)
+    {
+        var code = profileShareCodeGenerator.Generate();
+        while (await dbContext.UserAccounts.IgnoreQueryFilters().AnyAsync(user => user.ProfileHash == code, cancellationToken))
+        {
+            code = profileShareCodeGenerator.Generate();
+        }
+
+        return code;
     }
 }

@@ -29,7 +29,12 @@ public sealed class PhaseImplementationTests
         Assert.Contains("SetIsOriginAllowed", programText, StringComparison.Ordinal);
         Assert.Contains("IsLocalDevelopmentOrigin", programText, StringComparison.Ordinal);
         Assert.Contains("UseSerilog", programText, StringComparison.Ordinal);
-        Assert.Contains("EnsureCreatedAsync", programText, StringComparison.Ordinal);
+        Assert.Contains("DatabaseSchemaValidator.ValidateAsync", programText, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnsureCreatedAsync", programText, StringComparison.Ordinal);
+        Assert.Contains("ResolveBackendProjectRoot", programText, StringComparison.Ordinal);
+        Assert.Contains("BioTwin_AI.AspNetCoreApi.csproj", programText, StringComparison.Ordinal);
+        Assert.Contains("AppContext.BaseDirectory", programText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Path.Combine(builder.Environment.ContentRootPath, \"database\"", programText, StringComparison.Ordinal);
         Assert.Contains("UseAuthentication", programText, StringComparison.Ordinal);
     }
 
@@ -239,6 +244,8 @@ public sealed class PhaseImplementationTests
 
         Assert.Contains("entity.HasQueryFilter(user => !user.IsDeleted);", dbContextText, StringComparison.Ordinal);
         Assert.Contains("entity.HasQueryFilter(identity => !identity.User!.IsDeleted);", dbContextText, StringComparison.Ordinal);
+        Assert.Contains("entity.HasQueryFilter(role => !role.User!.IsDeleted);", dbContextText, StringComparison.Ordinal);
+        Assert.Contains("entity.HasQueryFilter(info => !info.User!.IsDeleted);", dbContextText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -267,22 +274,34 @@ public sealed class PhaseImplementationTests
 
         var initialSchemaSql = File.ReadAllText(initialSchemaPath);
         var profileMigrationSql = File.ReadAllText(profileMigrationPath);
+        var migrationSqlFiles = Directory.GetFiles(migrationsDirectory, "*.sql", SearchOption.TopDirectoryOnly);
 
-        Assert.Contains("CREATE TABLE IF NOT EXISTS UserAccounts", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("CREATE TABLE IF NOT EXISTS UserExternalIdentities", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("CREATE TABLE IF NOT EXISTS ResumeEntries", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("CREATE TABLE IF NOT EXISTS ResumeSections", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("CREATE TABLE IF NOT EXISTS ResumeSectionVectors", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DROP TABLE IF EXISTS UserAccounts", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE UserAccounts", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE UserExternalIdentities", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE UserRoles", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE CandidateProfileInfos", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE ResumeEntries", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE ResumeSections", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE ResumeSectionVectors", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE UNIQUE INDEX IF NOT EXISTS IX_UserAccounts_Username", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("FOREIGN KEY", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("AvatarEmoji", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Avatar TEXT NOT NULL", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ProfileHash TEXT NOT NULL", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ProfileHashUpdatedAt TEXT NOT NULL", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CandidateProfileVersion INTEGER NOT NULL DEFAULT 1", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IsProfilePublic INTEGER NOT NULL DEFAULT 1", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IsDefaultCandidate INTEGER NOT NULL DEFAULT 0", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("UpdatedAt TEXT NOT NULL", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("IsDeleted INTEGER NOT NULL DEFAULT 0", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("DeletedAt TEXT NULL", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_UserAccounts_ProfileHash", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_UserAccounts_DefaultCandidate", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_UserRoles_UserId_Role", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_CandidateProfileInfos_UserId_InfoType_Version", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_CandidateProfileInfos_UserId_InfoType_IsCurrent", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
 
-        Assert.Contains("ALTER TABLE UserAccounts ADD COLUMN Nickname", profileMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE UserAccounts ADD COLUMN Avatar", profileMigrationSql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("AvatarEmoji", profileMigrationSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("UPDATE UserAccounts", profileMigrationSql, StringComparison.OrdinalIgnoreCase);
 
@@ -290,13 +309,104 @@ public sealed class PhaseImplementationTests
         Assert.True(File.Exists(auditMigrationPath), "Audit and user soft delete SQL migration script is required.");
         var auditMigrationSql = File.ReadAllText(auditMigrationPath);
 
-        Assert.Contains("ALTER TABLE UserAccounts ADD COLUMN UpdatedAt", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE UserAccounts ADD COLUMN IsDeleted", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE UserAccounts ADD COLUMN DeletedAt", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE UserExternalIdentities ADD COLUMN CreatedAt", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE UserExternalIdentities ADD COLUMN UpdatedAt", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE ResumeEntries ADD COLUMN UpdatedAt", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE ResumeSections ADD COLUMN UpdatedAt", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ALTER TABLE ResumeSectionVectors ADD COLUMN UpdatedAt", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("UPDATE UserAccounts", auditMigrationSql, StringComparison.OrdinalIgnoreCase);
+        foreach (var migrationSqlFile in migrationSqlFiles)
+        {
+            var migrationSql = File.ReadAllText(migrationSqlFile);
+            Assert.DoesNotContain("ADD COLUMN", migrationSql, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("BEGIN TRANSACTION", migrationSql, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("COMMIT;", migrationSql, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void Api_persists_candidate_profile_sharing_roles_and_versioned_infos()
+    {
+        var apiDirectory = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.AspNetCoreApi"));
+        var entityDirectory = Path.Combine(apiDirectory, "Infrastructure", "Data", "Entities");
+        var initialSchemaPath = Path.Combine(apiDirectory, "Infrastructure", "Data", "Migrations", "001-initial-schema.sql");
+        var migrationPath = Path.Combine(apiDirectory, "Infrastructure", "Data", "Migrations", "004-add-candidate-profile-sharing.sql");
+
+        var userAccountText = File.ReadAllText(Path.Combine(entityDirectory, "UserAccount.cs"));
+        var userRoleText = File.ReadAllText(Path.Combine(entityDirectory, "UserRoleAssignment.cs"));
+        var profileInfoText = File.ReadAllText(Path.Combine(entityDirectory, "CandidateProfileInfo.cs"));
+        var dbContextText = File.ReadAllText(Path.Combine(apiDirectory, "Infrastructure", "Data", "BioTwinApiDbContext.cs"));
+        var programText = File.ReadAllText(Path.Combine(apiDirectory, "Program.cs"));
+        var initialSchemaSql = File.ReadAllText(initialSchemaPath);
+        var migrationSql = File.ReadAllText(migrationPath);
+
+        Assert.Contains("ProfileHash", userAccountText, StringComparison.Ordinal);
+        Assert.Contains("ProfileHashUpdatedAt", userAccountText, StringComparison.Ordinal);
+        Assert.Contains("CandidateProfileVersion", userAccountText, StringComparison.Ordinal);
+        Assert.Contains("IsProfilePublic", userAccountText, StringComparison.Ordinal);
+        Assert.Contains("IsDefaultCandidate", userAccountText, StringComparison.Ordinal);
+        Assert.Contains("List<UserRoleAssignment>", userAccountText, StringComparison.Ordinal);
+        Assert.Contains("List<CandidateProfileInfo>", userAccountText, StringComparison.Ordinal);
+
+        Assert.Contains("public sealed class UserRoleAssignment", userRoleText, StringComparison.Ordinal);
+        Assert.Contains("public sealed class CandidateProfileInfo", profileInfoText, StringComparison.Ordinal);
+        Assert.Contains("DbSet<UserRoleAssignment>", dbContextText, StringComparison.Ordinal);
+        Assert.Contains("DbSet<CandidateProfileInfo>", dbContextText, StringComparison.Ordinal);
+        Assert.Contains("HasIndex(role => new { role.UserId, role.Role }).IsUnique()", dbContextText, StringComparison.Ordinal);
+        Assert.Contains("HasIndex(info => new { info.UserId, info.InfoType, info.Version }).IsUnique()", dbContextText, StringComparison.Ordinal);
+        Assert.Contains("IX_UserAccounts_DefaultCandidate", dbContextText, StringComparison.Ordinal);
+        Assert.Contains("DatabaseSchemaValidator.ValidateAsync", programText, StringComparison.Ordinal);
+
+        Assert.Contains("ProfileHash TEXT", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE CandidateProfileInfos", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE UserRoles", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE IF NOT EXISTS UserRoles", migrationSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE IF NOT EXISTS CandidateProfileInfos", migrationSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_UserAccounts_ProfileHash", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_UserAccounts_DefaultCandidate", initialSchemaSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ProfileHash", migrationSql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("IsDefaultCandidate", migrationSql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Api_startup_validates_schema_without_mutating_database()
+    {
+        var apiDirectory = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.AspNetCoreApi"));
+        var programText = File.ReadAllText(Path.Combine(apiDirectory, "Program.cs"));
+        var validatorText = File.ReadAllText(Path.Combine(apiDirectory, "Infrastructure", "Data", "DatabaseSchemaValidator.cs"));
+
+        Assert.Contains("DatabaseSchemaValidator.ValidateAsync", programText, StringComparison.Ordinal);
+        Assert.Contains("Database schema is out of date", validatorText, StringComparison.Ordinal);
+
+        foreach (var forbiddenText in new[]
+        {
+            "EnsureCreatedAsync",
+            "ExecuteSqlRaw",
+            "ExecuteSqlInterpolated",
+            "ALTER TABLE",
+            "CREATE TABLE",
+            "INSERT OR IGNORE",
+            "PRAGMA",
+            "EnsureUserProfileColumnsAsync",
+            "EnsureCandidateProfileSchemaAsync",
+            "BackfillProfileHashesAsync",
+            "EnsureColumnAsync"
+        })
+        {
+            Assert.DoesNotContain(forbiddenText, programText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach (var forbiddenMutation in new[]
+        {
+            "ExecuteSqlRaw",
+            "ExecuteSqlInterpolated",
+            "ALTER TABLE",
+            "CREATE TABLE",
+            "INSERT ",
+            "UPDATE ",
+            "DELETE ",
+            "DROP TABLE",
+            "EnsureCreatedAsync"
+        })
+        {
+            Assert.DoesNotContain(forbiddenMutation, validatorText, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

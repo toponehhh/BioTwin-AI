@@ -6,35 +6,53 @@
 @if (AuthModalState.IsOpen)
 {
     <div class="modal-scrim" @onclick="Close">
-        <section class="auth-modal mica-panel" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" tabindex="-1" @onclick:stopPropagation>
+        <section class="auth-modal mica-panel auth-card auth-window mac-window" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" tabindex="-1" @onclick:stopPropagation>
+            <div class="window-controls auth-window-controls" aria-hidden="true">
+                <span class="system-dot dot-red"></span>
+                <span class="system-dot dot-yellow"></span>
+                <span class="system-dot dot-green"></span>
+                <span class="terminal-caption">identity</span>
+            </div>
             <button class="modal-close" title="Close" aria-label="Close sign in dialog" @onclick="Close">x</button>
-            <p class="eyebrow">Identity Gateway</p>
-            <h2 id="auth-modal-title">@(AuthModalState.IsRegisterMode ? "Create local account" : "Sign in")</h2>
-            <p class="muted-copy">Local account today, ready for GitHub, Google, Microsoft, Cloudflare Access, and Turnstile later.</p>
+            <div class="auth-modal-header">
+                <p class="eyebrow">Identity Gateway</p>
+                <h2 id="auth-modal-title">@(AuthModalState.IsRegisterMode ? "Create local account" : "Sign in")</h2>
+                <p class="muted-copy">Local account today, ready for GitHub, Google, Microsoft, Cloudflare Access, and Turnstile later.</p>
+            </div>
 
-            <label>Username</label>
-            <input autocomplete="username" placeholder="username" @bind="username" />
-            @if (AuthModalState.IsRegisterMode)
-            {
-                <label>Nickname</label>
-                <input autocomplete="nickname" placeholder="nickname" @bind="nickname" />
-                <label>Avatar</label>
-                <div class="avatar-options" role="listbox" aria-label="Choose avatar">
-                    @foreach (var avatar in avatarOptions)
-                    {
-                        <button
-                            type="button"
-                            class="avatar-choice @(selectedAvatar == avatar ? "selected" : null)"
-                            aria-label="@($"Use avatar {avatar}")"
-                            aria-selected="@(selectedAvatar == avatar)"
-                            @onclick="() => selectedAvatar = avatar">
-                            @avatar
-                        </button>
-                    }
-                </div>
-            }
-            <label>Password</label>
-            <input type="password" autocomplete="current-password" placeholder="password" @bind="password" />
+            <div class="auth-fields">
+                <label class="auth-field">
+                    <span>Username</span>
+                    <input class="auth-input" autocomplete="username" placeholder="username" @bind="username" />
+                </label>
+                @if (AuthModalState.IsRegisterMode)
+                {
+                    <label class="auth-field">
+                        <span>Nickname</span>
+                        <input class="auth-input" autocomplete="nickname" placeholder="nickname" @bind="nickname" />
+                    </label>
+                    <div class="auth-field auth-avatar-field">
+                        <span>Avatar:</span>
+                        <div class="avatar-options compact-avatar-options" role="listbox" aria-label="Choose avatar">
+                            @foreach (var avatar in avatarOptions)
+                            {
+                                <button
+                                    type="button"
+                                    class="avatar-choice @(selectedAvatar == avatar ? "selected" : null)"
+                                    aria-label="@($"Use avatar {avatar}")"
+                                    aria-selected="@(selectedAvatar == avatar)"
+                                    @onclick="() => selectedAvatar = avatar">
+                                    @avatar
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+                <label class="auth-field">
+                    <span>Password</span>
+                    <input class="auth-input" type="password" autocomplete="current-password" placeholder="password" @bind="password" />
+                </label>
+            </div>
 
             @if (!string.IsNullOrWhiteSpace(error))
             {
@@ -46,13 +64,13 @@
                 <p class="status-line">@message</p>
             }
 
-            <div class="action-row">
-                <button class="command-button" @onclick="SubmitAsync" disabled="@isBusy">
+            <div class="action-row auth-action-row">
+                <button class="command-button auth-button auth-button-primary" @onclick="SubmitAsync" disabled="@isBusy">
                     @(isBusy ? "Working..." : AuthModalState.IsRegisterMode ? "Register" : "Login")
                 </button>
-                <button class="command-button secondary" @onclick="InterviewerLoginAsync" disabled="@isBusy">Interviewer</button>
+                <button class="command-button secondary auth-button" @onclick="InterviewerLoginAsync" disabled="@isBusy">Interviewer</button>
             </div>
-            <button class="link-command" @onclick="SwitchMode">
+            <button class="link-command auth-mode-link" @onclick="SwitchMode">
                 @(AuthModalState.IsRegisterMode ? "I already have an account" : "Create a local account")
             </button>
         </section>

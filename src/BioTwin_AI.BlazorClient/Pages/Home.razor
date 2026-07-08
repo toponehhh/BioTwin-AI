@@ -1,14 +1,15 @@
 ﻿@page "/"
 
 @inject IResumeApiClient IResumeApiClient
+@inject IPublicProfileApiClient PublicProfileApiClient
 @inject SessionState SessionState
 @inject AuthModalState AuthModalState
 
 <PageTitle>BioTwin AI</PageTitle>
 
-<section class="hero-shell wordpress-hero">
-    <div class="hero-narrative">
-        <p class="eyebrow">.NET / AI / Cloudflare Migration</p>
+<section class="hero-shell wordpress-hero artifact-hero glass-card">
+    <div class="hero-narrative artifact-copy">
+        <p class="eyebrow label-caps">.NET / AI / Cloudflare Migration</p>
         <h1>BioTwin AI</h1>
         <p class="hero-copy">
             A modern technical portfolio and AI workspace for resume intelligence, RAG search,
@@ -32,24 +33,79 @@
             }
         </div>
     </div>
-    <div class="terminal-panel hero-console">
-        <div class="terminal-title">runtime status</div>
-        <pre>@statusText</pre>
+    <div class="terminal-panel hero-console mac-window terminal-window">
+        <div class="window-controls" aria-hidden="true">
+            <span class="system-dot dot-red"></span>
+            <span class="system-dot dot-yellow"></span>
+            <span class="system-dot dot-green"></span>
+            <span class="terminal-caption">zsh - BioTwin</span>
+        </div>
+        <div class="terminal-body">
+            <div class="terminal-title">runtime status</div>
+            <pre>@statusText</pre>
+        </div>
     </div>
 </section>
 
+@if (profile is not null)
+{
+    <section class="candidate-profile-shell">
+        <div class="profile-heading">
+            <span class="eyebrow label-caps">Candidate Profile</span>
+            <h2>@profile.Candidate.DisplayName</h2>
+            <p>@profile.Candidate.Summary</p>
+        </div>
+
+        <section class="career-timeline" aria-label="Career timeline">
+            <h2>My career &amp; experience</h2>
+            <div class="career-timeline-list">
+                @foreach (var item in profile.CareerTimelineItems.OrderBy(item => item.SortOrder))
+                {
+                    <article class="career-timeline-row @(item.IsHighlighted ? "active" : null)">
+                        <div>
+                            <h3>@item.Title</h3>
+                            <p>@item.Subtitle</p>
+                        </div>
+                        <strong>@item.PeriodLabel</strong>
+                        <span class="timeline-pin" aria-hidden="true"></span>
+                        <p>@item.Description</p>
+                    </article>
+                }
+            </div>
+        </section>
+
+        <section class="work-timeline" aria-label="Work timeline">
+            <h2>My Work</h2>
+            <div class="work-timeline-rail">
+                @foreach (var item in profile.WorkTimelineItems.OrderBy(item => item.SortOrder))
+                {
+                    <article class="work-timeline-item">
+                        <span>@item.Number</span>
+                        <h3>@item.Title</h3>
+                        <p>@item.Description</p>
+                    </article>
+                }
+            </div>
+        </section>
+    </section>
+}
+else if (!string.IsNullOrWhiteSpace(profileMessage))
+{
+    <p class="status-line">@profileMessage</p>
+}
+
 <section class="grid-section">
-    <article class="feature-card">
+    <article class="feature-card glass-card">
         <span>01</span>
         <h2>Cloud-Native .NET</h2>
         <p>ASP.NET Core API boundaries, Blazor WASM frontend, SQLite-first data model, and a migration path to D1/R2/Vectorize.</p>
     </article>
-    <article class="feature-card">
+    <article class="feature-card glass-card">
         <span>02</span>
         <h2>AI Resume Intelligence</h2>
         <p>Markdown conversion, section indexing, local embeddings, RAG citations, chat answers, and PDF export.</p>
     </article>
-    <article class="feature-card">
+    <article class="feature-card glass-card">
         <span>03</span>
         <h2>Portfolio Workspace</h2>
         <p>Skills, project narrative, resume editing, and interviewer-friendly discovery share one frontend surface.</p>
@@ -57,12 +113,20 @@
 </section>
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "uid")]
+    public string? Uid { get; set; }
+
     private string statusText = "loading session...";
+    private CandidateProfileDto? profile;
+    private string profileMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            profile = await PublicProfileApiClient.GetCandidateProfileAsync(Uid);
+            profileMessage = profile is null ? "Profile link expired or unavailable." : string.Empty;
             await SessionState.RefreshAsync();
             var resumes = SessionState.IsAuthenticated
                 ? await IResumeApiClient.GetResumesAsync()

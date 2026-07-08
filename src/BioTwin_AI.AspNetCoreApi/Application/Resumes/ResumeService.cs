@@ -2,10 +2,15 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using BioTwin_AI.AspNetCoreApi.Application.Embeddings;
+using BioTwin_AI.AspNetCoreApi.Application.Llm;
+using BioTwin_AI.AspNetCoreApi.Application.Profiles;
 using BioTwin_AI.AspNetCoreApi.Infrastructure.Data;
 using BioTwin_AI.AspNetCoreApi.Infrastructure.Data.Entities;
 using BioTwin_AI.DotNetShared.Resumes;
 using Microsoft.EntityFrameworkCore;
+using AiChatMessage = Microsoft.Extensions.AI.ChatMessage;
+using AiChatOptions = Microsoft.Extensions.AI.ChatOptions;
+using AiChatRole = Microsoft.Extensions.AI.ChatRole;
 
 namespace BioTwin_AI.AspNetCoreApi.Application.Resumes;
 
@@ -14,7 +19,9 @@ public sealed class ResumeService(
     IEmbeddingService embeddingService,
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
-    ILogger<ResumeService> logger) : IResumeService
+    ILogger<ResumeService> logger,
+    ILlmChatService llmChatService,
+    ICandidateProfileExtractionService candidateProfileExtractionService) : IResumeService
 {
     private const long MaxUploadBytes = 10 * 1024 * 1024;
 
@@ -27,10 +34,12 @@ public sealed class ResumeService(
             .ToListAsync(cancellationToken);
 
         return entries
-            .OrderByDescending(entry => entry.CreatedAt)
+            .OrderBy(entry => entry.Language)
+            .ThenByDescending(entry => entry.CreatedAt)
             .Select(entry => new ResumeSummaryDto(
                 entry.Id,
                 entry.Title,
+                entry.Language,
                 entry.SourceFileName,
                 entry.CreatedAt,
                 entry.Sections.Count,
@@ -76,23 +85,28 @@ public sealed class ResumeService(
                 duplicate.Title,
                 duplicate.SourceFileName ?? file.FileName,
                 existingMarkdown?.Markdown ?? string.Empty,
+                duplicate.Language,
                 IsDuplicate: true,
                 duplicate.Id,
                 duplicate.Title);
         }
 
         var markdown = await ConvertBytesToMarkdownAsync(file.FileName, file.ContentType, bytes, cancellationToken);
+        var detectedLanguage = DetectLanguage(markdown);
         return new ConvertedResumeFileDto(
             Path.GetFileNameWithoutExtension(file.FileName),
             file.FileName,
             markdown,
+            detectedLanguage,
             IsDuplicate: false,
             ExistingResumeEntryId: null,
             ExistingResumeTitle: null);
     }
 
-    public async Task<ResumeDetailDto> SaveAsync(string tenantId, SaveResumeMarkdownRequest request, CancellationToken cancellationToken)
+    public async Task<ResumeDetailDto> SaveAsync(string tenantId, SaveResumeMarkdownRequest request, int? userId, CancellationToken cancellationToken)
     {
+        EnsureMarkdownCanBeSaved(request.Markdown);
+        var language = NormalizeRequiredLanguage(request.Language);
         var sourceBytes = DecodeOptionalBase64(request.SourceFileContentBase64);
         var sourceHash = sourceBytes is null ? null : ComputeHash(sourceBytes);
 
@@ -107,10 +121,21 @@ public sealed class ResumeService(
             }
         }
 
+        var existing = await dbContext.ResumeEntries
+            .Include(entry => entry.Sections)
+            .ThenInclude(section => section.Vector)
+            .FirstOrDefaultAsync(entry => entry.TenantId == tenantId && entry.Language == language, cancellationToken);
+
+        if (existing is not null)
+        {
+            return await ReplaceExistingMarkdownAsync(existing, request, language, sourceBytes, userId, cancellationToken);
+        }
+
         var now = DateTimeOffset.UtcNow;
         var entry = new ResumeEntry
         {
             TenantId = tenantId,
+            Language = language,
             Title = NormalizeTitle(request.Title, request.SourceFileName),
             SourceFileName = request.SourceFileName,
             SourceContentType = request.SourceContentType,
@@ -124,11 +149,18 @@ public sealed class ResumeService(
         dbContext.ResumeEntries.Add(entry);
         await dbContext.SaveChangesAsync(cancellationToken);
         await ReplaceSectionsAsync(entry, request.Markdown, cancellationToken);
+        if (userId is > 0)
+        {
+            await candidateProfileExtractionService.GenerateFromResumeAsync(userId.Value, request.Markdown, cancellationToken);
+        }
+
         return ToDetail(entry);
     }
 
-    public async Task<ResumeDetailDto?> ReplaceMarkdownAsync(string tenantId, int resumeId, SaveResumeMarkdownRequest request, CancellationToken cancellationToken)
+    public async Task<ResumeDetailDto?> ReplaceMarkdownAsync(string tenantId, int resumeId, SaveResumeMarkdownRequest request, int? userId, CancellationToken cancellationToken)
     {
+        EnsureMarkdownCanBeSaved(request.Markdown);
+        var language = NormalizeRequiredLanguage(request.Language);
         var entry = await dbContext.ResumeEntries
             .Include(resume => resume.Sections)
             .ThenInclude(section => section.Vector)
@@ -139,21 +171,54 @@ public sealed class ResumeService(
             return null;
         }
 
-        entry.Title = NormalizeTitle(request.Title, entry.SourceFileName);
-        entry.SourceFileName = request.SourceFileName ?? entry.SourceFileName;
-        entry.SourceContentType = request.SourceContentType ?? entry.SourceContentType;
-        entry.SourceFileSize = request.SourceFileSize ?? entry.SourceFileSize;
-        entry.UpdatedAt = DateTimeOffset.UtcNow;
-
-        var sourceBytes = DecodeOptionalBase64(request.SourceFileContentBase64);
-        if (sourceBytes is not null)
+        if (!string.Equals(entry.Language, language, StringComparison.OrdinalIgnoreCase)
+            && await dbContext.ResumeEntries.AnyAsync(resume => resume.TenantId == tenantId && resume.Language == language && resume.Id != resumeId, cancellationToken))
         {
-            entry.SourceFileContent = sourceBytes;
-            entry.SourceFileHash = ComputeHash(sourceBytes);
+            throw new InvalidOperationException($"A canonical resume already exists for language '{language}'.");
         }
 
-        await ReplaceSectionsAsync(entry, request.Markdown, cancellationToken);
-        return ToDetail(entry);
+        var sourceBytes = DecodeOptionalBase64(request.SourceFileContentBase64);
+        return await ReplaceExistingMarkdownAsync(entry, request, language, sourceBytes, userId, cancellationToken);
+    }
+
+    public async Task<MergeResumeMarkdownResponse?> MergePreviewAsync(string tenantId, MergeResumeMarkdownRequest request, CancellationToken cancellationToken)
+    {
+        var language = NormalizeRequiredLanguage(request.Language);
+        if (string.IsNullOrWhiteSpace(request.DraftMarkdown))
+        {
+            throw new InvalidOperationException("Draft Markdown cannot be empty.");
+        }
+
+        var canonical = await dbContext.ResumeEntries
+            .AsNoTracking()
+            .Include(entry => entry.Sections)
+            .FirstOrDefaultAsync(entry => entry.TenantId == tenantId && entry.Language == language, cancellationToken);
+        if (canonical is null)
+        {
+            return null;
+        }
+
+        var canonicalMarkdown = ResumeMarkdownBuilder.Build(canonical.Sections, canonical.Title);
+        var warnings = new List<string>();
+        var mergedMarkdown = await MergeMarkdownWithLlmAsync(
+            canonical.Title,
+            language,
+            canonicalMarkdown,
+            request.DraftTitle,
+            request.DraftMarkdown,
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(mergedMarkdown))
+        {
+            warnings.Add("LLM merge returned empty output; generated a deterministic review merge.");
+            mergedMarkdown = MergeMarkdownByReviewBlock(canonicalMarkdown, request.DraftMarkdown, request.SourceFileName);
+        }
+
+        return new MergeResumeMarkdownResponse(
+            language,
+            canonical.Id,
+            string.IsNullOrWhiteSpace(canonical.Title) ? NormalizeTitle(request.DraftTitle, request.SourceFileName) : canonical.Title,
+            mergedMarkdown,
+            warnings);
     }
 
     public async Task<bool> DeleteAsync(string tenantId, int resumeId, CancellationToken cancellationToken)
@@ -223,6 +288,36 @@ public sealed class ResumeService(
             entry.SourceFileName ?? $"{SanitizeFileName(entry.Title)}.bin",
             entry.SourceContentType ?? "application/octet-stream",
             entry.SourceFileContent);
+    }
+
+    private async Task<ResumeDetailDto> ReplaceExistingMarkdownAsync(
+        ResumeEntry entry,
+        SaveResumeMarkdownRequest request,
+        string language,
+        byte[]? sourceBytes,
+        int? userId,
+        CancellationToken cancellationToken)
+    {
+        entry.Language = language;
+        entry.Title = NormalizeTitle(request.Title, entry.SourceFileName);
+        entry.SourceFileName = request.SourceFileName ?? entry.SourceFileName;
+        entry.SourceContentType = request.SourceContentType ?? entry.SourceContentType;
+        entry.SourceFileSize = request.SourceFileSize ?? entry.SourceFileSize;
+        entry.UpdatedAt = DateTimeOffset.UtcNow;
+
+        if (sourceBytes is not null)
+        {
+            entry.SourceFileContent = sourceBytes;
+            entry.SourceFileHash = ComputeHash(sourceBytes);
+        }
+
+        await ReplaceSectionsAsync(entry, request.Markdown, cancellationToken);
+        if (userId is > 0)
+        {
+            await candidateProfileExtractionService.GenerateFromResumeAsync(userId.Value, request.Markdown, cancellationToken);
+        }
+
+        return ToDetail(entry);
     }
 
     private async Task ReplaceSectionsAsync(ResumeEntry entry, string markdown, CancellationToken cancellationToken)
@@ -348,6 +443,7 @@ public sealed class ResumeService(
         return new ResumeDetailDto(
             entry.Id,
             entry.Title,
+            entry.Language,
             entry.SourceFileName,
             entry.CreatedAt,
             BuildSectionDtos(null, childrenByParent));
@@ -385,6 +481,157 @@ public sealed class ResumeService(
         return string.IsNullOrWhiteSpace(sourceFileName)
             ? "Resume"
             : Path.GetFileNameWithoutExtension(sourceFileName);
+    }
+
+    private static void EnsureMarkdownCanBeSaved(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            throw new InvalidOperationException("Markdown cannot be empty.");
+        }
+    }
+
+    private static string NormalizeRequiredLanguage(string language)
+    {
+        if (!ResumeLanguages.IsSupported(language))
+        {
+            throw new InvalidOperationException($"Unsupported resume language '{language}'.");
+        }
+
+        return ResumeLanguages.Normalize(language);
+    }
+
+    private static string DetectLanguage(string markdown)
+    {
+        var cjk = 0;
+        var latin = 0;
+        foreach (var ch in markdown)
+        {
+            if ((ch >= '\u4e00' && ch <= '\u9fff') || (ch >= '\u3400' && ch <= '\u4dbf'))
+            {
+                cjk++;
+            }
+            else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'))
+            {
+                latin++;
+            }
+        }
+
+        return cjk > 0 && cjk >= latin
+            ? ResumeLanguages.SimplifiedChinese
+            : latin > 0
+                ? ResumeLanguages.English
+                : ResumeLanguages.SimplifiedChinese;
+    }
+
+    private async Task<string> MergeMarkdownWithLlmAsync(
+        string canonicalTitle,
+        string language,
+        string canonicalMarkdown,
+        string draftTitle,
+        string draftMarkdown,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await llmChatService.CompleteAsync(
+                BuildMergeMessages(canonicalTitle, language, canonicalMarkdown, draftTitle, draftMarkdown),
+                CreateMergeChatOptions(),
+                cancellationToken);
+            return NormalizeMarkdownResponse(response);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "LLM resume merge failed; falling back to deterministic review merge.");
+            return string.Empty;
+        }
+    }
+
+    private static IReadOnlyList<AiChatMessage> BuildMergeMessages(
+        string canonicalTitle,
+        string language,
+        string canonicalMarkdown,
+        string draftTitle,
+        string draftMarkdown)
+    {
+        var languageInstruction = string.Equals(language, ResumeLanguages.English, StringComparison.OrdinalIgnoreCase)
+            ? "Write the merged resume in English."
+            : "Write the merged resume in Simplified Chinese.";
+        var systemPrompt = $"""
+You are a senior resume editor.
+Merge two Markdown resumes for the same candidate into one canonical Markdown resume.
+{languageInstruction}
+Preserve factual details and do not invent employers, dates, technologies, awards, or education.
+Merge experiences primarily by timeline, keep the most complete version of duplicate events, and remove obvious duplicates.
+Keep clear Markdown heading structure.
+Return Markdown only, without code fences or commentary.
+""";
+
+        var userPrompt = $"""
+Canonical resume title:
+{canonicalTitle}
+
+Canonical resume Markdown:
+{canonicalMarkdown}
+
+Imported draft title:
+{draftTitle}
+
+Imported draft Markdown:
+{draftMarkdown}
+""";
+
+        return
+        [
+            new AiChatMessage(AiChatRole.System, systemPrompt),
+            new AiChatMessage(AiChatRole.User, userPrompt)
+        ];
+    }
+
+    private AiChatOptions CreateMergeChatOptions()
+    {
+        return new AiChatOptions
+        {
+            ModelId = configuration["LLM:Model"] ?? "openrouter/free",
+            Temperature = (float)configuration.GetValue("LLM:MergeTemperature", 0.1),
+            MaxOutputTokens = configuration.GetValue("LLM:MergeMaxTokens", 5000)
+        };
+    }
+
+    private static string NormalizeMarkdownResponse(string? response)
+    {
+        var markdown = (response ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+        if (markdown.StartsWith("```markdown", StringComparison.OrdinalIgnoreCase))
+        {
+            markdown = markdown[11..].Trim();
+        }
+        else if (markdown.StartsWith("```", StringComparison.Ordinal))
+        {
+            markdown = markdown[3..].Trim();
+        }
+
+        if (markdown.EndsWith("```", StringComparison.Ordinal))
+        {
+            markdown = markdown[..^3].Trim();
+        }
+
+        return markdown;
+    }
+
+    private static string MergeMarkdownByReviewBlock(string canonicalMarkdown, string draftMarkdown, string? sourceFileName)
+    {
+        var sourceLabel = string.IsNullOrWhiteSpace(sourceFileName)
+            ? "imported draft"
+            : sourceFileName.Trim();
+        return string.Join(
+            "\n\n",
+            canonicalMarkdown.Trim(),
+            "---",
+            $"## Imported update for review: {sourceLabel}",
+            draftMarkdown.Trim());
     }
 
     private static byte[]? DecodeOptionalBase64(string? value)

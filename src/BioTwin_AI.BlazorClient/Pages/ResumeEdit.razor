@@ -23,6 +23,11 @@
             </select>
             <label>Title</label>
             <input @bind="title" />
+            <label>Language</label>
+            <select @bind="language">
+                <option value="@ResumeLanguages.SimplifiedChinese">Simplified Chinese</option>
+                <option value="@ResumeLanguages.English">English</option>
+            </select>
             <label>Markdown</label>
             <textarea rows="24" @bind="markdown"></textarea>
             <div class="action-row">
@@ -35,7 +40,7 @@
             @foreach (var section in sections)
             {
                 <div class="section-node" style="@($"margin-left:{(section.HeadingLevel - 1) * 12}px")">
-                    @section.Title
+                    @(section.Title)
                 </div>
             }
         </aside>
@@ -56,6 +61,7 @@
     private int? selectedResumeId;
     private string title = string.Empty;
     private string markdown = string.Empty;
+    private string language = ResumeLanguages.SimplifiedChinese;
     private string message = string.Empty;
 
     protected override async Task OnInitializedAsync()
@@ -94,6 +100,7 @@
             var detail = await IResumeApiClient.GetResumeAsync(selectedResumeId.Value);
             var export = await IResumeApiClient.ExportMarkdownAsync(selectedResumeId.Value);
             title = detail.Title;
+            language = detail.Language;
             markdown = export.Markdown;
             sections = Flatten(detail.Sections);
         }
@@ -118,7 +125,7 @@
         {
             var detail = await IResumeApiClient.ReplaceMarkdownAsync(
                 selectedResumeId.Value,
-                new SaveResumeMarkdownRequest(title, markdown, null, null, null));
+                new SaveResumeMarkdownRequest(title, markdown, language, null, null, null));
             sections = Flatten(detail.Sections);
             message = "Saved and re-indexed.";
         }

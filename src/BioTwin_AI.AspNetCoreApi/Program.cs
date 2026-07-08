@@ -3,6 +3,7 @@ using BioTwin_AI.AspNetCoreApi.Application.Chat;
 using BioTwin_AI.AspNetCoreApi.Application.Embeddings;
 using BioTwin_AI.AspNetCoreApi.Application.Export;
 using BioTwin_AI.AspNetCoreApi.Application.Llm;
+using BioTwin_AI.AspNetCoreApi.Application.Profiles;
 using BioTwin_AI.AspNetCoreApi.Application.Rag;
 using BioTwin_AI.AspNetCoreApi.Application.Refinement;
 using BioTwin_AI.AspNetCoreApi.Application.Resumes;
@@ -32,13 +33,17 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 
 // Add services to the container.
 
-var defaultDbPath = Path.Combine(builder.Environment.ContentRootPath, "database", "biotwin-api.db");
+var backendProjectRoot = ResolveBackendProjectRoot(
+    builder.Environment.ContentRootPath,
+    AppContext.BaseDirectory,
+    "BioTwin_AI.AspNetCoreApi.csproj");
+var defaultDbPath = Path.Combine(backendProjectRoot, "database", "biotwin-api.db");
 
 builder.Services.AddDbContext<BioTwinApiDbContext>(options =>
 {
     var connectionString = ResolveSqliteConnectionString(
         builder.Configuration.GetConnectionString("BioTwinApi"),
-        builder.Environment.ContentRootPath,
+        backendProjectRoot,
         defaultDbPath);
     options.UseSqlite(connectionString);
 });
@@ -88,7 +93,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IExternalProviderCatalog, ExternalProviderCatalog>();
 builder.Services.AddScoped<ISessionResponseFactory, SessionResponseFactory>();
+builder.Services.AddScoped<IUserRoleService, UserRoleService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton<IProfileShareCodeGenerator, ProfileShareCodeGenerator>();
+builder.Services.AddScoped<ICandidateProfileInfoService, CandidateProfileInfoService>();
+builder.Services.AddScoped<ICandidateProfileExtractionService, CandidateProfileExtractionService>();
+builder.Services.AddScoped<IPublicCandidateProfileService, PublicCandidateProfileService>();
 builder.Services.AddSingleton<ILlmChatService, LlmChatService>();
 builder.Services.AddSingleton<HashingEmbeddingService>();
 builder.Services.AddSingleton<BgeM3OnnxEmbeddingService>();
@@ -128,8 +138,7 @@ app.Logger.LogInformation("BioTwin AI API initialization started in {Environment
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<BioTwinApiDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
-    await EnsureUserProfileColumnsAsync(dbContext);
+    await DatabaseSchemaValidator.ValidateAsync(dbContext, app.Logger);
 }
 
 app.Logger.LogInformation("BioTwin AI API startup initialization completed.");
@@ -171,7 +180,40 @@ static bool IsLocalDevelopmentOrigin(string origin)
         && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 }
 
-static string ResolveSqliteConnectionString(string? configuredConnectionString, string contentRootPath, string defaultDbPath)
+static string ResolveBackendProjectRoot(string contentRootPath, string baseDirectory, string projectFileName)
+{
+    foreach (var candidateRoot in new[] { baseDirectory, contentRootPath }.Where(path => !string.IsNullOrWhiteSpace(path)))
+    {
+        var projectRoot = FindAncestorContainingFile(candidateRoot, projectFileName);
+        if (projectRoot is not null)
+        {
+            return projectRoot;
+        }
+    }
+
+    return contentRootPath;
+}
+
+static string? FindAncestorContainingFile(string startPath, string fileName)
+{
+    var directory = Directory.Exists(startPath)
+        ? new DirectoryInfo(startPath)
+        : Directory.GetParent(startPath);
+
+    while (directory is not null)
+    {
+        if (File.Exists(Path.Combine(directory.FullName, fileName)))
+        {
+            return directory.FullName;
+        }
+
+        directory = directory.Parent;
+    }
+
+    return null;
+}
+
+static string ResolveSqliteConnectionString(string? configuredConnectionString, string databaseRootPath, string defaultDbPath)
 {
     var connectionString = string.IsNullOrWhiteSpace(configuredConnectionString)
         ? new SqliteConnectionStringBuilder { DataSource = defaultDbPath }.ToString()
@@ -183,7 +225,7 @@ static string ResolveSqliteConnectionString(string? configuredConnectionString, 
         && !builder.DataSource.StartsWith("file:", StringComparison.OrdinalIgnoreCase)
         && !Path.IsPathRooted(builder.DataSource))
     {
-        builder.DataSource = Path.GetFullPath(Path.Combine(contentRootPath, builder.DataSource));
+        builder.DataSource = Path.GetFullPath(Path.Combine(databaseRootPath, builder.DataSource));
     }
 
     var directory = Path.GetDirectoryName(builder.DataSource);
@@ -243,90 +285,4 @@ static string GetApiKey(IConfiguration configuration)
 static string? FirstNonBlank(params string?[] values)
 {
     return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-}
-
-static async Task EnsureUserProfileColumnsAsync(BioTwinApiDbContext dbContext)
-{
-    var connection = dbContext.Database.GetDbConnection();
-    if (connection.State != System.Data.ConnectionState.Open)
-    {
-        await connection.OpenAsync();
-    }
-
-    var userColumns = await GetTableColumnsAsync(connection, "UserAccounts");
-    if (!userColumns.Contains("Nickname"))
-    {
-        await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE UserAccounts ADD COLUMN Nickname TEXT NOT NULL DEFAULT ''");
-        await dbContext.Database.ExecuteSqlRawAsync("UPDATE UserAccounts SET Nickname = Username WHERE Nickname IS NULL OR trim(Nickname) = ''");
-    }
-
-    if (!userColumns.Contains("Avatar"))
-    {
-        await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE UserAccounts ADD COLUMN Avatar TEXT NOT NULL DEFAULT '🧑‍💻'");
-        var legacyAvatarColumn = "Avatar" + "Emoji";
-        if (userColumns.Contains(legacyAvatarColumn))
-        {
-            var legacyAvatarUpdateSql = string.Concat(
-                "UPDATE UserAccounts SET Avatar = ",
-                legacyAvatarColumn,
-                " WHERE ",
-                legacyAvatarColumn,
-                " IS NOT NULL AND trim(",
-                legacyAvatarColumn,
-                ") <> ''");
-            await dbContext.Database.ExecuteSqlRawAsync(legacyAvatarUpdateSql);
-        }
-    }
-
-    await EnsureColumnAsync(dbContext, userColumns, "UpdatedAt", "ALTER TABLE UserAccounts ADD COLUMN UpdatedAt TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'");
-    await EnsureColumnAsync(dbContext, userColumns, "IsDeleted", "ALTER TABLE UserAccounts ADD COLUMN IsDeleted INTEGER NOT NULL DEFAULT 0");
-    await EnsureColumnAsync(dbContext, userColumns, "DeletedAt", "ALTER TABLE UserAccounts ADD COLUMN DeletedAt TEXT NULL");
-    await dbContext.Database.ExecuteSqlRawAsync("UPDATE UserAccounts SET UpdatedAt = CreatedAt WHERE UpdatedAt = '1970-01-01T00:00:00.000Z'");
-
-    var externalIdentityColumns = await GetTableColumnsAsync(connection, "UserExternalIdentities");
-    await EnsureColumnAsync(dbContext, externalIdentityColumns, "CreatedAt", "ALTER TABLE UserExternalIdentities ADD COLUMN CreatedAt TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'");
-    await EnsureColumnAsync(dbContext, externalIdentityColumns, "UpdatedAt", "ALTER TABLE UserExternalIdentities ADD COLUMN UpdatedAt TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'");
-    await dbContext.Database.ExecuteSqlRawAsync("UPDATE UserExternalIdentities SET CreatedAt = LinkedAt WHERE CreatedAt = '1970-01-01T00:00:00.000Z'");
-    await dbContext.Database.ExecuteSqlRawAsync("UPDATE UserExternalIdentities SET UpdatedAt = CreatedAt WHERE UpdatedAt = '1970-01-01T00:00:00.000Z'");
-
-    var resumeEntryColumns = await GetTableColumnsAsync(connection, "ResumeEntries");
-    await EnsureColumnAsync(dbContext, resumeEntryColumns, "UpdatedAt", "ALTER TABLE ResumeEntries ADD COLUMN UpdatedAt TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'");
-    await dbContext.Database.ExecuteSqlRawAsync("UPDATE ResumeEntries SET UpdatedAt = CreatedAt WHERE UpdatedAt = '1970-01-01T00:00:00.000Z'");
-
-    var resumeSectionColumns = await GetTableColumnsAsync(connection, "ResumeSections");
-    await EnsureColumnAsync(dbContext, resumeSectionColumns, "UpdatedAt", "ALTER TABLE ResumeSections ADD COLUMN UpdatedAt TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'");
-    await dbContext.Database.ExecuteSqlRawAsync("UPDATE ResumeSections SET UpdatedAt = CreatedAt WHERE UpdatedAt = '1970-01-01T00:00:00.000Z'");
-
-    var resumeSectionVectorColumns = await GetTableColumnsAsync(connection, "ResumeSectionVectors");
-    await EnsureColumnAsync(dbContext, resumeSectionVectorColumns, "UpdatedAt", "ALTER TABLE ResumeSectionVectors ADD COLUMN UpdatedAt TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'");
-    await dbContext.Database.ExecuteSqlRawAsync("UPDATE ResumeSectionVectors SET UpdatedAt = CreatedAt WHERE UpdatedAt = '1970-01-01T00:00:00.000Z'");
-}
-
-static async Task<HashSet<string>> GetTableColumnsAsync(System.Data.Common.DbConnection connection, string tableName)
-{
-    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    await using (var command = connection.CreateCommand())
-    {
-        command.CommandText = $"PRAGMA table_info('{tableName}')";
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            columns.Add(reader.GetString(1));
-        }
-    }
-
-    return columns;
-}
-
-static async Task EnsureColumnAsync(
-    BioTwinApiDbContext dbContext,
-    HashSet<string> columns,
-    string columnName,
-    string alterSql)
-{
-    if (!columns.Contains(columnName))
-    {
-        await dbContext.Database.ExecuteSqlRawAsync(alterSql);
-        columns.Add(columnName);
-    }
 }

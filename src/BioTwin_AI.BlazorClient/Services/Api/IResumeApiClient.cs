@@ -14,6 +14,8 @@ public interface IResumeApiClient
 
     Task<ResumeDetailDto> ReplaceMarkdownAsync(int resumeId, SaveResumeMarkdownRequest request, CancellationToken cancellationToken = default);
 
+    Task<MergeResumeMarkdownResponse> MergePreviewAsync(MergeResumeMarkdownRequest request, CancellationToken cancellationToken = default);
+
     Task DeleteAsync(int resumeId, CancellationToken cancellationToken = default);
 
     Task<RebuildEmbeddingsResponse> RebuildEmbeddingsAsync(CancellationToken cancellationToken = default);

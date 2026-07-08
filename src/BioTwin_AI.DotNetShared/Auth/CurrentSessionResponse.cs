@@ -6,5 +6,12 @@ public sealed record CurrentSessionResponse(
     string? Username,
     string? DisplayName,
     string? Avatar,
-    UserRole Role,
-    IReadOnlyList<ExternalIdentityProviderDto> ExternalProviders);
+    IReadOnlyList<UserRole> Roles,
+    IReadOnlyList<ExternalIdentityProviderDto> ExternalProviders)
+{
+    public UserRole Role => Roles.Contains(UserRole.Admin)
+        ? UserRole.Admin
+        : Roles.Contains(UserRole.Interviewer)
+            ? UserRole.Interviewer
+            : UserRole.Candidate;
+}

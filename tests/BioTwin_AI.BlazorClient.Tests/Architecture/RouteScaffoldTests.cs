@@ -6,6 +6,7 @@ public class RouteScaffoldTests
     [InlineData("Home.razor", "@page \"/\"")]
     [InlineData("Chat.razor", "@page \"/chat\"")]
     [InlineData("Resume.razor", "@page \"/resume\"")]
+    [InlineData("ResumeWorkspace.razor", "@page \"/resume/workspace\"")]
     [InlineData("ResumeUpload.razor", "@page \"/resume/upload\"")]
     [InlineData("ResumeEdit.razor", "@page \"/resume/edit/{ResumeId:int?}\"")]
     [InlineData("ResumeExport.razor", "@page \"/resume/export/{ResumeId:int?}\"")]
@@ -22,12 +23,9 @@ public class RouteScaffoldTests
     {
         var layoutText = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
-        var navText = File.ReadAllText(Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "NavMenu.razor")));
 
         Assert.Contains("<AuthModal", layoutText, StringComparison.Ordinal);
-        Assert.DoesNotContain("href=\"login\"", navText, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Sign in", navText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"login\"", layoutText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -81,27 +79,76 @@ public class RouteScaffoldTests
     }
 
     [Fact]
-    public void Resume_workspace_uses_second_level_navigation_for_distinct_workflows()
+    public void Authenticated_workspace_routes_live_under_the_admin_menu()
     {
-        var navText = File.ReadAllText(Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "NavMenu.razor")));
+        var layoutText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
 
-        Assert.Contains("resume-nav-group", navText, StringComparison.Ordinal);
-        Assert.Contains("href=\"resume/upload\"", navText, StringComparison.Ordinal);
-        Assert.Contains("href=\"resume/edit\"", navText, StringComparison.Ordinal);
-        Assert.Contains("href=\"resume/export\"", navText, StringComparison.Ordinal);
+        Assert.Contains("Admin", layoutText, StringComparison.Ordinal);
+        Assert.Contains("admin-menu", layoutText, StringComparison.Ordinal);
+        Assert.Contains("href=\"/chat\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("href=\"/resume\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("href=\"/resume/upload\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("href=\"/resume/edit\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("href=\"/resume/export\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("href=\"/settings\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("OpenProfileEditor", layoutText, StringComparison.Ordinal);
+        Assert.Contains("LogoutAsync", layoutText, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Navigation_menu_refreshes_when_session_state_changes()
+    public void Client_project_does_not_duplicate_sdk_injected_hot_reload_package()
     {
-        var navText = File.ReadAllText(Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "NavMenu.razor")));
+        var projectText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "BioTwin_AI.BlazorClient.csproj")));
 
-        Assert.Contains("@implements IDisposable", navText, StringComparison.Ordinal);
-        Assert.Contains("SessionState.Changed +=", navText, StringComparison.Ordinal);
-        Assert.Contains("SessionState.Changed -=", navText, StringComparison.Ordinal);
-        Assert.Contains("InvokeAsync(StateHasChanged)", navText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Microsoft.DotNet.HotReload.WebAssembly.Browser", projectText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Resume_edit_renders_section_title_as_explicit_expression()
+    {
+        var pageText = ReadPage("ResumeEdit.razor");
+
+        Assert.Contains("@(section.Title)", pageText, StringComparison.Ordinal);
+        Assert.DoesNotContain("@section.Title", pageText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Resume_workspace_exposes_language_aware_editor_library_and_outline()
+    {
+        var pageText = ReadPage("ResumeWorkspace.razor");
+        var editorText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Components", "MarkdownEditor.razor")));
+        var editorScriptPath = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "js", "markdownEditor.js"));
+        var indexText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "index.html")));
+
+        Assert.Contains("<ProtectedArea", pageText, StringComparison.Ordinal);
+        Assert.Contains("resume-workspace", pageText, StringComparison.Ordinal);
+        Assert.Contains("workspace-library", pageText, StringComparison.Ordinal);
+        Assert.Contains("workspace-editor", pageText, StringComparison.Ordinal);
+        Assert.Contains("workspace-outline", pageText, StringComparison.Ordinal);
+        Assert.Contains("ResumeLanguages.SimplifiedChinese", pageText, StringComparison.Ordinal);
+        Assert.Contains("ResumeLanguages.English", pageText, StringComparison.Ordinal);
+        Assert.Contains("MergePreviewAsync", pageText, StringComparison.Ordinal);
+        Assert.Contains("<MarkdownEditor", pageText, StringComparison.Ordinal);
+        Assert.Contains("markdownEditor", editorText, StringComparison.Ordinal);
+        Assert.True(File.Exists(editorScriptPath));
+        Assert.Contains("EasyMDE", indexText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Main_layout_refreshes_when_session_state_changes()
+    {
+        var layoutText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
+
+        Assert.Contains("@implements IDisposable", layoutText, StringComparison.Ordinal);
+        Assert.Contains("SessionState.Changed +=", layoutText, StringComparison.Ordinal);
+        Assert.Contains("SessionState.Changed -=", layoutText, StringComparison.Ordinal);
+        Assert.Contains("StateHasChanged", layoutText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -129,6 +176,23 @@ public class RouteScaffoldTests
     }
 
     [Fact]
+    public void Auth_modal_uses_stitch_mac_window_glass_treatment()
+    {
+        var modalText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Components", "AuthModal.razor")));
+        var appCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+
+        Assert.Contains("auth-window", modalText, StringComparison.Ordinal);
+        Assert.Contains("window-controls", modalText, StringComparison.Ordinal);
+        Assert.Contains("dot-red", modalText, StringComparison.Ordinal);
+        Assert.Contains("dot-yellow", modalText, StringComparison.Ordinal);
+        Assert.Contains("dot-green", modalText, StringComparison.Ordinal);
+        Assert.Contains(".mac-window", appCss, StringComparison.Ordinal);
+        Assert.Contains("backdrop-filter: blur(var(--glass-blur))", appCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Auth_modal_collects_nickname_and_avatar_when_registering()
     {
         var modalText = File.ReadAllText(Path.GetFullPath(
@@ -136,21 +200,175 @@ public class RouteScaffoldTests
 
         Assert.Contains("@bind=\"nickname\"", modalText, StringComparison.Ordinal);
         Assert.Contains("avatar-options", modalText, StringComparison.Ordinal);
+        Assert.Contains("compact-avatar-options", modalText, StringComparison.Ordinal);
         Assert.Contains("Avatar:", modalText, StringComparison.Ordinal);
         Assert.DoesNotContain("AvatarEmoji", modalText, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Header_uses_avatar_profile_menu_for_authenticated_user_actions()
+    public void Auth_modal_uses_balanced_glass_form_controls()
+    {
+        var modalText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Components", "AuthModal.razor")));
+        var appCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+
+        Assert.Contains("auth-card", modalText, StringComparison.Ordinal);
+        Assert.Contains("auth-field", modalText, StringComparison.Ordinal);
+        Assert.Contains("auth-input", modalText, StringComparison.Ordinal);
+        Assert.Contains("auth-action-row", modalText, StringComparison.Ordinal);
+        Assert.Contains("auth-button", modalText, StringComparison.Ordinal);
+        Assert.Contains("min-height: 3rem;", appCss, StringComparison.Ordinal);
+        Assert.Contains(".auth-action-row", appCss, StringComparison.Ordinal);
+        Assert.Contains(".auth-button", appCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Primary_buttons_use_stitch_body_bold_centered_typography()
+    {
+        var appCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+
+        Assert.Contains("--button-font-size: 1rem", appCss, StringComparison.Ordinal);
+        Assert.Contains("--button-line-height: 1.625rem", appCss, StringComparison.Ordinal);
+        Assert.Contains("--button-font-weight: 600", appCss, StringComparison.Ordinal);
+        Assert.Contains("align-items: center;", appCss, StringComparison.Ordinal);
+        Assert.Contains("justify-content: center;", appCss, StringComparison.Ordinal);
+        Assert.Contains("font-size: var(--button-font-size);", appCss, StringComparison.Ordinal);
+        Assert.Contains("line-height: var(--button-line-height);", appCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Home_renders_public_candidate_profile_from_uid_query_string()
+    {
+        var programText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Program.cs")));
+        var homeText = ReadPage("Home.razor");
+
+        Assert.Contains("IPublicProfileApiClient", programText, StringComparison.Ordinal);
+        Assert.Contains("PublicProfileApiClient", programText, StringComparison.Ordinal);
+        Assert.Contains("SupplyParameterFromQuery(Name = \"uid\")", homeText, StringComparison.Ordinal);
+        Assert.Contains("GetCandidateProfileAsync", homeText, StringComparison.Ordinal);
+        Assert.Contains("career-timeline", homeText, StringComparison.Ordinal);
+        Assert.Contains("work-timeline", homeText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Header_uses_admin_menu_for_authenticated_user_actions()
     {
         var layoutText = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
 
         Assert.Contains("Welcome @SessionState.DisplayName", layoutText, StringComparison.Ordinal);
-        Assert.Contains("profile-menu", layoutText, StringComparison.Ordinal);
-        Assert.Contains("Edit profile", layoutText, StringComparison.Ordinal);
+        Assert.Contains("admin-menu profile-menu", layoutText, StringComparison.Ordinal);
+        Assert.Contains("Profile", layoutText, StringComparison.Ordinal);
         Assert.Contains("href=\"/settings\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("LogoutAsync", layoutText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Admin_menu_links_close_the_menu_after_navigation()
+    {
+        var layoutText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
+
+        Assert.Contains("private void CloseAdminMenu()", layoutText, StringComparison.Ordinal);
+
+        foreach (var href in new[]
+        {
+            "/chat",
+            "/resume/workspace",
+            "/resume",
+            "/resume/upload",
+            "/resume/edit",
+            "/resume/export",
+            "/settings"
+        })
+        {
+            Assert.Contains($"href=\"{href}\" @onclick=\"CloseAdminMenu\"", layoutText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Admin_menu_closes_when_clicking_outside_menu()
+    {
+        var layoutText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
+        var layoutCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor.css")));
+
+        Assert.Contains("admin-menu-backdrop", layoutText, StringComparison.Ordinal);
+        Assert.Contains("@onclick=\"CloseAdminMenu\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("@onclick:stopPropagation", layoutText, StringComparison.Ordinal);
+        Assert.Contains(".admin-menu-backdrop", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("position: fixed;", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("inset: 0;", layoutCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Resume_workspace_uses_full_bleed_rounded_screen_layout()
+    {
+        var appCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+
+        Assert.Contains(".resume-workspace", appCss, StringComparison.Ordinal);
+        Assert.Contains("width: calc(100vw - 1rem);", appCss, StringComparison.Ordinal);
+        Assert.Contains("min-height: calc(100vh - 6.25rem);", appCss, StringComparison.Ordinal);
+        Assert.Contains("margin-left: calc(-50vw + 0.5rem);", appCss, StringComparison.Ordinal);
+        Assert.Contains("border-radius: 18px;", appCss, StringComparison.Ordinal);
+        Assert.Contains(".workspace-library,", appCss, StringComparison.Ordinal);
+        Assert.Contains(".workspace-editor,", appCss, StringComparison.Ordinal);
+        Assert.Contains(".workspace-outline", appCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Client_uses_floating_top_menu_without_sidebar_or_header_frame()
+    {
+        var indexText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "index.html")));
+        var layoutText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
+        var layoutCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor.css")));
+        var appCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+
+        Assert.Contains("cdn.tailwindcss.com", indexText, StringComparison.Ordinal);
+        Assert.Contains("preflight: false", indexText, StringComparison.Ordinal);
+        Assert.DoesNotContain("<NavMenu", layoutText, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"sidebar\"", layoutText, StringComparison.Ordinal);
+        Assert.DoesNotContain(".sidebar", layoutCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("glass-topbar", layoutText, StringComparison.Ordinal);
+        Assert.Contains("floating-menu public-nav", layoutText, StringComparison.Ordinal);
+        Assert.Contains("floating-theme-control", layoutText, StringComparison.Ordinal);
+        Assert.Contains("ambient-mask", layoutText, StringComparison.Ordinal);
+        Assert.Contains("nav-home", layoutText, StringComparison.Ordinal);
+        Assert.Contains("nav-projects", layoutText, StringComparison.Ordinal);
+        Assert.Contains("nav-skills", layoutText, StringComparison.Ordinal);
+        Assert.Contains(".floating-menu", layoutCss, StringComparison.Ordinal);
+        Assert.Contains(".floating-theme-control", layoutCss, StringComparison.Ordinal);
+        Assert.Contains(".public-nav", appCss, StringComparison.Ordinal);
+        Assert.Contains(".public-nav::before", appCss, StringComparison.Ordinal);
+        Assert.Contains(".top-nav-link::before", appCss, StringComparison.Ordinal);
+        Assert.Contains(":has(.nav-home.active)", appCss, StringComparison.Ordinal);
+        Assert.Contains("perspective(", appCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Client_uses_stitch_obsidian_alabaster_glass_tokens()
+    {
+        var appCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+        var homeText = ReadPage("Home.razor");
+
+        Assert.Contains("--stitch-obsidian-bg: #0b1326", appCss, StringComparison.Ordinal);
+        Assert.Contains("--stitch-alabaster-bg: #f9f9ff", appCss, StringComparison.Ordinal);
+        Assert.Contains("--glass-blur: 32px", appCss, StringComparison.Ordinal);
+        Assert.Contains(".glass-card", appCss, StringComparison.Ordinal);
+        Assert.Contains(".system-dot", appCss, StringComparison.Ordinal);
+        Assert.Contains("artifact-hero", homeText, StringComparison.Ordinal);
+        Assert.Contains("terminal-window", homeText, StringComparison.Ordinal);
+        Assert.Contains("window-controls", homeText, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -169,6 +387,7 @@ public class RouteScaffoldTests
     [Theory]
     [InlineData("Chat.razor")]
     [InlineData("Resume.razor")]
+    [InlineData("ResumeWorkspace.razor")]
     [InlineData("ResumeUpload.razor")]
     [InlineData("ResumeEdit.razor")]
     [InlineData("ResumeExport.razor")]

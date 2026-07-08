@@ -10,9 +10,11 @@ public interface IResumeService
 
     Task<ConvertedResumeFileDto> ConvertUploadAsync(string tenantId, IFormFile file, CancellationToken cancellationToken);
 
-    Task<ResumeDetailDto> SaveAsync(string tenantId, SaveResumeMarkdownRequest request, CancellationToken cancellationToken);
+    Task<ResumeDetailDto> SaveAsync(string tenantId, SaveResumeMarkdownRequest request, int? userId, CancellationToken cancellationToken);
 
-    Task<ResumeDetailDto?> ReplaceMarkdownAsync(string tenantId, int resumeId, SaveResumeMarkdownRequest request, CancellationToken cancellationToken);
+    Task<ResumeDetailDto?> ReplaceMarkdownAsync(string tenantId, int resumeId, SaveResumeMarkdownRequest request, int? userId, CancellationToken cancellationToken);
+
+    Task<MergeResumeMarkdownResponse?> MergePreviewAsync(string tenantId, MergeResumeMarkdownRequest request, CancellationToken cancellationToken);
 
     Task<bool> DeleteAsync(string tenantId, int resumeId, CancellationToken cancellationToken);
 

@@ -1,0 +1,397 @@
+@page "/resume/workspace"
+@inject IResumeApiClient ResumeApiClient
+@inject SessionState SessionState
+
+<PageTitle>Resume Workspace</PageTitle>
+
+<ProtectedArea Title="Resume workspace requires sign in" Description="Resume import, merge and indexing are available only for signed-in users.">
+    <section class="resume-workspace">
+        <aside class="workspace-library mac-window">
+            <div class="window-controls" aria-hidden="true">
+                <span class="dot-red"></span>
+                <span class="dot-yellow"></span>
+                <span class="dot-green"></span>
+            </div>
+            <div class="workspace-panel-heading">
+                <p class="eyebrow">Library</p>
+                <h1>Resume Workspace</h1>
+            </div>
+
+            <label class="import-dropzone">
+                <InputFile OnChange="ImportAsync" multiple />
+                <span>Import files</span>
+                <small>Markdown, text, PDF or Office documents</small>
+            </label>
+
+            <div class="language-slots">
+                @foreach (var language in SupportedLanguages)
+                {
+                    var summary = GetSummary(language.Code);
+                    <button class="language-slot @(selectedKind == WorkspaceItemKind.Canonical && currentLanguage == language.Code ? "active" : "")"
+                            @onclick="() => SelectCanonicalAsync(language.Code)"
+                            disabled="@(summary is null)">
+                        <span>@language.Label</span>
+                        @if (summary is null)
+                        {
+                            <small>Empty</small>
+                        }
+                        else
+                        {
+                            <strong>@summary.Title</strong>
+                            <small>@summary.SectionCount sections</small>
+                        }
+                    </button>
+                }
+            </div>
+
+            @if (drafts.Count > 0)
+            {
+                <div class="draft-list">
+                    <p class="eyebrow">Drafts</p>
+                    @foreach (var draft in drafts)
+                    {
+                        <button class="draft-item @(selectedDraftId == draft.Id ? "active" : "")" @onclick="() => SelectDraft(draft)">
+                            <span>@draft.Title</span>
+                            <small>@LanguageLabel(draft.Language) · @(draft.IsMergePreview ? "merge preview" : "import")</small>
+                        </button>
+                    }
+                </div>
+            }
+        </aside>
+
+        <main class="workspace-editor mac-window">
+            <div class="editor-command-strip">
+                <div>
+                    <p class="eyebrow">Canonical Markdown</p>
+                    <h2>@(string.IsNullOrWhiteSpace(title) ? "Untitled resume" : title)</h2>
+                </div>
+                <div class="editor-actions">
+                    <button class="command-button secondary" @onclick="MergePreviewAsync" disabled="@(!CanMergePreview)">Merge preview</button>
+                    <button class="command-button" @onclick="SaveAsync" disabled="@(!CanSave)">Save</button>
+                </div>
+            </div>
+
+            <div class="editor-form-grid">
+                <label>
+                    <span>Title</span>
+                    <input @bind="title" @bind:event="oninput" />
+                </label>
+                <label>
+                    <span>Language</span>
+                    <select @bind="currentLanguage">
+                        @foreach (var language in SupportedLanguages)
+                        {
+                            <option value="@language.Code">@language.Label</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            <MarkdownEditor @bind-Value="markdown" CssClass="workspace-markdown-editor" Placeholder="Import a resume or start writing Markdown..." />
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <p class="status-line">@message</p>
+            }
+        </main>
+
+        <aside class="workspace-outline mac-window">
+            <div class="workspace-panel-heading">
+                <p class="eyebrow">Outline</p>
+                <h2>Markdown Tree</h2>
+            </div>
+            @{
+                var outline = BuildOutline(markdown);
+            }
+            @if (outline.Count == 0)
+            {
+                <p class="outline-empty">Headings will appear here as you edit.</p>
+            }
+            else
+            {
+                <ol class="outline-tree">
+                    @foreach (var node in outline)
+                    {
+                        <OutlineNode Node="node" />
+                    }
+                </ol>
+            }
+        </aside>
+    </section>
+</ProtectedArea>
+
+@code {
+    private static readonly LanguageOption[] SupportedLanguages =
+    [
+        new(ResumeLanguages.SimplifiedChinese, "Simplified Chinese"),
+        new(ResumeLanguages.English, "English")
+    ];
+
+    private IReadOnlyList<ResumeSummaryDto> summaries = [];
+    private readonly List<WorkspaceDraft> drafts = [];
+    private string title = string.Empty;
+    private string markdown = string.Empty;
+    private string currentLanguage = ResumeLanguages.SimplifiedChinese;
+    private string message = string.Empty;
+    private int? selectedCanonicalId;
+    private int? selectedDraftId;
+    private WorkspaceItemKind selectedKind = WorkspaceItemKind.None;
+    private int nextDraftId = 1;
+
+    private bool CanSave => SessionState.IsAuthenticated && !string.IsNullOrWhiteSpace(markdown) && ResumeLanguages.IsSupported(currentLanguage);
+
+    private bool CanMergePreview =>
+        CanSave
+        && selectedKind == WorkspaceItemKind.Draft
+        && GetSummary(currentLanguage) is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SessionState.RefreshAsync();
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        await RefreshSummariesAsync();
+        var first = summaries.FirstOrDefault();
+        if (first is not null)
+        {
+            await SelectCanonicalAsync(first.Language);
+        }
+    }
+
+    private async Task RefreshSummariesAsync()
+    {
+        summaries = await ResumeApiClient.GetResumesAsync();
+    }
+
+    private ResumeSummaryDto? GetSummary(string language)
+    {
+        return summaries.FirstOrDefault(summary => string.Equals(summary.Language, language, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task SelectCanonicalAsync(string language)
+    {
+        var summary = GetSummary(language);
+        if (summary is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var detail = await ResumeApiClient.GetResumeAsync(summary.Id);
+            var export = await ResumeApiClient.ExportMarkdownAsync(summary.Id);
+            title = detail.Title;
+            currentLanguage = detail.Language;
+            markdown = export.Markdown;
+            selectedCanonicalId = detail.Id;
+            selectedDraftId = null;
+            selectedKind = WorkspaceItemKind.Canonical;
+            message = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task ImportAsync(InputFileChangeEventArgs args)
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        foreach (var file in args.GetMultipleFiles())
+        {
+            try
+            {
+                await using var browserStream = file.OpenReadStream(10 * 1024 * 1024);
+                using var memory = new MemoryStream();
+                await browserStream.CopyToAsync(memory);
+                var contentBase64 = Convert.ToBase64String(memory.ToArray());
+                memory.Position = 0;
+                var converted = await ResumeApiClient.ConvertUploadAsync(file.Name, file.ContentType, memory);
+                var draft = new WorkspaceDraft(
+                    nextDraftId++,
+                    converted.Title,
+                    converted.Markdown,
+                    ResumeLanguages.Normalize(converted.DetectedLanguage),
+                    file.Name,
+                    file.ContentType,
+                    file.Size,
+                    contentBase64,
+                    IsMergePreview: false);
+                drafts.Insert(0, draft);
+                SelectDraft(draft);
+                message = converted.IsDuplicate
+                    ? $"Duplicate file detected. Loaded existing content from {converted.ExistingResumeTitle}."
+                    : "Imported draft. Review before saving.";
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+            }
+        }
+    }
+
+    private void SelectDraft(WorkspaceDraft draft)
+    {
+        selectedDraftId = draft.Id;
+        selectedCanonicalId = null;
+        selectedKind = WorkspaceItemKind.Draft;
+        title = draft.Title;
+        markdown = draft.Markdown;
+        currentLanguage = draft.Language;
+        message = draft.IsMergePreview ? "Review the merge preview, then save to update the canonical resume." : string.Empty;
+    }
+
+    private async Task MergePreviewAsync()
+    {
+        if (!CanMergePreview)
+        {
+            return;
+        }
+
+        try
+        {
+            var preview = await ResumeApiClient.MergePreviewAsync(new MergeResumeMarkdownRequest(
+                currentLanguage,
+                title,
+                markdown,
+                drafts.FirstOrDefault(draft => draft.Id == selectedDraftId)?.SourceFileName));
+            var draft = new WorkspaceDraft(
+                nextDraftId++,
+                preview.MergedTitle,
+                preview.MergedMarkdown,
+                preview.Language,
+                drafts.FirstOrDefault(item => item.Id == selectedDraftId)?.SourceFileName,
+                null,
+                null,
+                null,
+                IsMergePreview: true);
+            drafts.Insert(0, draft);
+            SelectDraft(draft);
+            message = preview.Warnings.Count == 0 ? "Merge preview generated." : string.Join(" ", preview.Warnings);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave)
+        {
+            return;
+        }
+
+        try
+        {
+            var draft = drafts.FirstOrDefault(item => item.Id == selectedDraftId);
+            var detail = await ResumeApiClient.SaveResumeAsync(new SaveResumeMarkdownRequest(
+                title,
+                markdown,
+                currentLanguage,
+                draft?.SourceFileName,
+                draft?.SourceContentType,
+                draft?.SourceFileSize,
+                draft?.SourceFileContentBase64));
+            await RefreshSummariesAsync();
+            selectedCanonicalId = detail.Id;
+            selectedDraftId = null;
+            selectedKind = WorkspaceItemKind.Canonical;
+            title = detail.Title;
+            currentLanguage = detail.Language;
+            message = "Saved, split into sections and re-indexed.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private static string LanguageLabel(string language)
+    {
+        return string.Equals(language, ResumeLanguages.English, StringComparison.OrdinalIgnoreCase)
+            ? "English"
+            : "Simplified Chinese";
+    }
+
+    private static IReadOnlyList<OutlineTreeItem> BuildOutline(string value)
+    {
+        var roots = new List<OutlineTreeItem>();
+        var stack = new Stack<OutlineTreeItem>();
+        var inFence = false;
+
+        foreach (var rawLine in value.Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r');
+            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal))
+            {
+                inFence = !inFence;
+                continue;
+            }
+
+            if (inFence || !line.StartsWith('#'))
+            {
+                continue;
+            }
+
+            var level = line.TakeWhile(ch => ch == '#').Count();
+            if (level is < 1 or > 6 || line.Length <= level || line[level] != ' ')
+            {
+                continue;
+            }
+
+            var text = line[(level + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                continue;
+            }
+
+            var node = new OutlineTreeItem(level, text);
+            while (stack.Count > 0 && stack.Peek().Level >= level)
+            {
+                stack.Pop();
+            }
+
+            if (stack.Count == 0)
+            {
+                roots.Add(node);
+            }
+            else
+            {
+                stack.Peek().Children.Add(node);
+            }
+
+            stack.Push(node);
+        }
+
+        return roots;
+    }
+
+    private sealed record LanguageOption(string Code, string Label);
+
+    private sealed record WorkspaceDraft(
+        int Id,
+        string Title,
+        string Markdown,
+        string Language,
+        string? SourceFileName,
+        string? SourceContentType,
+        long? SourceFileSize,
+        string? SourceFileContentBase64,
+        bool IsMergePreview);
+
+    private enum WorkspaceItemKind
+    {
+        None,
+        Canonical,
+        Draft
+    }
+
+}

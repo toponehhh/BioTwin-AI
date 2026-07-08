@@ -23,7 +23,7 @@ public sealed class SessionState(IAuthApiClient authApiClient)
         }
         catch
         {
-            Current = new CurrentSessionResponse(false, null, null, null, null, UserRole.Candidate, []);
+            Current = new CurrentSessionResponse(false, null, null, null, null, [UserRole.Candidate], []);
         }
 
         Changed?.Invoke();
