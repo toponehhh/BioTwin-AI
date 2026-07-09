@@ -6,6 +6,7 @@ public class RouteScaffoldTests
     [InlineData("Home.razor", "@page \"/\"")]
     [InlineData("Chat.razor", "@page \"/chat\"")]
     [InlineData("Resume.razor", "@page \"/resume\"")]
+    [InlineData("ResumeCreate.razor", "@page \"/resume/create\"")]
     [InlineData("ResumeWorkspace.razor", "@page \"/resume/workspace\"")]
     [InlineData("ResumeUpload.razor", "@page \"/resume/upload\"")]
     [InlineData("ResumeEdit.razor", "@page \"/resume/edit/{ResumeId:int?}\"")]
@@ -104,8 +105,8 @@ public class RouteScaffoldTests
         Assert.Contains("Admin", layoutText, StringComparison.Ordinal);
         Assert.Contains("admin-menu", layoutText, StringComparison.Ordinal);
         Assert.Contains("href=\"/chat\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("href=\"/resume/create\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("href=\"/resume\"", layoutText, StringComparison.Ordinal);
-        Assert.Contains("href=\"/resume/upload\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("href=\"/resume/edit\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("href=\"/resume/export\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("href=\"/settings\"", layoutText, StringComparison.Ordinal);
@@ -294,9 +295,9 @@ public class RouteScaffoldTests
         foreach (var href in new[]
         {
             "/chat",
+            "/resume/create",
             "/resume/workspace",
             "/resume",
-            "/resume/upload",
             "/resume/edit",
             "/resume/export",
             "/settings"
@@ -356,6 +357,21 @@ public class RouteScaffoldTests
             "src", "BioTwin_AI.BlazorClient", "Components", "ResumeWizard", fileName));
 
         Assert.True(File.Exists(componentPath), $"{fileName} should be a focused resume wizard component.");
+    }
+
+    [Fact]
+    public void Resume_creation_page_orchestrates_import_review_and_final_save_in_memory()
+    {
+        var pageText = ReadPage("ResumeCreate.razor");
+
+        Assert.Contains("<NavigationLock", pageText, StringComparison.Ordinal);
+        Assert.Contains("ResumeWizardStepper", pageText, StringComparison.Ordinal);
+        Assert.Contains("ExtractWizardAsync", pageText, StringComparison.Ordinal);
+        Assert.Contains("MergePreviewAsync", pageText, StringComparison.Ordinal);
+        Assert.Contains("SaveResumeAsync", pageText, StringComparison.Ordinal);
+        Assert.Contains("ResumeWizardMarkdownBuilder.Build", pageText, StringComparison.Ordinal);
+        Assert.DoesNotContain("localStorage", pageText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("MarkdownEditor", pageText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -424,6 +440,7 @@ public class RouteScaffoldTests
     [Theory]
     [InlineData("Chat.razor")]
     [InlineData("Resume.razor")]
+    [InlineData("ResumeCreate.razor")]
     [InlineData("ResumeWorkspace.razor")]
     [InlineData("ResumeUpload.razor")]
     [InlineData("ResumeEdit.razor")]

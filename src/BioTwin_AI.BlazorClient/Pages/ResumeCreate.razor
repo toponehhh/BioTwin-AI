@@ -1,0 +1,339 @@
+@page "/resume/create"
+@implements IDisposable
+@using BioTwin_AI.BlazorClient.Components.ResumeWizard
+@inject IResumeApiClient ResumeApiClient
+@inject NavigationManager Navigation
+@inject SessionState SessionState
+@inject IJSRuntime JS
+
+<PageTitle>Create Resume</PageTitle>
+
+<ProtectedArea Title="Resume creation requires sign in" Description="Sign in to create or import a resume.">
+    <NavigationLock ConfirmExternalNavigation="@(state.IsDirty && !isSaving)"
+                    OnBeforeInternalNavigation="ConfirmInternalNavigation" />
+
+    <section class="resume-wizard-page">
+        <header class="workspace-header wizard-page-header">
+            <div>
+                <p class="eyebrow">Resume Builder</p>
+                <h1>Create your resume</h1>
+                <p>Build a focused, language-specific resume without saving unfinished drafts.</p>
+            </div>
+            <a class="text-button" href="/resume/workspace">Advanced workspace</a>
+        </header>
+
+        <div class="resume-wizard-panel">
+            <ResumeWizardStepper State="state" StepSelected="NavigateToStep" />
+
+            @if (isBusy)
+            {
+                <div class="wizard-processing" role="status">
+                    <span class="system-dot active" aria-hidden="true"></span>
+                    <span>@busyMessage</span>
+                </div>
+            }
+
+            @if (errors.Count > 0)
+            {
+                <div class="wizard-message error" role="alert">
+                    @foreach (var error in errors)
+                    {
+                        <p>@error</p>
+                    }
+                    @if (CanRetryExtraction)
+                    {
+                        <button type="button" class="text-button" @onclick="RetryExtractionAsync" disabled="@isBusy">Retry extraction</button>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(statusMessage))
+            {
+                <p class="wizard-message" role="status">@statusMessage</p>
+            }
+
+            <div class="wizard-step-body" aria-busy="@isBusy">
+                @switch (state.CurrentStep)
+                {
+                    case ResumeWizardStep.Start:
+                        <ResumeWizardStartStep State="state" FileSelected="ImportAsync" />
+                        break;
+                    case ResumeWizardStep.Profile:
+                        <ResumeWizardProfileStep State="state" />
+                        break;
+                    case ResumeWizardStep.Summary:
+                        <ResumeWizardSummaryStep State="state" />
+                        break;
+                    case ResumeWizardStep.Experience:
+                        <ResumeWizardExperienceStep State="state" />
+                        break;
+                    case ResumeWizardStep.Education:
+                        <ResumeWizardEducationStep State="state" />
+                        break;
+                    case ResumeWizardStep.SkillsAndProjects:
+                        <ResumeWizardSkillsProjectsStep State="state" />
+                        break;
+                    case ResumeWizardStep.Review:
+                        <ResumeWizardReviewStep State="state" EditStepRequested="NavigateToStep" />
+                        break;
+                }
+            </div>
+
+            <footer class="wizard-actions">
+                <button type="button" class="text-button" @onclick="CancelAsync" disabled="@(isBusy || isSaving)">Cancel</button>
+                <div class="wizard-action-group">
+                    <button type="button"
+                            class="command-button secondary"
+                            @onclick="MoveBack"
+                            disabled="@(state.CurrentStep == ResumeWizardStep.Start || isBusy || isSaving)">
+                        Back
+                    </button>
+                    @if (state.CurrentStep == ResumeWizardStep.Review)
+                    {
+                        <button type="button" class="command-button" @onclick="SaveAsync" disabled="@(isBusy || isSaving)">
+                            @(isSaving ? "Saving..." : "Save resume")
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="command-button" @onclick="ContinueAsync" disabled="@(isBusy || isSaving)">Continue</button>
+                    }
+                </div>
+            </footer>
+        </div>
+    </section>
+</ProtectedArea>
+
+@code {
+    private readonly ResumeWizardState state = ResumeWizardState.CreateBlank();
+    private IReadOnlyList<ResumeSummaryDto> summaries = [];
+    private IReadOnlyList<string> errors = [];
+    private string statusMessage = string.Empty;
+    private string busyMessage = string.Empty;
+    private string sourceMarkdown = string.Empty;
+    private string? sourceFileName;
+    private string? sourceContentType;
+    private long? sourceFileSize;
+    private string? sourceFileContentBase64;
+    private bool summariesLoaded;
+    private bool isBusy;
+    private bool isSaving;
+
+    private bool CanRetryExtraction =>
+        state.CreationMethod == "import" && !string.IsNullOrWhiteSpace(sourceMarkdown);
+
+    protected override async Task OnInitializedAsync()
+    {
+        SessionState.Changed += OnSessionChanged;
+        if (SessionState.IsAuthenticated)
+        {
+            await LoadSummariesAsync();
+        }
+    }
+
+    private async Task LoadSummariesAsync()
+    {
+        if (summariesLoaded || !SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        summaries = await ResumeApiClient.GetResumesAsync();
+        summariesLoaded = true;
+    }
+
+    private void OnSessionChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            if (SessionState.IsAuthenticated)
+            {
+                await LoadSummariesAsync();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task ImportAsync(InputFileChangeEventArgs args)
+    {
+        if (!SessionState.IsAuthenticated)
+        {
+            return;
+        }
+
+        isBusy = true;
+        busyMessage = "Converting and structuring your resume...";
+        errors = [];
+        statusMessage = string.Empty;
+
+        try
+        {
+            await LoadSummariesAsync();
+            var file = args.File;
+            sourceFileName = file.Name;
+            sourceContentType = file.ContentType;
+            sourceFileSize = file.Size;
+
+            await using var browserStream = file.OpenReadStream(10 * 1024 * 1024);
+            using var memory = new MemoryStream();
+            await browserStream.CopyToAsync(memory);
+            sourceFileContentBase64 = Convert.ToBase64String(memory.ToArray());
+
+            memory.Position = 0;
+            var converted = await ResumeApiClient.ConvertUploadAsync(file.Name, file.ContentType, memory);
+            var language = ResumeLanguages.Normalize(converted.DetectedLanguage);
+            sourceMarkdown = converted.Markdown;
+
+            if (summaries.Any(item => string.Equals(item.Language, language, StringComparison.OrdinalIgnoreCase)))
+            {
+                busyMessage = "Merging the new timeline with your existing resume...";
+                var merged = await ResumeApiClient.MergePreviewAsync(new MergeResumeMarkdownRequest(
+                    language,
+                    converted.Title,
+                    sourceMarkdown,
+                    file.Name));
+                sourceMarkdown = merged.MergedMarkdown;
+            }
+
+            await ExtractSourceAsync(sourceMarkdown, language, converted.Title);
+            state.CreationMethod = "import";
+            statusMessage = converted.IsDuplicate
+                ? "The existing file was loaded and structured for review."
+                : "Import complete. Review each section before saving.";
+        }
+        catch (Exception ex)
+        {
+            errors = [ex.Message];
+        }
+        finally
+        {
+            isBusy = false;
+            busyMessage = string.Empty;
+        }
+    }
+
+    private async Task RetryExtractionAsync()
+    {
+        isBusy = true;
+        busyMessage = "Retrying resume extraction...";
+        errors = [];
+        try
+        {
+            await ExtractSourceAsync(sourceMarkdown, state.Language, state.Title);
+            statusMessage = "Extraction complete. Review each section before saving.";
+        }
+        catch (Exception ex)
+        {
+            errors = [ex.Message];
+        }
+        finally
+        {
+            isBusy = false;
+            busyMessage = string.Empty;
+        }
+    }
+
+    private async Task ExtractSourceAsync(string markdown, string language, string? title)
+    {
+        var extracted = await ResumeApiClient.ExtractWizardAsync(new ExtractResumeWizardRequest(
+            markdown,
+            ResumeLanguages.Normalize(language),
+            title));
+        state.Apply(extracted.Resume);
+    }
+
+    private Task ContinueAsync()
+    {
+        var validationErrors = state.ValidateCurrentStep();
+        if (state.CurrentStep == ResumeWizardStep.Start &&
+            state.CreationMethod == "import" &&
+            string.IsNullOrWhiteSpace(sourceMarkdown))
+        {
+            validationErrors = [.. validationErrors, "Choose a resume file before continuing."];
+        }
+
+        errors = validationErrors;
+        if (errors.Count > 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        state.MarkCompleted(state.CurrentStep);
+        state.MoveNext();
+        statusMessage = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private void MoveBack()
+    {
+        errors = [];
+        statusMessage = string.Empty;
+        state.MoveBack();
+    }
+
+    private void NavigateToStep(ResumeWizardStep step)
+    {
+        errors = [];
+        statusMessage = string.Empty;
+        state.NavigateTo(step);
+    }
+
+    private async Task SaveAsync()
+    {
+        isSaving = true;
+        errors = [];
+        try
+        {
+            var dto = state.ToDto();
+            var markdown = ResumeWizardMarkdownBuilder.Build(dto);
+            await ResumeApiClient.SaveResumeAsync(new SaveResumeMarkdownRequest(
+                dto.Title,
+                markdown,
+                dto.Language,
+                sourceFileName,
+                sourceContentType,
+                sourceFileSize,
+                sourceFileContentBase64));
+            state.MarkSaved();
+            Navigation.NavigateTo("/resume/workspace");
+        }
+        catch (Exception ex)
+        {
+            errors = [ex.Message];
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        if (state.IsDirty && !await JS.InvokeAsync<bool>("confirm", "Leave resume creation? Unsaved information will be lost."))
+        {
+            return;
+        }
+
+        state.MarkSaved();
+        Navigation.NavigateTo("/resume");
+    }
+
+    private async Task ConfirmInternalNavigation(LocationChangingContext context)
+    {
+        if (!state.IsDirty || isSaving)
+        {
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Leave resume creation? Unsaved information will be lost.");
+        if (!confirmed)
+        {
+            context.PreventNavigation();
+        }
+    }
+
+    public void Dispose()
+    {
+        SessionState.Changed -= OnSessionChanged;
+    }
+}

@@ -74,6 +74,7 @@
                     {
                         <span class="mobile-session-label">@SessionState.DisplayName</span>
                         <a href="/chat" @onclick="CloseNavigationMenus">Chat</a>
+                        <a href="/resume/create" @onclick="CloseNavigationMenus">Create Resume</a>
                         <a href="/resume/workspace" @onclick="CloseNavigationMenus">Resume Workspace</a>
                         <a href="/resume" @onclick="CloseNavigationMenus">Resume Library</a>
                         <a href="/settings" @onclick="CloseNavigationMenus">Settings</a>
@@ -103,9 +104,9 @@
                             <div class="admin-menu profile-menu" role="menu">
                                 <span class="session-pill">Welcome @SessionState.DisplayName</span>
                                 <a class="profile-menu-item" role="menuitem" href="/chat" @onclick="CloseAdminMenu">Chat</a>
+                                <a class="profile-menu-item" role="menuitem" href="/resume/create" @onclick="CloseAdminMenu">Create Resume</a>
                                 <a class="profile-menu-item" role="menuitem" href="/resume/workspace" @onclick="CloseAdminMenu">Resume Workspace</a>
                                 <a class="profile-menu-item" role="menuitem" href="/resume" @onclick="CloseAdminMenu">Resume Library</a>
-                                <a class="profile-menu-item" role="menuitem" href="/resume/upload" @onclick="CloseAdminMenu">Upload</a>
                                 <a class="profile-menu-item" role="menuitem" href="/resume/edit" @onclick="CloseAdminMenu">Edit</a>
                                 <a class="profile-menu-item" role="menuitem" href="/resume/export" @onclick="CloseAdminMenu">Export</a>
                                 <a class="profile-menu-item" role="menuitem" href="/settings" @onclick="CloseAdminMenu">Settings</a>
