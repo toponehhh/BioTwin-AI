@@ -29,6 +29,28 @@ public class RouteScaffoldTests
     }
 
     [Fact]
+    public void Client_uses_fixed_obsidian_header_and_shared_content_axes()
+    {
+        var layoutText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
+        var layoutCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor.css")));
+
+        Assert.Contains("site-header", layoutText, StringComparison.Ordinal);
+        Assert.Contains("site-header-inner", layoutText, StringComparison.Ordinal);
+        Assert.Contains("site-container", layoutText, StringComparison.Ordinal);
+        Assert.Contains("site-container-wide", layoutText, StringComparison.Ordinal);
+        Assert.Contains("mobile-menu-toggle", layoutText, StringComparison.Ordinal);
+        Assert.Contains("ContentContainerClass", layoutText, StringComparison.Ordinal);
+        Assert.Contains("CloseNavigationMenus", layoutText, StringComparison.Ordinal);
+        Assert.Contains("aria-expanded", layoutText, StringComparison.Ordinal);
+        Assert.Contains("position: fixed", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("max-width: 1200px", layoutCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("floating-menu", layoutText, StringComparison.Ordinal);
+        Assert.DoesNotContain("lamp-theme-toggle", layoutText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Client_logging_defaults_to_information_and_reports_startup_success()
     {
         var programText = File.ReadAllText(Path.GetFullPath(
@@ -42,26 +64,21 @@ public class RouteScaffoldTests
     }
 
     [Fact]
-    public void Header_uses_pull_cord_lamp_theme_toggle()
+    public void Header_uses_compact_accessible_theme_toggle()
     {
         var layoutText = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
-        var appCss = File.ReadAllText(Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+        var layoutCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor.css")));
 
-        Assert.Contains("lamp-theme-toggle", layoutText, StringComparison.Ordinal);
-        Assert.Contains("lamp-cord", layoutText, StringComparison.Ordinal);
-        Assert.Contains("lamp-pull", layoutText, StringComparison.Ordinal);
+        Assert.Contains("theme-icon-button", layoutText, StringComparison.Ordinal);
+        Assert.Contains("title=\"@ThemeToggleLabel\"", layoutText, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@ThemeToggleLabel\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("@onclick=\"ToggleTheme\"", layoutText, StringComparison.Ordinal);
-        Assert.DoesNotContain("<button class=\"theme-toggle\" @onclick=\"ToggleTheme\"", layoutText, StringComparison.Ordinal);
-        Assert.Contains("@keyframes lampCordPull", appCss, StringComparison.Ordinal);
-        Assert.Contains("@keyframes lampShadeSwing", appCss, StringComparison.Ordinal);
-        Assert.Contains(".lamp-theme-toggle.lamp-on", appCss, StringComparison.Ordinal);
-        Assert.Contains("border: 0;", appCss, StringComparison.Ordinal);
-        Assert.Contains("background: transparent;", appCss, StringComparison.Ordinal);
-        Assert.Contains("height: 5.55rem;", appCss, StringComparison.Ordinal);
-        Assert.Contains("top: 4.8rem;", appCss, StringComparison.Ordinal);
-        Assert.Contains(".lamp-cord::after", appCss, StringComparison.Ordinal);
+        Assert.Contains(".theme-icon-button", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("border-radius: 50%", layoutCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("lamp-theme-toggle", layoutText, StringComparison.Ordinal);
+        Assert.DoesNotContain("lamp-cord", layoutText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -306,23 +323,24 @@ public class RouteScaffoldTests
     }
 
     [Fact]
-    public void Resume_workspace_uses_full_bleed_rounded_screen_layout()
+    public void Resume_workspace_uses_bounded_wide_responsive_layout()
     {
         var appCss = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
 
         Assert.Contains(".resume-workspace", appCss, StringComparison.Ordinal);
-        Assert.Contains("width: calc(100vw - 1rem);", appCss, StringComparison.Ordinal);
-        Assert.Contains("min-height: calc(100vh - 6.25rem);", appCss, StringComparison.Ordinal);
-        Assert.Contains("margin-left: calc(-50vw + 0.5rem);", appCss, StringComparison.Ordinal);
-        Assert.Contains("border-radius: 18px;", appCss, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(220px, 280px);", appCss, StringComparison.Ordinal);
+        Assert.Contains("min-height: calc(100vh - 9rem);", appCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("width: calc(100vw - 1rem);", appCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("margin-left: calc(-50vw", appCss, StringComparison.Ordinal);
+        Assert.Contains("border-radius: var(--panel-radius);", appCss, StringComparison.Ordinal);
         Assert.Contains(".workspace-library,", appCss, StringComparison.Ordinal);
         Assert.Contains(".workspace-editor,", appCss, StringComparison.Ordinal);
         Assert.Contains(".workspace-outline", appCss, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Client_uses_floating_top_menu_without_sidebar_or_header_frame()
+    public void Client_uses_fixed_header_without_sidebar_or_floating_controls()
     {
         var indexText = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "index.html")));
@@ -330,28 +348,23 @@ public class RouteScaffoldTests
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
         var layoutCss = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor.css")));
-        var appCss = File.ReadAllText(Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
-
         Assert.Contains("cdn.tailwindcss.com", indexText, StringComparison.Ordinal);
         Assert.Contains("preflight: false", indexText, StringComparison.Ordinal);
         Assert.DoesNotContain("<NavMenu", layoutText, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"sidebar\"", layoutText, StringComparison.Ordinal);
         Assert.DoesNotContain(".sidebar", layoutCss, StringComparison.Ordinal);
-        Assert.DoesNotContain("glass-topbar", layoutText, StringComparison.Ordinal);
-        Assert.Contains("floating-menu public-nav", layoutText, StringComparison.Ordinal);
-        Assert.Contains("floating-theme-control", layoutText, StringComparison.Ordinal);
-        Assert.Contains("ambient-mask", layoutText, StringComparison.Ordinal);
+        Assert.Contains("site-header", layoutText, StringComparison.Ordinal);
+        Assert.Contains("site-header-inner", layoutText, StringComparison.Ordinal);
+        Assert.Contains("site-nav", layoutText, StringComparison.Ordinal);
+        Assert.Contains("mobile-menu-toggle", layoutText, StringComparison.Ordinal);
         Assert.Contains("nav-home", layoutText, StringComparison.Ordinal);
         Assert.Contains("nav-projects", layoutText, StringComparison.Ordinal);
         Assert.Contains("nav-skills", layoutText, StringComparison.Ordinal);
-        Assert.Contains(".floating-menu", layoutCss, StringComparison.Ordinal);
-        Assert.Contains(".floating-theme-control", layoutCss, StringComparison.Ordinal);
-        Assert.Contains(".public-nav", appCss, StringComparison.Ordinal);
-        Assert.Contains(".public-nav::before", appCss, StringComparison.Ordinal);
-        Assert.Contains(".top-nav-link::before", appCss, StringComparison.Ordinal);
-        Assert.Contains(":has(.nav-home.active)", appCss, StringComparison.Ordinal);
-        Assert.Contains("perspective(", appCss, StringComparison.Ordinal);
+        Assert.Contains(".site-header", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("backdrop-filter: blur(24px)", layoutCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("floating-menu", layoutText, StringComparison.Ordinal);
+        Assert.DoesNotContain("floating-theme-control", layoutText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ambient-mask", layoutText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -364,6 +377,11 @@ public class RouteScaffoldTests
         Assert.Contains("--stitch-obsidian-bg: #0b1326", appCss, StringComparison.Ordinal);
         Assert.Contains("--stitch-alabaster-bg: #f9f9ff", appCss, StringComparison.Ordinal);
         Assert.Contains("--glass-blur: 32px", appCss, StringComparison.Ordinal);
+        Assert.Contains("--site-content-max: 1200px", appCss, StringComparison.Ordinal);
+        Assert.Contains("--site-workspace-max: 1600px", appCss, StringComparison.Ordinal);
+        Assert.Contains("--panel-radius: 8px", appCss, StringComparison.Ordinal);
+        Assert.Contains("--control-height: 2.875rem", appCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("@keyframes lampCordPull", appCss, StringComparison.Ordinal);
         Assert.Contains(".glass-card", appCss, StringComparison.Ordinal);
         Assert.Contains(".system-dot", appCss, StringComparison.Ordinal);
         Assert.Contains("artifact-hero", homeText, StringComparison.Ordinal);
