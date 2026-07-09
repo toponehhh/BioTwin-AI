@@ -11,16 +11,18 @@ This redesign uses the Obsidian Glass references under `C:\Tools\stitch_modern_g
 - Establish a shared Header, content axis, page spacing, and responsive model.
 - Align standard pages to one `1200px` content axis.
 - Allow the resume workspace to expand to approximately `1600px` within the same site shell.
+- Guide users through creating a resume from scratch or an existing file without placing import, entry, review, and advanced editing on one page.
 - Unify panels, forms, buttons, menus, and dialogs under the Obsidian Glass visual language.
 - Preserve existing routes, authorization, data contracts, and workflows.
 - Prevent overlap, overflow, and unusable editor space on desktop, tablet, and mobile.
 
 ## Non-Goals
 
-- Do not change backend behavior for candidate profiles, resumes, authentication, or RAG.
+- Do not change the established semantics of canonical resume saving, language uniqueness, section splitting, vector generation, candidate presentation data, or profile-hash updates; only add non-persistent contracts needed to prefill the wizard.
 - Do not redesign page information architecture or add business features.
 - Do not require every page to use the same internal grid.
 - Do not introduce a new frontend framework; continue using the existing Blazor and styling toolchain.
+- The first version does not persist incomplete wizard drafts or resume progress across sessions.
 
 ## Selected Approach
 
@@ -67,6 +69,51 @@ Resume Workspace uses `site-container-wide` and keeps the library, Markdown edit
 
 The editor has stable minimum height and width. Toolbars, titles, and dynamic status content must not cause layout shifts.
 
+### Resume Creation Wizard
+
+Initial resume creation and import no longer open directly in the three-column Resume Workspace. They use a step-by-step wizard inside the standard `site-container`. After a canonical resume is saved, the wide workspace remains available for advanced Markdown editing, outline inspection, same-language merging, and re-indexing.
+
+The wizard supports two entry paths:
+
+- `Import existing resume`: upload a Markdown, text, PDF, or Office file; convert and extract its content; then prefill later steps.
+- `Start from scratch`: begin with an empty structure and complete it step by step.
+
+Both paths converge on the same seven-step flow:
+
+1. `Start`: choose the creation method and resume language.
+2. `Profile`: enter name, contact details, location, and public links.
+3. `Summary`: enter professional positioning and career summary.
+4. `Experience`: maintain roles and achievement highlights in reverse chronological order.
+5. `Education`: maintain education, training, and certifications.
+6. `Skills & Projects`: maintain skills, projects, and optional supporting content.
+7. `Review`: preview the final Markdown, correct content, and confirm the save.
+
+Navigation is semi-linear. The current step must pass validation before continuing; completed steps may be revisited or clicked; unreached steps cannot be skipped to. Desktop shows a connected horizontal stepper at the top of the wizard panel. Completed steps use check marks, while the current step shows its number, title, and `Step n of 7`. Mobile replaces the seven labels with the current step title, `n / 7`, and one progress bar.
+
+Fully linear navigation and unrestricted step jumping were also considered. Fully linear navigation makes correcting earlier content unnecessarily difficult, while unrestricted jumping makes validation and step dependencies unclear, so neither is selected.
+
+A stable action bar appears at the bottom of the wizard. `Cancel` is on the left, while `Back` and the primary `Continue` action are on the right. The final primary action becomes `Save resume`. Leaving or refreshing a wizard with unsubmitted changes shows a confirmation prompt.
+
+The first version does not save wizard drafts. All step state exists only in the current Blazor session; refreshing, leaving, or closing the page discards unsubmitted content. Only confirmation on `Review` writes the canonical `ResumeEntry`, splits sections, generates vectors, refreshes candidate presentation data, and changes the profile hash.
+
+When a canonical resume already exists for the selected language, final save still enforces one resume per user per language. Imported content first produces an AI merge result and enters the same review steps; final confirmation updates the existing canonical resume instead of creating a second record for that language.
+
+`Review` generates a read-only final resume preview from structured wizard state and provides a route back to the corresponding step for each section. The first version does not embed the full Markdown editor inside the wizard. After saving the canonical resume, the user can open the advanced Resume Workspace to edit Markdown and inspect the outline. This prevents structured fields and hand-edited Markdown from overwriting one another before save.
+
+### Wizard State and Data Flow
+
+The frontend maintains one `ResumeWizardState` for the current session. It contains the creation method, language, profile details, summary, experience, education, skills, projects, current step, and highest completed step. The wizard shell owns navigation and validation, while each step is a focused component that reads and writes only its section.
+
+Blank creation initializes an empty state. File import first reuses the existing conversion API to obtain Markdown and a detected language, then calls a non-persistent structured extraction operation to prefill `ResumeWizardState`. If a canonical resume already exists for that language, the flow first reuses AI merge preview to combine canonical and imported Markdown, then extracts wizard fields from the merged result.
+
+If structured extraction fails, the converted Markdown remains in the current session and the user can retry or continue from blank fields. Step validation errors appear only on the current step. If final save fails, the complete in-memory state and current step remain available for correction or retry.
+
+`Review` deterministically generates Markdown from the structured state. On confirmation, the frontend calls the existing canonical save flow; the backend performs same-language create or update, section splitting, vector generation, candidate presentation refresh, and profile-hash update. Wizard APIs do not write to the database before final save.
+
+Approved desktop visual preview:
+
+![Resume creation wizard desktop preview](assets/2026-07-09-resume-creation-wizard-preview.png)
+
 ## Visual System
 
 Design tokens centrally define backgrounds, surfaces, text, borders, accent colors, shadows, radii, spacing, and control heights. The dark theme uses low-saturation near-black and ink-blue backgrounds; the light theme uses cool white and pale violet-gray surfaces. Both themes maintain sufficient text and control contrast.
@@ -99,6 +146,8 @@ Primary changes are limited to:
 - `Layout/MainLayout.razor.css`: fixed Header, container widths, and mobile navigation.
 - `wwwroot/css/app.css`: design tokens, shared panels, forms, and page rhythm.
 - Page Razor files: add explicit standard or wide layout markers and remove wrappers that conflict with the global shell.
+- Resume creation frontend: split creation method, stepper, step forms, in-session state, and final review into focused wizard components; keep the advanced Markdown workspace separate.
+- Shared contracts: add a structured `ResumeWizardDto` and non-persistent Markdown-to-wizard extraction request and response; final save continues using the existing canonical resume save contract.
 - Related component tests: update assertions for the Header, Admin menu, and page containers.
 
 No existing pages are removed and no API calls are changed.
@@ -111,12 +160,18 @@ No existing pages are removed and no API calls are changed.
 - Inspect Home, Projects, Skills, Chat, Settings, Resume Library, and Resume Workspace.
 - Check content axes, fixed Header behavior, text overflow, and interaction areas at desktop, tablet, and mobile viewport sizes.
 - Check three-column, two-column, and one-column Resume Workspace states and confirm the Markdown editor remains usable.
+- Check both blank creation and file-import wizard paths and confirm imported content prefills the same steps.
+- Check semi-linear navigation, step validation, backward editing, unsaved-leave confirmation, and mobile progress presentation.
+- Confirm that no canonical resume, sections, vectors, or profile hash changes are written before `Review` confirmation.
+- Check structured extraction, extraction after same-language merge preview, extraction retry, and preservation of in-memory state after final-save failure.
 - Check contrast, borders, glass treatment, and focus states in both themes.
 
 ## Acceptance Criteria
 
 - Standard-page edges, Header content, and page headings align precisely on desktop.
 - Resume Workspace is visibly wider while sharing the same Header, background, gutters, and visual system.
+- Resume creation uses a seven-step wizard that presents only the content and actions required for the current step.
+- Import and blank creation share one step model; only final confirmation saves and triggers indexing and profile-hash changes.
 - The old floating brand block, pill navigation, and hanging-lamp theme switch are absent.
 - All visible panels use consistent radii, borders, and surface treatment.
 - Header controls and page content do not overlap on mobile.

@@ -1,5 +1,7 @@
 # Resume Workspace Import and Markdown Editor Design
 
+> 2026-07-09 status update: the original single-page Resume Workspace design for initial creation, import, editing, and review has been superseded by the step-by-step resume creation wizard. The approved wizard specification and preview are in the [Unified Site Layout Design](2026-07-09-unified-site-layout-design.en.md#resume-creation-wizard). The rules in this document for one canonical resume per user and language, Markdown editing, outline navigation, AI same-language merge, section splitting, and vector generation continue to apply to the advanced Resume Workspace after the canonical resume is saved.
+
 ## Summary
 
 Build a unified Resume Workspace for signed-in users. The workspace replaces the split upload/edit flow with one place to import files, review or edit Markdown, inspect the Markdown outline, and save the canonical resume for a language.
