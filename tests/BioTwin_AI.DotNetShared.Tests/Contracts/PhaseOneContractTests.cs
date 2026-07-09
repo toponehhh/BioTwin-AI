@@ -168,6 +168,55 @@ public class PhaseOneContractTests
     }
 
     [Fact]
+    public void Resume_wizard_contract_builds_deterministic_markdown()
+    {
+        var wizard = new ResumeWizardDto(
+            Title: "Donald Huang",
+            Language: ResumeLanguages.English,
+            Profile: new ResumeWizardProfileDto(
+                FullName: "Donald Huang",
+                Email: "donald@example.com",
+                Location: "Shanghai",
+                Website: "https://example.com"),
+            Summary: "Cloud and AI engineer.",
+            Experiences:
+            [
+                new ResumeWizardExperienceDto(
+                    Company: "BioTwin",
+                    Role: "Engineer",
+                    StartDate: "2024-01",
+                    EndDate: null,
+                    Highlights: ["Built local AI systems."])
+            ],
+            Education:
+            [
+                new ResumeWizardEducationDto(
+                    Institution: "Example University",
+                    Qualification: "Computer Science",
+                    StartDate: "2020",
+                    EndDate: "2024")
+            ],
+            Skills: ["C#", "Azure"],
+            Projects:
+            [
+                new ResumeWizardProjectDto(
+                    Name: "BioTwin AI",
+                    Description: "Resume intelligence workspace.",
+                    Technologies: ["C#", "Blazor"])
+            ],
+            AdditionalSections: []);
+
+        var markdown = ResumeWizardMarkdownBuilder.Build(wizard);
+        var extraction = new ExtractResumeWizardResponse(wizard, []);
+
+        Assert.Contains("# Donald Huang", markdown, StringComparison.Ordinal);
+        Assert.Contains("## Experience", markdown, StringComparison.Ordinal);
+        Assert.Contains("### Engineer - BioTwin", markdown, StringComparison.Ordinal);
+        Assert.Contains("## Skills", markdown, StringComparison.Ordinal);
+        Assert.Equal(ResumeLanguages.English, extraction.Resume.Language);
+    }
+
+    [Fact]
     public void Client_log_contract_carries_browser_log_details_to_the_api()
     {
         var request = new ClientLogEntryRequest(
