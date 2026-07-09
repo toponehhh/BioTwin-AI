@@ -126,6 +126,7 @@ builder.Services.AddSingleton<IEmbeddingService>(provider =>
     return provider.GetRequiredService<HashingEmbeddingService>();
 });
 builder.Services.AddScoped<IResumeService, ResumeService>();
+builder.Services.AddScoped<IResumeWizardExtractionService, ResumeWizardExtractionService>();
 builder.Services.AddScoped<IRagSearchService, RagSearchService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IResumePdfService, ResumePdfService>();

@@ -8,7 +8,9 @@ namespace BioTwin_AI.AspNetCoreApi.Controllers;
 
 [ApiController]
 [Route("api/resumes")]
-public sealed class ResumesController(IResumeService resumeService) : ControllerBase
+public sealed class ResumesController(
+    IResumeService resumeService,
+    IResumeWizardExtractionService wizardExtractionService) : ControllerBase
 {
     [HttpGet]
     [Authorize]
@@ -30,6 +32,15 @@ public sealed class ResumesController(IResumeService resumeService) : Controller
     public async Task<ActionResult<ConvertedResumeFileDto>> ConvertUpload(IFormFile file, CancellationToken cancellationToken)
     {
         return Ok(await resumeService.ConvertUploadAsync(GetTenantId(), file, cancellationToken));
+    }
+
+    [HttpPost("wizard/extract")]
+    [Authorize]
+    public async Task<ActionResult<ExtractResumeWizardResponse>> ExtractWizard(
+        ExtractResumeWizardRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await wizardExtractionService.ExtractAsync(request, cancellationToken));
     }
 
     [HttpPost]
