@@ -1,0 +1,52 @@
+<section class="wizard-step-content" aria-labelledby="wizard-education-title">
+    <div class="wizard-section-heading wizard-section-heading-row">
+        <div>
+            <p class="eyebrow">Step 5</p>
+            <h2 id="wizard-education-title">Education</h2>
+            <p>Add formal education, training, or certifications that support your story.</p>
+        </div>
+        <button type="button" class="command-button secondary" @onclick="AddEducation">Add education</button>
+    </div>
+
+    @if (State.Education.Count == 0)
+    {
+        <div class="wizard-empty-state">No education entries added yet. This step can be skipped.</div>
+    }
+
+    @foreach (var education in State.Education)
+    {
+        <fieldset class="wizard-repeatable-group">
+            <legend>@(string.IsNullOrWhiteSpace(education.Institution) ? "Education" : education.Institution)</legend>
+            <div class="wizard-form-grid">
+                <label>Institution <input value="@education.Institution" @oninput="args => Set(args, value => education.Institution = value)" /></label>
+                <label>Qualification <input value="@education.Qualification" @oninput="args => Set(args, value => education.Qualification = value)" /></label>
+                <label>Start date <input value="@education.StartDate" @oninput="args => Set(args, value => education.StartDate = value)" /></label>
+                <label>End date <input value="@education.EndDate" @oninput="args => Set(args, value => education.EndDate = value)" /></label>
+            </div>
+            <button type="button" class="text-button danger" @onclick="() => RemoveEducation(education)">Remove education</button>
+        </fieldset>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    private void AddEducation()
+    {
+        State.Education.Add(new ResumeWizardEducationForm());
+        State.MarkDirty();
+    }
+
+    private void RemoveEducation(ResumeWizardEducationForm education)
+    {
+        State.Education.Remove(education);
+        State.MarkDirty();
+    }
+
+    private void Set(ChangeEventArgs args, Action<string> setter)
+    {
+        setter(args.Value?.ToString() ?? string.Empty);
+        State.MarkDirty();
+    }
+}

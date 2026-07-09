@@ -1,0 +1,59 @@
+<ol class="wizard-stepper" aria-label="Resume creation progress">
+    @foreach (var item in Steps)
+    {
+        <li class="@GetStepClass(item.Step)">
+            <button type="button"
+                    disabled="@(!State.CanNavigateTo(item.Step))"
+                    aria-current="@(item.Step == State.CurrentStep ? "step" : null)"
+                    @onclick="() => StepSelected.InvokeAsync(item.Step)">
+                <span class="wizard-step-marker">@(State.IsCompleted(item.Step) ? (MarkupString)"&#10003;" : (MarkupString)item.Number.ToString())</span>
+                <span class="wizard-step-label">@item.Label</span>
+            </button>
+        </li>
+    }
+</ol>
+
+<div class="wizard-mobile-progress" aria-live="polite">
+    <span>@CurrentItem.Label</span>
+    <strong>@CurrentItem.Number / @Steps.Length</strong>
+    <progress max="@Steps.Length" value="@CurrentItem.Number">@CurrentItem.Number of @Steps.Length</progress>
+</div>
+
+@code {
+    private static readonly WizardStepItem[] Steps =
+    [
+        new(ResumeWizardStep.Start, 1, "Start"),
+        new(ResumeWizardStep.Profile, 2, "Profile"),
+        new(ResumeWizardStep.Summary, 3, "Summary"),
+        new(ResumeWizardStep.Experience, 4, "Experience"),
+        new(ResumeWizardStep.Education, 5, "Education"),
+        new(ResumeWizardStep.SkillsAndProjects, 6, "Skills & Projects"),
+        new(ResumeWizardStep.Review, 7, "Review")
+    ];
+
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<ResumeWizardStep> StepSelected { get; set; }
+
+    private WizardStepItem CurrentItem => Steps.Single(item => item.Step == State.CurrentStep);
+
+    private string GetStepClass(ResumeWizardStep step)
+    {
+        var classes = new List<string> { "wizard-step" };
+        if (step == State.CurrentStep)
+        {
+            classes.Add("is-active");
+        }
+
+        if (State.IsCompleted(step))
+        {
+            classes.Add("is-complete");
+        }
+
+        return string.Join(' ', classes);
+    }
+
+    private sealed record WizardStepItem(ResumeWizardStep Step, int Number, string Label);
+}

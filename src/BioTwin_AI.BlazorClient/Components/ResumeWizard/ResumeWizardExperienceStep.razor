@@ -1,0 +1,53 @@
+<section class="wizard-step-content" aria-labelledby="wizard-experience-title">
+    <div class="wizard-section-heading wizard-section-heading-row">
+        <div>
+            <p class="eyebrow">Step 4</p>
+            <h2 id="wizard-experience-title">Work experience</h2>
+            <p>Add roles in reverse chronological order.</p>
+        </div>
+        <button type="button" class="command-button secondary" @onclick="AddExperience">Add experience</button>
+    </div>
+
+    @if (State.Experiences.Count == 0)
+    {
+        <div class="wizard-empty-state">No experience added yet. This step can be skipped.</div>
+    }
+
+    @foreach (var experience in State.Experiences)
+    {
+        <fieldset class="wizard-repeatable-group">
+            <legend>@(string.IsNullOrWhiteSpace(experience.Role) ? "Experience" : experience.Role)</legend>
+            <div class="wizard-form-grid">
+                <label>Company <input value="@experience.Company" @oninput="args => Set(args, value => experience.Company = value)" /></label>
+                <label>Role <input value="@experience.Role" @oninput="args => Set(args, value => experience.Role = value)" /></label>
+                <label>Start date <input value="@experience.StartDate" @oninput="args => Set(args, value => experience.StartDate = value)" /></label>
+                <label>End date <input value="@experience.EndDate" @oninput="args => Set(args, value => experience.EndDate = value)" placeholder="Present" /></label>
+            </div>
+            <label>Highlights <textarea rows="5" value="@experience.HighlightsText" @oninput="args => Set(args, value => experience.HighlightsText = value)" placeholder="One achievement per line"></textarea></label>
+            <button type="button" class="text-button danger" @onclick="() => RemoveExperience(experience)">Remove experience</button>
+        </fieldset>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    private void AddExperience()
+    {
+        State.Experiences.Add(new ResumeWizardExperienceForm());
+        State.MarkDirty();
+    }
+
+    private void RemoveExperience(ResumeWizardExperienceForm experience)
+    {
+        State.Experiences.Remove(experience);
+        State.MarkDirty();
+    }
+
+    private void Set(ChangeEventArgs args, Action<string> setter)
+    {
+        setter(args.Value?.ToString() ?? string.Empty);
+        State.MarkDirty();
+    }
+}

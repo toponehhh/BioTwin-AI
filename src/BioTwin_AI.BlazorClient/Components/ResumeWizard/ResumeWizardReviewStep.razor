@@ -1,0 +1,27 @@
+<section class="wizard-step-content" aria-labelledby="wizard-review-title">
+    <div class="wizard-section-heading">
+        <p class="eyebrow">Step 7</p>
+        <h2 id="wizard-review-title">Review your resume</h2>
+        <p>Check the generated document before saving. You can return to any completed section.</p>
+    </div>
+
+    <div class="wizard-review-toolbar">
+        <button type="button" class="text-button" @onclick="() => EditStepRequested.InvokeAsync(ResumeWizardStep.Profile)">Edit profile</button>
+        <button type="button" class="text-button" @onclick="() => EditStepRequested.InvokeAsync(ResumeWizardStep.Summary)">Edit summary</button>
+        <button type="button" class="text-button" @onclick="() => EditStepRequested.InvokeAsync(ResumeWizardStep.Experience)">Edit experience</button>
+        <button type="button" class="text-button" @onclick="() => EditStepRequested.InvokeAsync(ResumeWizardStep.Education)">Edit education</button>
+        <button type="button" class="text-button" @onclick="() => EditStepRequested.InvokeAsync(ResumeWizardStep.SkillsAndProjects)">Edit skills & projects</button>
+    </div>
+
+    <pre class="wizard-markdown-preview">@Markdown</pre>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<ResumeWizardStep> EditStepRequested { get; set; }
+
+    private string Markdown => ResumeWizardMarkdownBuilder.Build(State.ToDto());
+}

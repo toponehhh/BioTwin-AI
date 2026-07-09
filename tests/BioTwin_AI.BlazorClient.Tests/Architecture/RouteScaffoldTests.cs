@@ -339,6 +339,25 @@ public class RouteScaffoldTests
         Assert.Contains(".workspace-outline", appCss, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("ResumeWizardStepper.razor")]
+    [InlineData("ResumeWizardStartStep.razor")]
+    [InlineData("ResumeWizardProfileStep.razor")]
+    [InlineData("ResumeWizardSummaryStep.razor")]
+    [InlineData("ResumeWizardExperienceStep.razor")]
+    [InlineData("ResumeWizardEducationStep.razor")]
+    [InlineData("ResumeWizardSkillsProjectsStep.razor")]
+    [InlineData("ResumeWizardReviewStep.razor")]
+    public void Resume_wizard_uses_focused_components(string fileName)
+    {
+        var componentPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "BioTwin_AI.BlazorClient", "Components", "ResumeWizard", fileName));
+
+        Assert.True(File.Exists(componentPath), $"{fileName} should be a focused resume wizard component.");
+    }
+
     [Fact]
     public void Client_uses_fixed_header_without_sidebar_or_floating_controls()
     {

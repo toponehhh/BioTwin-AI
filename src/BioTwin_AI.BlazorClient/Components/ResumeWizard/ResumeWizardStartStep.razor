@@ -1,0 +1,69 @@
+<section class="wizard-step-content" aria-labelledby="wizard-start-title">
+    <div class="wizard-section-heading">
+        <p class="eyebrow">Step 1</p>
+        <h2 id="wizard-start-title">How would you like to begin?</h2>
+        <p>Start with a clean form or let BioTwin structure an existing resume for you.</p>
+    </div>
+
+    <div class="wizard-choice-grid">
+        <label class="wizard-choice-card @(State.CreationMethod == "blank" ? "is-selected" : null)">
+            <input type="radio" name="creation-method" value="blank" checked="@(State.CreationMethod == "blank")" @onchange="SelectBlank" />
+            <span class="wizard-choice-icon" aria-hidden="true">+</span>
+            <strong>Start from scratch</strong>
+            <small>Build the resume one focused section at a time.</small>
+        </label>
+        <label class="wizard-choice-card @(State.CreationMethod == "import" ? "is-selected" : null)">
+            <input type="radio" name="creation-method" value="import" checked="@(State.CreationMethod == "import")" @onchange="SelectImport" />
+            <span class="wizard-choice-icon" aria-hidden="true">&#8593;</span>
+            <strong>Import a resume</strong>
+            <small>Upload a supported file and review the extracted information.</small>
+        </label>
+    </div>
+
+    <div class="wizard-form-grid wizard-start-options">
+        <label>
+            Resume language
+            <select value="@State.Language" @onchange="ChangeLanguage">
+                <option value="@ResumeLanguages.SimplifiedChinese">Simplified Chinese</option>
+                <option value="@ResumeLanguages.English">English</option>
+            </select>
+        </label>
+
+        @if (State.CreationMethod == "import")
+        {
+            <label class="wizard-file-picker">
+                Resume file
+                <InputFile OnChange="ImportSelected" accept=".md,.markdown,.txt,.pdf,.doc,.docx" />
+                <small>Markdown, text, PDF, Word, or DOCX.</small>
+            </label>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<InputFileChangeEventArgs> FileSelected { get; set; }
+
+    private void SelectBlank()
+    {
+        State.CreationMethod = "blank";
+        State.MarkDirty();
+    }
+
+    private void SelectImport()
+    {
+        State.CreationMethod = "import";
+        State.MarkDirty();
+    }
+
+    private void ChangeLanguage(ChangeEventArgs args)
+    {
+        State.Language = args.Value?.ToString() ?? ResumeLanguages.SimplifiedChinese;
+        State.MarkDirty();
+    }
+
+    private Task ImportSelected(InputFileChangeEventArgs args) => FileSelected.InvokeAsync(args);
+}

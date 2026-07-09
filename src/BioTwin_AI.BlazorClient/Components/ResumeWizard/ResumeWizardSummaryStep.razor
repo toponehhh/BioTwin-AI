@@ -1,0 +1,29 @@
+<section class="wizard-step-content" aria-labelledby="wizard-summary-title">
+    <div class="wizard-section-heading">
+        <p class="eyebrow">Step 3</p>
+        <h2 id="wizard-summary-title">Professional summary</h2>
+        <p>Lead with a clear title and a concise account of the value you bring.</p>
+    </div>
+
+    <div class="wizard-form-stack">
+        <label>Resume title <input value="@State.Title" @oninput="SetTitle" placeholder="Senior software engineer" /></label>
+        <label>Summary <textarea rows="9" value="@State.Summary" @oninput="SetSummary" placeholder="Describe your focus, strengths, and impact."></textarea></label>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    private void SetTitle(ChangeEventArgs args)
+    {
+        State.Title = args.Value?.ToString() ?? string.Empty;
+        State.MarkDirty();
+    }
+
+    private void SetSummary(ChangeEventArgs args)
+    {
+        State.Summary = args.Value?.ToString() ?? string.Empty;
+        State.MarkDirty();
+    }
+}

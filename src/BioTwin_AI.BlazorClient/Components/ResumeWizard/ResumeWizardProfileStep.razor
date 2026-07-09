@@ -1,0 +1,30 @@
+<section class="wizard-step-content" aria-labelledby="wizard-profile-title">
+    <div class="wizard-section-heading">
+        <p class="eyebrow">Step 2</p>
+        <h2 id="wizard-profile-title">Profile details</h2>
+        <p>Use the contact information you want employers to see.</p>
+    </div>
+
+    <div class="wizard-form-grid">
+        <label>Full name <input value="@State.Profile.FullName" @oninput="SetFullName" autocomplete="name" /></label>
+        <label>Email <input type="email" value="@State.Profile.Email" @oninput="SetEmail" autocomplete="email" /></label>
+        <label>Location <input value="@State.Profile.Location" @oninput="SetLocation" autocomplete="address-level2" /></label>
+        <label>Website <input type="url" value="@State.Profile.Website" @oninput="SetWebsite" autocomplete="url" /></label>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    private void SetFullName(ChangeEventArgs args) => Set(value => State.Profile.FullName = value, args);
+    private void SetEmail(ChangeEventArgs args) => Set(value => State.Profile.Email = value, args);
+    private void SetLocation(ChangeEventArgs args) => Set(value => State.Profile.Location = value, args);
+    private void SetWebsite(ChangeEventArgs args) => Set(value => State.Profile.Website = value, args);
+
+    private void Set(Action<string> setter, ChangeEventArgs args)
+    {
+        setter(args.Value?.ToString() ?? string.Empty);
+        State.MarkDirty();
+    }
+}

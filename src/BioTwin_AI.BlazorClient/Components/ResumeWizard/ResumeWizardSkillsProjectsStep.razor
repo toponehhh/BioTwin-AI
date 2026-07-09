@@ -1,0 +1,88 @@
+<section class="wizard-step-content" aria-labelledby="wizard-skills-title">
+    <div class="wizard-section-heading">
+        <p class="eyebrow">Step 6</p>
+        <h2 id="wizard-skills-title">Skills & projects</h2>
+        <p>Highlight the tools you use and the work that best demonstrates them.</p>
+    </div>
+
+    <section class="wizard-subsection" aria-labelledby="skills-subtitle">
+        <h3 id="skills-subtitle">Skills</h3>
+        <div class="wizard-token-list">
+            @foreach (var skill in State.Skills.ToArray())
+            {
+                <span class="wizard-token">@skill <button type="button" aria-label="Remove @skill" @onclick="() => RemoveSkill(skill)">&#215;</button></span>
+            }
+        </div>
+        <div class="wizard-inline-add">
+            <input value="@skillDraft" @oninput="args => skillDraft = args.Value?.ToString() ?? string.Empty" placeholder="Add a skill" aria-label="New skill" />
+            <button type="button" class="command-button secondary" @onclick="AddSkill">Add skill</button>
+        </div>
+    </section>
+
+    <section class="wizard-subsection" aria-labelledby="projects-subtitle">
+        <div class="wizard-section-heading-row">
+            <h3 id="projects-subtitle">Projects</h3>
+            <button type="button" class="command-button secondary" @onclick="AddProject">Add project</button>
+        </div>
+        @if (State.Projects.Count == 0)
+        {
+            <div class="wizard-empty-state">No projects added yet.</div>
+        }
+        @foreach (var project in State.Projects)
+        {
+            <fieldset class="wizard-repeatable-group">
+                <legend>@(string.IsNullOrWhiteSpace(project.Name) ? "Project" : project.Name)</legend>
+                <div class="wizard-form-grid">
+                    <label>Project name <input value="@project.Name" @oninput="args => Set(args, value => project.Name = value)" /></label>
+                    <label>Technologies <input value="@project.TechnologiesText" @oninput="args => Set(args, value => project.TechnologiesText = value)" placeholder="Blazor, ONNX, SQLite" /></label>
+                </div>
+                <label>Description <textarea rows="4" value="@project.Description" @oninput="args => Set(args, value => project.Description = value)"></textarea></label>
+                <button type="button" class="text-button danger" @onclick="() => RemoveProject(project)">Remove project</button>
+            </fieldset>
+        }
+    </section>
+</section>
+
+@code {
+    private string skillDraft = string.Empty;
+
+    [Parameter, EditorRequired]
+    public ResumeWizardState State { get; set; } = default!;
+
+    private void AddSkill()
+    {
+        var skill = skillDraft.Trim();
+        if (skill.Length == 0 || State.Skills.Contains(skill, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        State.Skills.Add(skill);
+        skillDraft = string.Empty;
+        State.MarkDirty();
+    }
+
+    private void RemoveSkill(string skill)
+    {
+        State.Skills.Remove(skill);
+        State.MarkDirty();
+    }
+
+    private void AddProject()
+    {
+        State.Projects.Add(new ResumeWizardProjectForm());
+        State.MarkDirty();
+    }
+
+    private void RemoveProject(ResumeWizardProjectForm project)
+    {
+        State.Projects.Remove(project);
+        State.MarkDirty();
+    }
+
+    private void Set(ChangeEventArgs args, Action<string> setter)
+    {
+        setter(args.Value?.ToString() ?? string.Empty);
+        State.MarkDirty();
+    }
+}
