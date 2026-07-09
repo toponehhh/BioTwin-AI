@@ -30,6 +30,17 @@ public sealed class ResumeApiClient(HttpClient httpClient) : ApiClientBase(httpC
             ?? throw new InvalidOperationException("API returned an empty response.");
     }
 
+    public Task<ExtractResumeWizardResponse> ExtractWizardAsync(
+        ExtractResumeWizardRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendJsonAsync<ExtractResumeWizardResponse>(
+            HttpMethod.Post,
+            "api/resumes/wizard/extract",
+            request,
+            cancellationToken);
+    }
+
     public Task<ResumeDetailDto> SaveResumeAsync(SaveResumeMarkdownRequest request, CancellationToken cancellationToken = default)
     {
         return SendJsonAsync<ResumeDetailDto>(HttpMethod.Post, "api/resumes", request, cancellationToken);

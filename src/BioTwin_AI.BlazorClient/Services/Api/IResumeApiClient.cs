@@ -10,6 +10,8 @@ public interface IResumeApiClient
 
     Task<ConvertedResumeFileDto> ConvertUploadAsync(string fileName, string contentType, Stream content, CancellationToken cancellationToken = default);
 
+    Task<ExtractResumeWizardResponse> ExtractWizardAsync(ExtractResumeWizardRequest request, CancellationToken cancellationToken = default);
+
     Task<ResumeDetailDto> SaveResumeAsync(SaveResumeMarkdownRequest request, CancellationToken cancellationToken = default);
 
     Task<ResumeDetailDto> ReplaceMarkdownAsync(int resumeId, SaveResumeMarkdownRequest request, CancellationToken cancellationToken = default);
