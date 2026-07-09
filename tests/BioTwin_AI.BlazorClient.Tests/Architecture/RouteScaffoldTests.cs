@@ -375,6 +375,23 @@ public class RouteScaffoldTests
     }
 
     [Fact]
+    public void Resume_creation_wizard_matches_the_approved_responsive_glass_layout()
+    {
+        var appCss = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+
+        Assert.Contains(".resume-wizard-panel", appCss, StringComparison.Ordinal);
+        Assert.Contains(".wizard-stepper", appCss, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(7, minmax(0, 1fr));", appCss, StringComparison.Ordinal);
+        Assert.Contains(".wizard-mobile-progress", appCss, StringComparison.Ordinal);
+        Assert.Contains(".wizard-actions", appCss, StringComparison.Ordinal);
+        Assert.Contains("position: sticky", appCss, StringComparison.Ordinal);
+        Assert.Contains("border-radius: var(--panel-radius)", appCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Client_uses_fixed_header_without_sidebar_or_floating_controls()
     {
         var indexText = File.ReadAllText(Path.GetFullPath(
