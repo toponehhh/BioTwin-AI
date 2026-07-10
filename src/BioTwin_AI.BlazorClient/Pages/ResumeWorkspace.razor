@@ -1,10 +1,18 @@
 @page "/resume/workspace"
+@implements IDisposable
 @inject IResumeApiClient ResumeApiClient
 @inject SessionState SessionState
 
 <PageTitle>Resume Workspace</PageTitle>
 
 <ProtectedArea Title="Resume workspace requires sign in" Description="Resume import, merge and indexing are available only for signed-in users.">
+    <NavigationLock ConfirmExternalNavigation="@isImporting"
+                    OnBeforeInternalNavigation="PreventNavigationDuringImport" />
+    <BlockingProgressOverlay Visible="@ShowImportDialog"
+                             Job="@importJob"
+                             OnCancel="CancelImportAsync"
+                             OnRetry="RetryImportAsync"
+                             OnChooseAnother="ChooseAnotherFiles" />
     <section class="resume-workspace">
         <aside class="workspace-library mac-window">
             <div class="window-controls" aria-hidden="true">
@@ -18,10 +26,24 @@
             </div>
 
             <label class="import-dropzone">
-                <InputFile OnChange="ImportAsync" multiple />
-                <span>Import files</span>
+                <InputFile OnChange="SelectFilesAsync" multiple disabled="@isImporting" />
+                <span>Choose files</span>
                 <small>Markdown, text, PDF or Office documents</small>
             </label>
+
+            @if (pendingUploads.Count > 0)
+            {
+                <div class="pending-upload-list">
+                    @foreach (var upload in pendingUploads)
+                    {
+                        <div class="pending-upload-item">
+                            <span>@upload.FileName</span>
+                            <button type="button" class="icon-command" title="Remove file" @onclick="() => RemovePending(upload)" disabled="@isImporting">&times;</button>
+                        </div>
+                    }
+                    <button type="button" class="command-button" @onclick="StartWorkspaceImportAsync" disabled="@isImporting">Import</button>
+                </div>
+            }
 
             <div class="language-slots">
                 @foreach (var language in SupportedLanguages)
@@ -29,7 +51,7 @@
                     var summary = GetSummary(language.Code);
                     <button class="language-slot @(selectedKind == WorkspaceItemKind.Canonical && currentLanguage == language.Code ? "active" : "")"
                             @onclick="() => SelectCanonicalAsync(language.Code)"
-                            disabled="@(summary is null)">
+                            disabled="@(summary is null || isImporting)">
                         <span>@language.Label</span>
                         @if (summary is null)
                         {
@@ -50,7 +72,7 @@
                     <p class="eyebrow">Drafts</p>
                     @foreach (var draft in drafts)
                     {
-                        <button class="draft-item @(selectedDraftId == draft.Id ? "active" : "")" @onclick="() => SelectDraft(draft)">
+                        <button class="draft-item @(selectedDraftId == draft.Id ? "active" : "")" @onclick="() => SelectDraft(draft)" disabled="@isImporting">
                             <span>@draft.Title</span>
                             <small>@LanguageLabel(draft.Language) · @(draft.IsMergePreview ? "merge preview" : "import")</small>
                         </button>
@@ -74,11 +96,11 @@
             <div class="editor-form-grid">
                 <label>
                     <span>Title</span>
-                    <input @bind="title" @bind:event="oninput" />
+                    <input @bind="title" @bind:event="oninput" disabled="@isImporting" />
                 </label>
                 <label>
                     <span>Language</span>
-                    <select @bind="currentLanguage">
+                    <select @bind="currentLanguage" disabled="@isImporting">
                         @foreach (var language in SupportedLanguages)
                         {
                             <option value="@language.Code">@language.Label</option>
@@ -121,6 +143,7 @@
 </ProtectedArea>
 
 @code {
+    private const long MaxUploadBytes = 10 * 1024 * 1024;
     private static readonly LanguageOption[] SupportedLanguages =
     [
         new(ResumeLanguages.SimplifiedChinese, "Simplified Chinese"),
@@ -129,6 +152,8 @@
 
     private IReadOnlyList<ResumeSummaryDto> summaries = [];
     private readonly List<WorkspaceDraft> drafts = [];
+    private readonly List<PendingResumeUpload> pendingUploads = [];
+    private readonly CancellationTokenSource lifetimeCts = new();
     private string title = string.Empty;
     private string markdown = string.Empty;
     private string currentLanguage = ResumeLanguages.SimplifiedChinese;
@@ -137,8 +162,16 @@
     private int? selectedDraftId;
     private WorkspaceItemKind selectedKind = WorkspaceItemKind.None;
     private int nextDraftId = 1;
+    private bool isImporting;
+    private ResumeStateDto? resumeState;
+    private ResumeOperationLeaseDto? operation;
+    private ResumeImportJobDto? importJob;
+    private CancellationTokenSource? importCts;
 
-    private bool CanSave => SessionState.IsAuthenticated && !string.IsNullOrWhiteSpace(markdown) && ResumeLanguages.IsSupported(currentLanguage);
+    private bool ShowImportDialog => importJob is not null
+        && importJob.Status is not ResumeImportJobStatuses.Completed and not ResumeImportJobStatuses.Canceled;
+
+    private bool CanSave => SessionState.IsAuthenticated && !isImporting && !string.IsNullOrWhiteSpace(markdown) && ResumeLanguages.IsSupported(currentLanguage);
 
     private bool CanMergePreview =>
         CanSave
@@ -163,7 +196,8 @@
 
     private async Task RefreshSummariesAsync()
     {
-        summaries = await ResumeApiClient.GetResumesAsync();
+        resumeState = await ResumeApiClient.GetResumeStateAsync();
+        summaries = resumeState.Resumes;
     }
 
     private ResumeSummaryDto? GetSummary(string language)
@@ -197,44 +231,206 @@
         }
     }
 
-    private async Task ImportAsync(InputFileChangeEventArgs args)
+    private async Task SelectFilesAsync(InputFileChangeEventArgs args)
     {
-        if (!SessionState.IsAuthenticated)
+        message = string.Empty;
+        foreach (var file in args.GetMultipleFiles())
+        {
+            if (file.Size <= 0 || file.Size > MaxUploadBytes)
+            {
+                message = $"{file.Name} must be between 1 byte and 10 MB.";
+                continue;
+            }
+
+            await using var stream = file.OpenReadStream(MaxUploadBytes);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            pendingUploads.RemoveAll(item => string.Equals(item.FileName, file.Name, StringComparison.OrdinalIgnoreCase));
+            pendingUploads.Add(new PendingResumeUpload(
+                file.Name,
+                string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+                file.Size,
+                memory.ToArray()));
+        }
+
+        if (pendingUploads.Count > 0)
+        {
+            message = "Files selected. Review the list, then choose Import.";
+        }
+    }
+
+    private void RemovePending(PendingResumeUpload upload) => pendingUploads.Remove(upload);
+
+    private async Task StartWorkspaceImportAsync()
+    {
+        if (pendingUploads.Count == 0 || isImporting)
         {
             return;
         }
 
-        foreach (var file in args.GetMultipleFiles())
+        try
         {
-            try
+            await EnsureOperationAsync();
+            await RunWorkspaceImportAsync();
+        }
+        catch (Exception exception)
+        {
+            message = exception.Message;
+        }
+    }
+
+    private async Task EnsureOperationAsync()
+    {
+        if (operation is not null)
+        {
+            return;
+        }
+
+        await RefreshSummariesAsync();
+        operation = await ResumeApiClient.AcquireOperationAsync(
+            new AcquireResumeOperationRequest("import", resumeState!.Token));
+        _ = MaintainHeartbeatAsync(lifetimeCts.Token);
+    }
+
+    private async Task RunWorkspaceImportAsync()
+    {
+        if (operation is null || pendingUploads.Count == 0)
+        {
+            return;
+        }
+
+        isImporting = true;
+        importCts?.Cancel();
+        importCts?.Dispose();
+        importCts = CancellationTokenSource.CreateLinkedTokenSource(lifetimeCts.Token);
+        try
+        {
+            importJob = await ResumeApiClient.StartWorkspaceImportAsync(
+                pendingUploads,
+                operation.OperationId,
+                operation.ResumeStateToken,
+                importCts.Token);
+            while (importJob.Status is ResumeImportJobStatuses.Queued or ResumeImportJobStatuses.Running)
             {
-                await using var browserStream = file.OpenReadStream(10 * 1024 * 1024);
-                using var memory = new MemoryStream();
-                await browserStream.CopyToAsync(memory);
-                var contentBase64 = Convert.ToBase64String(memory.ToArray());
-                memory.Position = 0;
-                var converted = await ResumeApiClient.ConvertUploadAsync(file.Name, file.ContentType, memory);
+                await Task.Delay(TimeSpan.FromMilliseconds(500), importCts.Token);
+                importJob = await ResumeApiClient.GetImportJobAsync(importJob.JobId, importCts.Token);
+                StateHasChanged();
+            }
+
+            if (importJob.Status != ResumeImportJobStatuses.Completed || importJob.WorkspaceResults is null)
+            {
+                await ReleaseOperationAsync();
+                return;
+            }
+
+            foreach (var converted in importJob.WorkspaceResults)
+            {
+                var upload = pendingUploads.FirstOrDefault(item =>
+                    string.Equals(item.FileName, converted.SourceFileName, StringComparison.OrdinalIgnoreCase));
                 var draft = new WorkspaceDraft(
                     nextDraftId++,
                     converted.Title,
                     converted.Markdown,
                     ResumeLanguages.Normalize(converted.DetectedLanguage),
-                    file.Name,
-                    file.ContentType,
-                    file.Size,
-                    contentBase64,
+                    upload?.FileName ?? converted.SourceFileName,
+                    upload?.ContentType,
+                    upload?.Size,
+                    upload is null ? null : Convert.ToBase64String(upload.Content),
                     IsMergePreview: false);
                 drafts.Insert(0, draft);
                 SelectDraft(draft);
-                message = converted.IsDuplicate
-                    ? $"Duplicate file detected. Loaded existing content from {converted.ExistingResumeTitle}."
-                    : "Imported draft. Review before saving.";
             }
-            catch (Exception ex)
+
+            pendingUploads.Clear();
+            importJob = null;
+            message = "Imported drafts are ready for review. Nothing is saved until you choose Save.";
+        }
+        catch (OperationCanceledException) when (importCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            message = exception.Message;
+        }
+        finally
+        {
+            isImporting = false;
+        }
+    }
+
+    private async Task RetryImportAsync()
+    {
+        importJob = null;
+        await EnsureOperationAsync();
+        await RunWorkspaceImportAsync();
+    }
+
+    private void ChooseAnotherFiles()
+    {
+        importJob = null;
+        pendingUploads.Clear();
+        message = "Choose the resume files you want to import.";
+    }
+
+    private async Task CancelImportAsync()
+    {
+        importCts?.Cancel();
+        try
+        {
+            if (importJob is not null && operation is not null)
             {
-                message = ex.Message;
+                await ResumeApiClient.CancelImportJobAsync(importJob.JobId, operation.OperationId);
+                operation = null;
+            }
+            else
+            {
+                await ReleaseOperationAsync();
             }
         }
+        catch
+        {
+            operation = null;
+        }
+
+        importJob = null;
+        isImporting = false;
+        message = "Import canceled. Your selected files were not saved.";
+    }
+
+    private async Task MaintainHeartbeatAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && operation is not null)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                if (operation is not null)
+                {
+                    operation = await ResumeApiClient.HeartbeatOperationAsync(operation.OperationId, cancellationToken);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await InvokeAsync(() =>
+            {
+                operation = null;
+                message = exception.Message;
+            });
+        }
+    }
+
+    private Task PreventNavigationDuringImport(LocationChangingContext context)
+    {
+        if (isImporting)
+        {
+            context.PreventNavigation();
+        }
+
+        return Task.CompletedTask;
     }
 
     private void SelectDraft(WorkspaceDraft draft)
@@ -291,6 +487,12 @@
 
         try
         {
+            await EnsureOperationAsync();
+            if (operation is null)
+            {
+                return;
+            }
+
             var draft = drafts.FirstOrDefault(item => item.Id == selectedDraftId);
             var detail = await ResumeApiClient.SaveResumeAsync(new SaveResumeMarkdownRequest(
                 title,
@@ -299,7 +501,10 @@
                 draft?.SourceFileName,
                 draft?.SourceContentType,
                 draft?.SourceFileSize,
-                draft?.SourceFileContentBase64));
+                draft?.SourceFileContentBase64,
+                operation.OperationId,
+                operation.ResumeStateToken));
+            await ReleaseOperationAsync();
             await RefreshSummariesAsync();
             selectedCanonicalId = detail.Id;
             selectedDraftId = null;
@@ -311,6 +516,16 @@
         catch (Exception ex)
         {
             message = ex.Message;
+        }
+    }
+
+    private async Task ReleaseOperationAsync()
+    {
+        var active = operation;
+        operation = null;
+        if (active is not null)
+        {
+            await ResumeApiClient.ReleaseOperationAsync(active.OperationId);
         }
     }
 
@@ -392,6 +607,14 @@
         None,
         Canonical,
         Draft
+    }
+
+    public void Dispose()
+    {
+        importCts?.Cancel();
+        importCts?.Dispose();
+        lifetimeCts.Cancel();
+        lifetimeCts.Dispose();
     }
 
 }

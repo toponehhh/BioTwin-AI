@@ -10,13 +10,27 @@ namespace BioTwin_AI.AspNetCoreApi.Controllers;
 [Route("api/resumes")]
 public sealed class ResumesController(
     IResumeService resumeService,
-    IResumeWizardExtractionService wizardExtractionService) : ControllerBase
+    IResumeWizardExtractionService wizardExtractionService,
+    IResumeConversionJobService conversionJobService,
+    IResumeStateTokenService stateTokenService,
+    IResumeImportJobService importJobService,
+    IResumeOperationService operationService) : ControllerBase
 {
     [HttpGet]
     [Authorize]
     public async Task<ActionResult<IReadOnlyList<ResumeSummaryDto>>> GetResumes(CancellationToken cancellationToken)
     {
         return Ok(await resumeService.GetSummariesAsync(GetTenantId(), cancellationToken));
+    }
+
+    [HttpGet("state")]
+    [Authorize]
+    public async Task<ActionResult<ResumeStateDto>> GetResumeState(CancellationToken cancellationToken)
+    {
+        var tenantId = GetTenantId();
+        var summaries = await resumeService.GetSummariesAsync(tenantId, cancellationToken);
+        var token = await stateTokenService.ComputeAsync(tenantId, cancellationToken);
+        return Ok(new ResumeStateDto(token, summaries));
     }
 
     [HttpGet("{resumeId:int}")]
@@ -32,6 +46,87 @@ public sealed class ResumesController(
     public async Task<ActionResult<ConvertedResumeFileDto>> ConvertUpload(IFormFile file, CancellationToken cancellationToken)
     {
         return Ok(await resumeService.ConvertUploadAsync(GetTenantId(), file, cancellationToken));
+    }
+
+    [HttpPost("upload/jobs")]
+    [Authorize]
+    public async Task<ActionResult<ResumeConversionJobDto>> StartConversionJob(
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await conversionJobService.StartAsync(GetTenantId(), file, cancellationToken));
+    }
+
+    [HttpGet("upload/jobs/{jobId}")]
+    [Authorize]
+    public async Task<ActionResult<ResumeConversionJobDto>> GetConversionJob(
+        string jobId,
+        CancellationToken cancellationToken)
+    {
+        var job = await conversionJobService.GetAsync(GetTenantId(), jobId, cancellationToken);
+        return job is null ? NotFound() : Ok(job);
+    }
+
+    [HttpPost("import-jobs/wizard")]
+    [Authorize]
+    public async Task<ActionResult<ResumeImportJobDto>> StartWizardImport(
+        [FromForm] IFormFile file,
+        [FromForm] string operationId,
+        [FromForm] string expectedStateToken,
+        [FromForm] string language,
+        [FromForm] string? title,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await importJobService.StartWizardAsync(
+            GetRequiredUserId(),
+            GetTenantId(),
+            operationId,
+            expectedStateToken,
+            file,
+            language,
+            title,
+            cancellationToken));
+    }
+
+    [HttpPost("import-jobs/workspace")]
+    [Authorize]
+    public async Task<ActionResult<ResumeImportJobDto>> StartWorkspaceImport(
+        [FromForm] List<IFormFile> files,
+        [FromForm] string operationId,
+        [FromForm] string expectedStateToken,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await importJobService.StartWorkspaceAsync(
+            GetRequiredUserId(),
+            GetTenantId(),
+            operationId,
+            expectedStateToken,
+            files,
+            cancellationToken));
+    }
+
+    [HttpGet("import-jobs/{jobId}")]
+    [Authorize]
+    public async Task<ActionResult<ResumeImportJobDto>> GetImportJob(string jobId, CancellationToken cancellationToken)
+    {
+        var job = await importJobService.GetAsync(GetTenantId(), jobId, cancellationToken);
+        return job is null ? NotFound() : Ok(job);
+    }
+
+    [HttpDelete("import-jobs/{jobId}")]
+    [Authorize]
+    public async Task<IActionResult> CancelImportJob(
+        string jobId,
+        [FromQuery] string operationId,
+        CancellationToken cancellationToken)
+    {
+        if (!await importJobService.CancelAsync(GetTenantId(), jobId, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        await operationService.ReleaseAsync(GetRequiredUserId(), operationId, cancellationToken);
+        return NoContent();
     }
 
     [HttpPost("wizard/extract")]
@@ -69,9 +164,21 @@ public sealed class ResumesController(
 
     [HttpDelete("{resumeId:int}")]
     [Authorize]
-    public async Task<IActionResult> DeleteResume(int resumeId, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteResume(
+        int resumeId,
+        [FromQuery] string? operationId,
+        [FromQuery] string? expectedStateToken,
+        CancellationToken cancellationToken)
     {
-        return await resumeService.DeleteAsync(GetTenantId(), resumeId, cancellationToken) ? NoContent() : NotFound();
+        return await resumeService.DeleteAsync(
+            GetTenantId(),
+            resumeId,
+            GetUserId(),
+            operationId,
+            expectedStateToken,
+            cancellationToken)
+            ? NoContent()
+            : NotFound();
     }
 
     [HttpPost("rebuild-embeddings")]
@@ -99,5 +206,10 @@ public sealed class ResumesController(
         return int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
             ? userId
             : null;
+    }
+
+    private int GetRequiredUserId()
+    {
+        return GetUserId() ?? throw new UnauthorizedAccessException("The authenticated session does not contain a user identifier.");
     }
 }

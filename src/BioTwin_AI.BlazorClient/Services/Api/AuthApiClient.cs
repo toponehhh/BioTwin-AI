@@ -2,7 +2,8 @@ using BioTwin_AI.DotNetShared.Auth;
 
 namespace BioTwin_AI.BlazorClient.Services.Api;
 
-public sealed class AuthApiClient(HttpClient httpClient) : ApiClientBase(httpClient), IAuthApiClient
+public sealed class AuthApiClient(HttpClient httpClient, ILogger<AuthApiClient> logger)
+    : ApiClientBase(httpClient, logger), IAuthApiClient
 {
     public Task<CurrentSessionResponse> GetCurrentSessionAsync(CancellationToken cancellationToken = default)
     {

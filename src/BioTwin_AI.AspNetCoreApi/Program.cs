@@ -7,16 +7,14 @@ using BioTwin_AI.AspNetCoreApi.Application.Profiles;
 using BioTwin_AI.AspNetCoreApi.Application.Rag;
 using BioTwin_AI.AspNetCoreApi.Application.Refinement;
 using BioTwin_AI.AspNetCoreApi.Application.Resumes;
+using BioTwin_AI.AspNetCoreApi.Infrastructure.Ai;
 using BioTwin_AI.AspNetCoreApi.Infrastructure.Data;
 using Microsoft.Extensions.AI;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using OpenAI;
-using OpenAI.Chat;
 using QuestPDF.Infrastructure;
 using Serilog;
-using System.ClientModel;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,14 +46,14 @@ builder.Services.AddDbContext<BioTwinApiDbContext>(options =>
     options.UseSqlite(connectionString);
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<ResumeApiExceptionFilter>());
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddAiProviders(builder.Configuration);
 builder.Services.AddHttpClient("all2md", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("All2MD:TimeoutSeconds", 600));
 });
-builder.Services.AddSingleton<IChatClient>(CreateChatClient);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("BlazorClient", policy =>
@@ -100,32 +98,14 @@ builder.Services.AddScoped<ICandidateProfileInfoService, CandidateProfileInfoSer
 builder.Services.AddScoped<ICandidateProfileExtractionService, CandidateProfileExtractionService>();
 builder.Services.AddScoped<IPublicCandidateProfileService, PublicCandidateProfileService>();
 builder.Services.AddSingleton<ILlmChatService, LlmChatService>();
-builder.Services.AddSingleton<HashingEmbeddingService>();
-builder.Services.AddSingleton<BgeM3OnnxEmbeddingService>();
-builder.Services.AddSingleton<IEmbeddingService>(provider =>
-{
-    var environment = provider.GetRequiredService<IHostEnvironment>();
-    var configuration = provider.GetRequiredService<IConfiguration>();
-    var logger = provider.GetRequiredService<ILogger<Program>>();
-    var providerName = configuration["Embedding:Provider"] ?? "BgeM3Onnx";
-
-    if (string.Equals(providerName, "BgeM3Onnx", StringComparison.OrdinalIgnoreCase) &&
-        BgeM3OnnxEmbeddingService.CanLoad(environment, configuration))
-    {
-        try
-        {
-            return provider.GetRequiredService<BgeM3OnnxEmbeddingService>();
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "BGE-M3 ONNX model files were found but could not be loaded. Falling back to hashing embeddings.");
-        }
-    }
-
-    logger.LogWarning("BGE-M3 ONNX model files were not found or disabled. Falling back to hashing embeddings.");
-    return provider.GetRequiredService<HashingEmbeddingService>();
-});
 builder.Services.AddScoped<IResumeService, ResumeService>();
+builder.Services.AddScoped<IResumeStateTokenService, ResumeStateTokenService>();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddSingleton<IResumeOperationCoordinator, MemoryResumeOperationCoordinator>();
+builder.Services.AddScoped<IResumeOperationService, ResumeOperationService>();
+builder.Services.AddSingleton<IResumeConversionJobService, ResumeConversionJobService>();
+builder.Services.AddScoped<ResumeImportJobProcessor>();
+builder.Services.AddSingleton<IResumeImportJobService, ResumeImportJobService>();
 builder.Services.AddScoped<IResumeWizardExtractionService, ResumeWizardExtractionService>();
 builder.Services.AddScoped<IRagSearchService, RagSearchService>();
 builder.Services.AddScoped<IChatService, ChatService>();
@@ -194,7 +174,6 @@ static string ResolveBackendProjectRoot(string contentRootPath, string baseDirec
 
     return contentRootPath;
 }
-
 static string? FindAncestorContainingFile(string startPath, string fileName)
 {
     var directory = Directory.Exists(startPath)
@@ -236,54 +215,4 @@ static string ResolveSqliteConnectionString(string? configuredConnectionString, 
     }
 
     return builder.ToString();
-}
-
-static IChatClient CreateChatClient(IServiceProvider services)
-{
-    var configuration = services.GetRequiredService<IConfiguration>();
-    var model = configuration["LLM:Model"] ?? "openrouter/free";
-    var credential = new ApiKeyCredential(GetApiKey(configuration));
-    var chatClient = new ChatClient(
-        model,
-        credential,
-        new OpenAIClientOptions { Endpoint = GetOpenAiCompatibleEndpoint(configuration) });
-
-    return chatClient.AsIChatClient();
-}
-
-static Uri GetOpenAiCompatibleEndpoint(IConfiguration configuration)
-{
-    var configured = configuration["LLM:BaseUrl"];
-    if (string.IsNullOrWhiteSpace(configured))
-    {
-        return new Uri("https://openrouter.ai/api/v1");
-    }
-
-    var trimmed = configured.TrimEnd('/');
-    if (!trimmed.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
-    {
-        trimmed += "/v1";
-    }
-
-    return new Uri(trimmed);
-}
-
-static string GetApiKey(IConfiguration configuration)
-{
-    var apiKey = FirstNonBlank(
-        configuration["OpenRouter:ApiKey"],
-        configuration["LLM:ApiKey"],
-        Environment.GetEnvironmentVariable("OPENROUTER_API_KEY"));
-
-    if (apiKey is null)
-    {
-        throw new InvalidOperationException("OpenRouter API key is missing. Set OpenRouter:ApiKey, LLM:ApiKey, or OPENROUTER_API_KEY.");
-    }
-
-    return apiKey;
-}
-
-static string? FirstNonBlank(params string?[] values)
-{
-    return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 }

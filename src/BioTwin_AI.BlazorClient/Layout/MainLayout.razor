@@ -89,9 +89,6 @@
             </nav>
 
             <div class="site-header-actions">
-                <button class="theme-icon-button" title="@ThemeToggleLabel" aria-label="@ThemeToggleLabel" @onclick="ToggleTheme">
-                    <span aria-hidden="true">@(ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark ? "☀" : "☾")</span>
-                </button>
                 @if (SessionState.IsAuthenticated)
                 {
                     <div class="admin-shell desktop-account" @onclick:stopPropagation>
@@ -123,28 +120,22 @@
                 <button class="mobile-menu-toggle" aria-label="Toggle navigation" aria-expanded="@isMobileMenuOpen" @onclick="ToggleMobileMenu">
                     <span aria-hidden="true">☰</span>
                 </button>
+                <button class="@ThemeToggleClass" title="@ThemeToggleLabel" aria-label="@ThemeToggleLabel" @onclick="ToggleTheme">
+                    <span class="lamp-head" aria-hidden="true">
+                        <span class="lamp-shade"></span>
+                        <span class="lamp-bulb"></span>
+                        <span class="lamp-glow"></span>
+                    </span>
+                    <span class="lamp-cord" aria-hidden="true"></span>
+                    <span class="lamp-pull" aria-hidden="true"></span>
+                </button>
             </div>
         </div>
     </header>
 
     <main class="app-main">
         <article class="content page-content @ContentContainerClass">
-            <ErrorBoundary>
-                <ChildContent>
-                    @Body
-                </ChildContent>
-                <ErrorContent Context="ex">
-                    <section class="tool-panel error-panel">
-                        <p class="eyebrow">Request interrupted</p>
-                        <h2>Backend call failed</h2>
-                        <p>@ex.Message</p>
-                        <div class="action-row">
-                            <button class="command-button" @onclick="AuthModalState.OpenSignIn">Sign in</button>
-                            <a class="command-button secondary" href="/settings">Check API</a>
-                        </div>
-                    </section>
-                </ErrorContent>
-            </ErrorBoundary>
+            @Body
         </article>
     </main>
 </div>
@@ -153,6 +144,9 @@
     private DesignThemeModes FluentThemeMode => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark
         ? DesignThemeModes.Dark
         : DesignThemeModes.Light;
+    private string ThemeToggleClass => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Light
+        ? "lamp-theme-toggle lamp-on"
+        : "lamp-theme-toggle lamp-off";
     private string ThemeToggleLabel => ThemeState.CurrentTheme == BioTwin_AI.BlazorClient.Services.AppTheme.Dark
         ? "Turn on light theme"
         : "Turn off light theme";

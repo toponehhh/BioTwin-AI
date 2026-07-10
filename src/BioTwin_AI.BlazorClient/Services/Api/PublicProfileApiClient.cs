@@ -4,7 +4,8 @@ using BioTwin_AI.DotNetShared.Profiles;
 
 namespace BioTwin_AI.BlazorClient.Services.Api;
 
-public sealed class PublicProfileApiClient(HttpClient httpClient) : ApiClientBase(httpClient), IPublicProfileApiClient
+public sealed class PublicProfileApiClient(HttpClient httpClient, ILogger<PublicProfileApiClient> logger)
+    : ApiClientBase(httpClient, logger), IPublicProfileApiClient
 {
     public async Task<CandidateProfileDto?> GetCandidateProfileAsync(string? uid, CancellationToken cancellationToken = default)
     {
@@ -13,7 +14,7 @@ public sealed class PublicProfileApiClient(HttpClient httpClient) : ApiClientBas
             : $"api/public/candidate-profile?uid={Uri.EscapeDataString(uid)}";
 
         using var request = CreateCredentialedRequest(HttpMethod.Get, path);
-        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        using var response = await SendLoggedAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;

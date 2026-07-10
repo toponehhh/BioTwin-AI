@@ -34,7 +34,14 @@
             <label class="wizard-file-picker">
                 Resume file
                 <InputFile OnChange="ImportSelected" accept=".md,.markdown,.txt,.pdf,.doc,.docx" />
-                <small>Markdown, text, PDF, Word, or DOCX.</small>
+                @if (!string.IsNullOrWhiteSpace(SelectedFileName))
+                {
+                    <small class="selected-upload">Selected: @SelectedFileName (@FormatSize(SelectedFileSize))</small>
+                }
+                else
+                {
+                    <small>Markdown, text, PDF, Word, or DOCX.</small>
+                }
             </label>
         }
     </div>
@@ -46,6 +53,12 @@
 
     [Parameter]
     public EventCallback<InputFileChangeEventArgs> FileSelected { get; set; }
+
+    [Parameter]
+    public string? SelectedFileName { get; set; }
+
+    [Parameter]
+    public long SelectedFileSize { get; set; }
 
     private void SelectBlank()
     {
@@ -66,4 +79,8 @@
     }
 
     private Task ImportSelected(InputFileChangeEventArgs args) => FileSelected.InvokeAsync(args);
+
+    private static string FormatSize(long size) => size < 1024 * 1024
+        ? $"{Math.Max(1, size / 1024d):0.#} KB"
+        : $"{size / 1024d / 1024d:0.#} MB";
 }

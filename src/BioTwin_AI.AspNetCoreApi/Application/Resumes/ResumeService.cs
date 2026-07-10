@@ -21,7 +21,8 @@ public sealed class ResumeService(
     IConfiguration configuration,
     ILogger<ResumeService> logger,
     ILlmChatService llmChatService,
-    ICandidateProfileExtractionService candidateProfileExtractionService) : IResumeService
+    ICandidateProfileExtractionService candidateProfileExtractionService,
+    IResumeOperationService operationService) : IResumeService
 {
     private const long MaxUploadBytes = 10 * 1024 * 1024;
 
@@ -105,6 +106,8 @@ public sealed class ResumeService(
 
     public async Task<ResumeDetailDto> SaveAsync(string tenantId, SaveResumeMarkdownRequest request, int? userId, CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await ValidateWriteAsync(tenantId, userId, request.OperationId, request.ExpectedStateToken, cancellationToken);
         EnsureMarkdownCanBeSaved(request.Markdown);
         var language = NormalizeRequiredLanguage(request.Language);
         var sourceBytes = DecodeOptionalBase64(request.SourceFileContentBase64);
@@ -117,6 +120,7 @@ public sealed class ResumeService(
                 .FirstOrDefaultAsync(entry => entry.TenantId == tenantId && entry.SourceFileHash == sourceHash, cancellationToken);
             if (duplicate is not null)
             {
+                await transaction.CommitAsync(cancellationToken);
                 return ToDetail(duplicate);
             }
         }
@@ -128,7 +132,9 @@ public sealed class ResumeService(
 
         if (existing is not null)
         {
-            return await ReplaceExistingMarkdownAsync(existing, request, language, sourceBytes, userId, cancellationToken);
+            var replaced = await ReplaceExistingMarkdownAsync(existing, request, language, sourceBytes, userId, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return replaced;
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -154,11 +160,14 @@ public sealed class ResumeService(
             await candidateProfileExtractionService.GenerateFromResumeAsync(userId.Value, request.Markdown, cancellationToken);
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return ToDetail(entry);
     }
 
     public async Task<ResumeDetailDto?> ReplaceMarkdownAsync(string tenantId, int resumeId, SaveResumeMarkdownRequest request, int? userId, CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await ValidateWriteAsync(tenantId, userId, request.OperationId, request.ExpectedStateToken, cancellationToken);
         EnsureMarkdownCanBeSaved(request.Markdown);
         var language = NormalizeRequiredLanguage(request.Language);
         var entry = await dbContext.ResumeEntries
@@ -168,6 +177,7 @@ public sealed class ResumeService(
 
         if (entry is null)
         {
+            await transaction.CommitAsync(cancellationToken);
             return null;
         }
 
@@ -178,7 +188,9 @@ public sealed class ResumeService(
         }
 
         var sourceBytes = DecodeOptionalBase64(request.SourceFileContentBase64);
-        return await ReplaceExistingMarkdownAsync(entry, request, language, sourceBytes, userId, cancellationToken);
+        var replaced = await ReplaceExistingMarkdownAsync(entry, request, language, sourceBytes, userId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return replaced;
     }
 
     public async Task<MergeResumeMarkdownResponse?> MergePreviewAsync(string tenantId, MergeResumeMarkdownRequest request, CancellationToken cancellationToken)
@@ -221,18 +233,56 @@ public sealed class ResumeService(
             warnings);
     }
 
-    public async Task<bool> DeleteAsync(string tenantId, int resumeId, CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(
+        string tenantId,
+        int resumeId,
+        int? userId,
+        string? operationId,
+        string? expectedStateToken,
+        CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await ValidateWriteAsync(tenantId, userId, operationId, expectedStateToken, cancellationToken);
         var entry = await dbContext.ResumeEntries
             .FirstOrDefaultAsync(resume => resume.TenantId == tenantId && resume.Id == resumeId, cancellationToken);
         if (entry is null)
         {
+            await transaction.CommitAsync(cancellationToken);
             return false;
         }
 
         dbContext.ResumeEntries.Remove(entry);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    private async Task ValidateWriteAsync(
+        string tenantId,
+        int? userId,
+        string? operationId,
+        string? expectedStateToken,
+        CancellationToken cancellationToken)
+    {
+        if (userId is not > 0)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(operationId) || string.IsNullOrWhiteSpace(expectedStateToken))
+        {
+            throw new ResumeOperationConflictException(
+                "resume_operation_required",
+                "An active resume operation is required before changing resume data.",
+                "Refresh the page and start the resume operation again.");
+        }
+
+        await operationService.ValidateAsync(
+            userId.Value,
+            tenantId,
+            operationId,
+            expectedStateToken,
+            cancellationToken);
     }
 
     public async Task<RebuildEmbeddingsResponse> RebuildEmbeddingsAsync(string tenantId, CancellationToken cancellationToken)
@@ -537,6 +587,7 @@ public sealed class ResumeService(
             var response = await llmChatService.CompleteAsync(
                 BuildMergeMessages(canonicalTitle, language, canonicalMarkdown, draftTitle, draftMarkdown),
                 CreateMergeChatOptions(),
+                LlmRequestKind.General,
                 cancellationToken);
             return NormalizeMarkdownResponse(response);
         }
@@ -592,7 +643,6 @@ Imported draft Markdown:
     {
         return new AiChatOptions
         {
-            ModelId = configuration["LLM:Model"] ?? "openrouter/free",
             Temperature = (float)configuration.GetValue("LLM:MergeTemperature", 0.1),
             MaxOutputTokens = configuration.GetValue("LLM:MergeMaxTokens", 5000)
         };

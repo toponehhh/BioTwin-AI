@@ -217,6 +217,38 @@ public class PhaseOneContractTests
     }
 
     [Fact]
+    public void Resume_conversion_job_contract_carries_real_progress_and_result()
+    {
+        var converted = new ConvertedResumeFileDto(
+            Title: "Donald Huang",
+            SourceFileName: "donald.pdf",
+            Markdown: "# Donald Huang",
+            DetectedLanguage: ResumeLanguages.English,
+            IsDuplicate: false,
+            ExistingResumeEntryId: null,
+            ExistingResumeTitle: null);
+        var queued = new ResumeConversionJobDto(
+            JobId: "job-1",
+            Status: ResumeConversionJobStatuses.Queued,
+            Progress: 5,
+            Message: "Queued conversion job",
+            Result: null,
+            Error: null);
+        var completed = queued with
+        {
+            Status = ResumeConversionJobStatuses.Completed,
+            Progress = 100,
+            Message = "Conversion completed",
+            Result = converted
+        };
+
+        Assert.Equal(5, queued.Progress);
+        Assert.Null(queued.Result);
+        Assert.Equal(100, completed.Progress);
+        Assert.Equal("# Donald Huang", completed.Result?.Markdown);
+    }
+
+    [Fact]
     public void Client_log_contract_carries_browser_log_details_to_the_api()
     {
         var request = new ClientLogEntryRequest(

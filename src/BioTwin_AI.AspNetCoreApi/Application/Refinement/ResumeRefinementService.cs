@@ -17,6 +17,7 @@ public sealed class ResumeRefinementService(
         var response = await llmChatService.CompleteAsync(
             BuildMessages(request.ResumeTitle, markdown),
             CreateChatOptions(),
+            LlmRequestKind.General,
             cancellationToken);
 
         return string.IsNullOrWhiteSpace(response)
@@ -53,7 +54,6 @@ Markdown to refine:
     {
         return new AiChatOptions
         {
-            ModelId = configuration["LLM:Model"] ?? "openrouter/free",
             Temperature = (float)configuration.GetValue("LLM:RefinementTemperature", 0.1),
             MaxOutputTokens = configuration.GetValue("LLM:RefinementMaxTokens", 3000)
         };

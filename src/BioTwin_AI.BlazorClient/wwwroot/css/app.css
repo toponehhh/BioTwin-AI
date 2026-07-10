@@ -67,6 +67,42 @@ a, .btn-link {
         content: "An error has occurred."
     }
 
+.client-error-page {
+    --bg: var(--stitch-obsidian-bg);
+    --surface: rgba(19, 27, 46, 0.70);
+    --surface-strong: rgba(30, 31, 37, 0.84);
+    --text: var(--stitch-on-surface);
+    --muted: var(--stitch-on-muted);
+    --accent: var(--stitch-primary);
+    --accent-2: var(--stitch-secondary);
+    --border: var(--glass-border);
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.client-error-panel {
+    width: min(100%, 40rem);
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    border-radius: var(--panel-radius);
+}
+
+.client-error-panel h1 {
+    margin: 0.35rem 0 0.75rem;
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    letter-spacing: 0;
+}
+
+.client-error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
 .loading-progress {
     position: absolute;
     display: block;
@@ -1489,6 +1525,115 @@ body {
     margin-bottom: 0.35rem;
 }
 
+.resume-import-stage-rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    width: 100%;
+    margin: 0.85rem 0 0;
+    padding: 0;
+    list-style: none;
+    grid-column: 1 / -1;
+}
+
+.resume-import-stage {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    text-align: center;
+}
+
+.resume-import-stage::before {
+    position: absolute;
+    top: 0.36rem;
+    right: 50%;
+    left: -50%;
+    height: 2px;
+    background: var(--border);
+    content: "";
+}
+
+.resume-import-stage:first-child::before {
+    display: none;
+}
+
+.resume-import-stage > span {
+    position: relative;
+    z-index: 1;
+    width: 0.8rem;
+    height: 0.8rem;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+}
+
+.resume-import-stage.completed,
+.resume-import-stage.active {
+    color: var(--text-main);
+}
+
+.resume-import-stage.completed::before,
+.resume-import-stage.completed > span,
+.resume-import-stage.active > span {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.resume-import-stage.active > span {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.resume-import-stage.failed > span {
+    border-color: var(--danger);
+    background: var(--danger);
+}
+
+.resume-import-stage.skipped {
+    opacity: 0.62;
+}
+
+.resume-import-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    width: 100%;
+    grid-column: 1 / -1;
+}
+
+.resume-import-recovery {
+    width: 100%;
+    margin: 0;
+    color: var(--text-muted);
+    grid-column: 1 / -1;
+}
+
+.pending-upload-list {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: var(--panel-radius);
+    background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.pending-upload-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.pending-upload-item > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .resume-wizard-panel {
     position: relative;
     overflow: visible;
@@ -1596,6 +1741,72 @@ body {
 
 .wizard-mobile-progress {
     display: none;
+}
+
+.blocking-progress-overlay {
+    position: fixed;
+    z-index: 200;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgba(4, 8, 18, 0.72);
+    backdrop-filter: blur(18px) saturate(125%);
+    cursor: default;
+}
+
+.blocking-progress-panel {
+    display: grid;
+    width: min(100%, 44rem);
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.85rem 1rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--panel-radius);
+    background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+    box-shadow: var(--shadow);
+}
+
+.blocking-progress-copy {
+    min-width: 0;
+}
+
+.blocking-progress-copy h2 {
+    margin: 0.2rem 0 0.45rem;
+    font-size: 1.25rem;
+    line-height: 1.25;
+}
+
+.blocking-progress-copy p {
+    margin: 0;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+.blocking-progress-value {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.blocking-progress-panel progress {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 0.65rem;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--panel-radius);
+    accent-color: var(--accent);
+}
+
+.blocking-progress-panel small {
+    grid-column: 1 / -1;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+[data-theme="light"] .blocking-progress-overlay {
+    background: rgba(236, 238, 247, 0.74);
 }
 
 .wizard-processing,

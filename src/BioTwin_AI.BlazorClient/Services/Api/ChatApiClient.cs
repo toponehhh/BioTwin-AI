@@ -3,7 +3,8 @@ using BioTwin_AI.DotNetShared.Rag;
 
 namespace BioTwin_AI.BlazorClient.Services.Api;
 
-public sealed class ChatApiClient(HttpClient httpClient) : ApiClientBase(httpClient), IChatApiClient
+public sealed class ChatApiClient(HttpClient httpClient, ILogger<ChatApiClient> logger)
+    : ApiClientBase(httpClient, logger), IChatApiClient
 {
     public Task<ChatResponse> AskAsync(ChatRequest request, CancellationToken cancellationToken = default)
     {

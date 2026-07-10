@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using BioTwin_AI.BlazorClient;
@@ -18,7 +19,12 @@ var baseAddress = string.IsNullOrWhiteSpace(apiBaseUrl)
 var apiHttpClient = new HttpClient { BaseAddress = new Uri(baseAddress) };
 
 builder.Logging.SetMinimumLevel(LogLevel.Information);
-builder.Logging.AddProvider(new RemoteClientLoggerProvider(apiHttpClient, "api/client-logs", LogLevel.Information));
+builder.Services.AddSingleton<ILoggerProvider>(services =>
+    new RemoteClientLoggerProvider(
+        apiHttpClient,
+        "api/client-logs",
+        () => services.GetRequiredService<NavigationManager>().Uri,
+        LogLevel.Warning));
 
 builder.Services.AddFluentUIComponents();
 builder.Services.AddScoped<ThemeState>();

@@ -10,6 +10,7 @@ TestResults/
 TestReport*.md
 TestReport*.html
 .local-logs/
+.superpowers/
 src/BioTwin_AI/logs/
 src/BioTwin_AI.AspNetCoreApi/logs/
 LLM/*

@@ -1,6 +1,29 @@
-﻿<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+@inject NavigationManager Navigation
+
+<ClientErrorBoundary>
+    <ChildContent>
+        <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+            <Found Context="routeData">
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+        </Router>
+    </ChildContent>
+    <ErrorContent Context="exception">
+        <main class="client-error-page">
+            <section class="glass-card client-error-panel" role="alert">
+                <p class="eyebrow">Application interrupted</p>
+                <h1>We could not finish that action</h1>
+                <p>The error has been recorded. Reload this page, or return home and try again.</p>
+                <div class="client-error-actions">
+                    <button class="command-button" @onclick="ReloadPage">Reload page</button>
+                    <a class="command-button secondary" href="/">Return home</a>
+                </div>
+            </section>
+        </main>
+    </ErrorContent>
+</ClientErrorBoundary>
+
+@code {
+    private void ReloadPage() => Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+}

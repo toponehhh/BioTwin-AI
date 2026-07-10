@@ -7,18 +7,20 @@ namespace BioTwin_AI.BlazorClient.Services.Api;
 public abstract class ApiClientBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly ILogger _logger;
     protected readonly HttpClient HttpClient;
 
-    protected ApiClientBase(HttpClient httpClient)
+    protected ApiClientBase(HttpClient httpClient, ILogger logger)
     {
         HttpClient = httpClient;
+        _logger = logger;
     }
 
     protected async Task<T> GetAsync<T>(string uri, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
-        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        using var response = await SendLoggedAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("API returned an empty response.");
@@ -33,7 +35,7 @@ public abstract class ApiClientBase
             request.Content = JsonContent.Create(body, options: JsonOptions);
         }
 
-        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        using var response = await SendLoggedAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("API returned an empty response.");
@@ -48,7 +50,7 @@ public abstract class ApiClientBase
             request.Content = JsonContent.Create(body, options: JsonOptions);
         }
 
-        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        using var response = await SendLoggedAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
@@ -56,7 +58,7 @@ public abstract class ApiClientBase
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
-        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        using var response = await SendLoggedAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
@@ -66,6 +68,39 @@ public abstract class ApiClientBase
         var request = new HttpRequestMessage(method, uri);
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
         return request;
+    }
+
+    protected async Task<HttpResponseMessage> SendLoggedAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await HttpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "BioTwin API returned {StatusCode} for {Method} {Path}",
+                    (int)response.StatusCode,
+                    request.Method.Method,
+                    SanitizePath(request.RequestUri));
+            }
+
+            return response;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "BioTwin API request failed for {Method} {Path}",
+                request.Method.Method,
+                SanitizePath(request.RequestUri));
+            throw;
+        }
     }
 
     protected static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
@@ -93,6 +128,19 @@ public abstract class ApiClientBase
             var title = root.TryGetProperty("title", out var titleElement)
                 ? titleElement.GetString()
                 : null;
+            var message = root.TryGetProperty("message", out var messageElement)
+                ? messageElement.GetString()
+                : null;
+            var recoveryHint = root.TryGetProperty("recoveryHint", out var hintElement)
+                ? hintElement.GetString()
+                : null;
+
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                return string.IsNullOrWhiteSpace(recoveryHint)
+                    ? message
+                    : $"{message} {recoveryHint}";
+            }
 
             if (root.TryGetProperty("errors", out var errorsElement) && errorsElement.ValueKind == JsonValueKind.Object)
             {
@@ -125,5 +173,27 @@ public abstract class ApiClientBase
         }
 
         return body;
+    }
+
+    private static string SanitizePath(Uri? requestUri)
+    {
+        if (requestUri is null)
+        {
+            return "/";
+        }
+
+        if (requestUri.IsAbsoluteUri)
+        {
+            return requestUri.AbsolutePath;
+        }
+
+        var path = requestUri.OriginalString;
+        var suffixIndex = path.IndexOfAny(['?', '#']);
+        if (suffixIndex >= 0)
+        {
+            path = path[..suffixIndex];
+        }
+
+        return path.StartsWith('/') ? path : $"/{path}";
     }
 }

@@ -99,7 +99,17 @@
 
         try
         {
-            await IResumeApiClient.DeleteAsync(resumeId);
+            var state = await IResumeApiClient.GetResumeStateAsync();
+            var operation = await IResumeApiClient.AcquireOperationAsync(
+                new AcquireResumeOperationRequest("import", state.Token));
+            try
+            {
+                await IResumeApiClient.DeleteAsync(resumeId, operation.OperationId, operation.ResumeStateToken);
+            }
+            finally
+            {
+                await IResumeApiClient.ReleaseOperationAsync(operation.OperationId);
+            }
             await LoadAsync();
         }
         catch (Exception ex)

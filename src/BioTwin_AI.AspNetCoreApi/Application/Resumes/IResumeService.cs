@@ -16,7 +16,13 @@ public interface IResumeService
 
     Task<MergeResumeMarkdownResponse?> MergePreviewAsync(string tenantId, MergeResumeMarkdownRequest request, CancellationToken cancellationToken);
 
-    Task<bool> DeleteAsync(string tenantId, int resumeId, CancellationToken cancellationToken);
+    Task<bool> DeleteAsync(
+        string tenantId,
+        int resumeId,
+        int? userId,
+        string? operationId,
+        string? expectedStateToken,
+        CancellationToken cancellationToken);
 
     Task<RebuildEmbeddingsResponse> RebuildEmbeddingsAsync(string tenantId, CancellationToken cancellationToken);
 

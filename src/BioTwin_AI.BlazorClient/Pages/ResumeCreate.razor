@@ -9,7 +9,12 @@
 <PageTitle>Create Resume</PageTitle>
 
 <ProtectedArea Title="Resume creation requires sign in" Description="Sign in to create or import a resume.">
-    <NavigationLock ConfirmExternalNavigation="@(state.IsDirty && !isSaving)"
+    <BlockingProgressOverlay Visible="@ShowImportDialog"
+                             Job="@importJob"
+                             OnCancel="CancelImportAsync"
+                             OnRetry="RetryImportAsync"
+                             OnChooseAnother="ChooseAnotherFile" />
+    <NavigationLock ConfirmExternalNavigation="@((state.IsDirty || isBusy) && !isSaving)"
                     OnBeforeInternalNavigation="ConfirmInternalNavigation" />
 
     <section class="resume-wizard-page">
@@ -25,24 +30,12 @@
         <div class="resume-wizard-panel">
             <ResumeWizardStepper State="state" StepSelected="NavigateToStep" />
 
-            @if (isBusy)
-            {
-                <div class="wizard-processing" role="status">
-                    <span class="system-dot active" aria-hidden="true"></span>
-                    <span>@busyMessage</span>
-                </div>
-            }
-
             @if (errors.Count > 0)
             {
                 <div class="wizard-message error" role="alert">
                     @foreach (var error in errors)
                     {
                         <p>@error</p>
-                    }
-                    @if (CanRetryExtraction)
-                    {
-                        <button type="button" class="text-button" @onclick="RetryExtractionAsync" disabled="@isBusy">Retry extraction</button>
                     }
                 </div>
             }
@@ -55,7 +48,10 @@
                 @switch (state.CurrentStep)
                 {
                     case ResumeWizardStep.Start:
-                        <ResumeWizardStartStep State="state" FileSelected="ImportAsync" />
+                        <ResumeWizardStartStep State="state"
+                                               FileSelected="SelectFileAsync"
+                                               SelectedFileName="@pendingUpload?.FileName"
+                                               SelectedFileSize="@(pendingUpload?.Size ?? 0)" />
                         break;
                     case ResumeWizardStep.Profile:
                         <ResumeWizardProfileStep State="state" />
@@ -79,7 +75,7 @@
             </div>
 
             <footer class="wizard-actions">
-                <button type="button" class="text-button" @onclick="CancelAsync" disabled="@(isBusy || isSaving)">Cancel</button>
+                <button type="button" class="text-button" @onclick="CancelAsync" disabled="@isSaving">Cancel</button>
                 <div class="wizard-action-group">
                     <button type="button"
                             class="command-button secondary"
@@ -104,41 +100,30 @@
 </ProtectedArea>
 
 @code {
+    private const long MaxUploadBytes = 10 * 1024 * 1024;
     private readonly ResumeWizardState state = ResumeWizardState.CreateBlank();
-    private IReadOnlyList<ResumeSummaryDto> summaries = [];
+    private readonly CancellationTokenSource lifetimeCts = new();
     private IReadOnlyList<string> errors = [];
     private string statusMessage = string.Empty;
-    private string busyMessage = string.Empty;
     private string sourceMarkdown = string.Empty;
-    private string? sourceFileName;
-    private string? sourceContentType;
-    private long? sourceFileSize;
-    private string? sourceFileContentBase64;
-    private bool summariesLoaded;
+    private PendingResumeUpload? pendingUpload;
+    private ResumeStateDto? resumeState;
+    private ResumeOperationLeaseDto? operation;
+    private ResumeImportJobDto? importJob;
+    private CancellationTokenSource? importCts;
     private bool isBusy;
     private bool isSaving;
 
-    private bool CanRetryExtraction =>
-        state.CreationMethod == "import" && !string.IsNullOrWhiteSpace(sourceMarkdown);
+    private bool ShowImportDialog => importJob is not null
+        && importJob.Status is not ResumeImportJobStatuses.Completed and not ResumeImportJobStatuses.Canceled;
 
     protected override async Task OnInitializedAsync()
     {
         SessionState.Changed += OnSessionChanged;
         if (SessionState.IsAuthenticated)
         {
-            await LoadSummariesAsync();
+            resumeState = await ResumeApiClient.GetResumeStateAsync();
         }
-    }
-
-    private async Task LoadSummariesAsync()
-    {
-        if (summariesLoaded || !SessionState.IsAuthenticated)
-        {
-            return;
-        }
-
-        summaries = await ResumeApiClient.GetResumesAsync();
-        summariesLoaded = true;
     }
 
     private void OnSessionChanged()
@@ -147,121 +132,206 @@
         {
             if (SessionState.IsAuthenticated)
             {
-                await LoadSummariesAsync();
+                resumeState = await ResumeApiClient.GetResumeStateAsync();
             }
 
             StateHasChanged();
         });
     }
 
-    private async Task ImportAsync(InputFileChangeEventArgs args)
+    private async Task SelectFileAsync(InputFileChangeEventArgs args)
     {
-        if (!SessionState.IsAuthenticated)
+        errors = [];
+        var file = args.File;
+        if (file.Size <= 0 || file.Size > MaxUploadBytes)
+        {
+            errors = ["Choose a resume file between 1 byte and 10 MB."];
+            pendingUpload = null;
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(MaxUploadBytes);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        pendingUpload = new PendingResumeUpload(
+            file.Name,
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+            file.Size,
+            memory.ToArray());
+        statusMessage = "File selected. Continue when you are ready to import it.";
+        state.MarkDirty();
+    }
+
+    private async Task EnsureOperationAsync()
+    {
+        if (operation is not null)
         {
             return;
         }
 
-        isBusy = true;
-        busyMessage = "Converting and structuring your resume...";
-        errors = [];
-        statusMessage = string.Empty;
+        resumeState = await ResumeApiClient.GetResumeStateAsync();
+        operation = await ResumeApiClient.AcquireOperationAsync(
+            new AcquireResumeOperationRequest("create", resumeState.Token));
+        _ = MaintainHeartbeatAsync(lifetimeCts.Token);
+    }
 
+    private async Task<bool> RunImportAsync()
+    {
+        if (pendingUpload is null || operation is null)
+        {
+            return false;
+        }
+
+        isBusy = true;
+        errors = [];
+        importCts?.Cancel();
+        importCts?.Dispose();
+        importCts = CancellationTokenSource.CreateLinkedTokenSource(lifetimeCts.Token);
         try
         {
-            await LoadSummariesAsync();
-            var file = args.File;
-            sourceFileName = file.Name;
-            sourceContentType = file.ContentType;
-            sourceFileSize = file.Size;
-
-            await using var browserStream = file.OpenReadStream(10 * 1024 * 1024);
-            using var memory = new MemoryStream();
-            await browserStream.CopyToAsync(memory);
-            sourceFileContentBase64 = Convert.ToBase64String(memory.ToArray());
-
-            memory.Position = 0;
-            var converted = await ResumeApiClient.ConvertUploadAsync(file.Name, file.ContentType, memory);
-            var language = ResumeLanguages.Normalize(converted.DetectedLanguage);
-            sourceMarkdown = converted.Markdown;
-
-            if (summaries.Any(item => string.Equals(item.Language, language, StringComparison.OrdinalIgnoreCase)))
+            importJob = await ResumeApiClient.StartWizardImportAsync(
+                pendingUpload,
+                operation.OperationId,
+                operation.ResumeStateToken,
+                state.Language,
+                state.Title,
+                importCts.Token);
+            while (importJob.Status is ResumeImportJobStatuses.Queued or ResumeImportJobStatuses.Running)
             {
-                busyMessage = "Merging the new timeline with your existing resume...";
-                var merged = await ResumeApiClient.MergePreviewAsync(new MergeResumeMarkdownRequest(
-                    language,
-                    converted.Title,
-                    sourceMarkdown,
-                    file.Name));
-                sourceMarkdown = merged.MergedMarkdown;
+                await Task.Delay(TimeSpan.FromMilliseconds(500), importCts.Token);
+                importJob = await ResumeApiClient.GetImportJobAsync(importJob.JobId, importCts.Token);
+                StateHasChanged();
             }
 
-            await ExtractSourceAsync(sourceMarkdown, language, converted.Title);
+            if (importJob.Status != ResumeImportJobStatuses.Completed || importJob.WizardResult is null)
+            {
+                await ReleaseOperationAsync();
+                return false;
+            }
+
+            state.Apply(importJob.WizardResult);
             state.CreationMethod = "import";
-            statusMessage = converted.IsDuplicate
-                ? "The existing file was loaded and structured for review."
-                : "Import complete. Review each section before saving.";
+            sourceMarkdown = importJob.SourceMarkdown ?? string.Empty;
+            statusMessage = "Import complete. Review each section before saving.";
+            importJob = null;
+            return true;
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (importCts.IsCancellationRequested)
         {
-            errors = [ex.Message];
+            return false;
+        }
+        catch (Exception exception)
+        {
+            errors = [exception.Message];
+            return false;
         }
         finally
         {
             isBusy = false;
-            busyMessage = string.Empty;
         }
     }
 
-    private async Task RetryExtractionAsync()
+    private async Task RetryImportAsync()
     {
-        isBusy = true;
-        busyMessage = "Retrying resume extraction...";
-        errors = [];
+        importJob = null;
+        await EnsureOperationAsync();
+        await RunImportAsync();
+    }
+
+    private void ChooseAnotherFile()
+    {
+        importJob = null;
+        pendingUpload = null;
+        statusMessage = "Choose another resume file, then select Continue.";
+    }
+
+    private async Task CancelImportAsync()
+    {
+        importCts?.Cancel();
         try
         {
-            await ExtractSourceAsync(sourceMarkdown, state.Language, state.Title);
-            statusMessage = "Extraction complete. Review each section before saving.";
+            if (importJob is not null && operation is not null)
+            {
+                await ResumeApiClient.CancelImportJobAsync(importJob.JobId, operation.OperationId);
+                operation = null;
+            }
+            else
+            {
+                await ReleaseOperationAsync();
+            }
         }
-        catch (Exception ex)
+        catch
         {
-            errors = [ex.Message];
+            operation = null;
         }
-        finally
+
+        importJob = null;
+        isBusy = false;
+        statusMessage = "Import canceled. You can choose a file and start again.";
+    }
+
+    private async Task MaintainHeartbeatAsync(CancellationToken cancellationToken)
+    {
+        try
         {
-            isBusy = false;
-            busyMessage = string.Empty;
+            while (!cancellationToken.IsCancellationRequested && operation is not null)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                if (operation is not null)
+                {
+                    operation = await ResumeApiClient.HeartbeatOperationAsync(operation.OperationId, cancellationToken);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await InvokeAsync(() =>
+            {
+                errors = [exception.Message];
+                operation = null;
+            });
         }
     }
 
-    private async Task ExtractSourceAsync(string markdown, string language, string? title)
+    private async Task ContinueAsync()
     {
-        var extracted = await ResumeApiClient.ExtractWizardAsync(new ExtractResumeWizardRequest(
-            markdown,
-            ResumeLanguages.Normalize(language),
-            title));
-        state.Apply(extracted.Resume);
-    }
-
-    private Task ContinueAsync()
-    {
-        var validationErrors = state.ValidateCurrentStep();
-        if (state.CurrentStep == ResumeWizardStep.Start &&
-            state.CreationMethod == "import" &&
-            string.IsNullOrWhiteSpace(sourceMarkdown))
+        var validationErrors = state.ValidateCurrentStep().ToList();
+        if (state.CurrentStep == ResumeWizardStep.Start
+            && state.CreationMethod == "import"
+            && pendingUpload is null)
         {
-            validationErrors = [.. validationErrors, "Choose a resume file before continuing."];
+            validationErrors.Add("Choose a resume file before continuing.");
         }
 
         errors = validationErrors;
         if (errors.Count > 0)
         {
-            return Task.CompletedTask;
+            return;
+        }
+
+        if (state.CurrentStep == ResumeWizardStep.Start)
+        {
+            try
+            {
+                await EnsureOperationAsync();
+                if (state.CreationMethod == "import" && !await RunImportAsync())
+                {
+                    return;
+                }
+            }
+            catch (Exception exception)
+            {
+                errors = [exception.Message];
+                return;
+            }
         }
 
         state.MarkCompleted(state.CurrentStep);
         state.MoveNext();
         statusMessage = string.Empty;
-        return Task.CompletedTask;
     }
 
     private void MoveBack()
@@ -280,6 +350,12 @@
 
     private async Task SaveAsync()
     {
+        if (operation is null)
+        {
+            errors = ["The resume session expired. Return to the first step and start again."];
+            return;
+        }
+
         isSaving = true;
         errors = [];
         try
@@ -290,10 +366,13 @@
                 dto.Title,
                 markdown,
                 dto.Language,
-                sourceFileName,
-                sourceContentType,
-                sourceFileSize,
-                sourceFileContentBase64));
+                pendingUpload?.FileName,
+                pendingUpload?.ContentType,
+                pendingUpload?.Size,
+                pendingUpload is null ? null : Convert.ToBase64String(pendingUpload.Content),
+                operation.OperationId,
+                operation.ResumeStateToken));
+            await ReleaseOperationAsync();
             state.MarkSaved();
             Navigation.NavigateTo("/resume/workspace");
         }
@@ -314,12 +393,29 @@
             return;
         }
 
+        await ReleaseOperationAsync();
         state.MarkSaved();
         Navigation.NavigateTo("/resume");
     }
 
+    private async Task ReleaseOperationAsync()
+    {
+        var active = operation;
+        operation = null;
+        if (active is not null)
+        {
+            await ResumeApiClient.ReleaseOperationAsync(active.OperationId);
+        }
+    }
+
     private async Task ConfirmInternalNavigation(LocationChangingContext context)
     {
+        if (isBusy)
+        {
+            context.PreventNavigation();
+            return;
+        }
+
         if (!state.IsDirty || isSaving)
         {
             return;
@@ -335,5 +431,9 @@
     public void Dispose()
     {
         SessionState.Changed -= OnSessionChanged;
+        importCts?.Cancel();
+        importCts?.Dispose();
+        lifetimeCts.Cancel();
+        lifetimeCts.Dispose();
     }
 }

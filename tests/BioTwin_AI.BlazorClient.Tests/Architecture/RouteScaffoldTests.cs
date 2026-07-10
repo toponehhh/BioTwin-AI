@@ -48,7 +48,7 @@ public class RouteScaffoldTests
         Assert.Contains("position: fixed", layoutCss, StringComparison.Ordinal);
         Assert.Contains("max-width: 1200px", layoutCss, StringComparison.Ordinal);
         Assert.DoesNotContain("floating-menu", layoutText, StringComparison.Ordinal);
-        Assert.DoesNotContain("lamp-theme-toggle", layoutText, StringComparison.Ordinal);
+        Assert.Contains("lamp-theme-toggle", layoutText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -65,35 +65,89 @@ public class RouteScaffoldTests
     }
 
     [Fact]
-    public void Header_uses_compact_accessible_theme_toggle()
+    public void Header_restores_accessible_pull_cord_lamp_as_the_rightmost_action()
     {
         var layoutText = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor")));
         var layoutCss = File.ReadAllText(Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor.css")));
 
-        Assert.Contains("theme-icon-button", layoutText, StringComparison.Ordinal);
+        Assert.Contains("lamp-theme-toggle", layoutText, StringComparison.Ordinal);
+        Assert.Contains("lamp-head", layoutText, StringComparison.Ordinal);
+        Assert.Contains("lamp-cord", layoutText, StringComparison.Ordinal);
+        Assert.Contains("lamp-pull", layoutText, StringComparison.Ordinal);
+        Assert.Contains("ThemeToggleClass", layoutText, StringComparison.Ordinal);
         Assert.Contains("title=\"@ThemeToggleLabel\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"@ThemeToggleLabel\"", layoutText, StringComparison.Ordinal);
         Assert.Contains("@onclick=\"ToggleTheme\"", layoutText, StringComparison.Ordinal);
-        Assert.Contains(".theme-icon-button", layoutCss, StringComparison.Ordinal);
-        Assert.Contains("border-radius: 50%", layoutCss, StringComparison.Ordinal);
-        Assert.DoesNotContain("lamp-theme-toggle", layoutText, StringComparison.Ordinal);
-        Assert.DoesNotContain("lamp-cord", layoutText, StringComparison.Ordinal);
+        Assert.Contains(".lamp-theme-toggle", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("@keyframes lampCordPull", layoutCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("theme-icon-button", layoutText, StringComparison.Ordinal);
+
+        var mobileMenuIndex = layoutText.IndexOf("mobile-menu-toggle", StringComparison.Ordinal);
+        var lampIndex = layoutText.IndexOf("lamp-theme-toggle", StringComparison.Ordinal);
+        Assert.True(mobileMenuIndex >= 0 && lampIndex > mobileMenuIndex, "The lamp must be the rightmost Header action.");
     }
 
     [Fact]
-    public void Client_remote_logger_sends_only_information_or_higher_without_http_recursion()
+    public void Header_keeps_brand_and_theme_switch_at_the_edges_while_navigation_stays_centered()
     {
+        var layoutCss = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Layout", "MainLayout.razor.css")));
+
+        Assert.Contains("width: 100%;", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("max-width: none;", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);", layoutCss, StringComparison.Ordinal);
+        Assert.Contains(".site-brand", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("justify-self: start;", layoutCss, StringComparison.Ordinal);
+        Assert.Contains(".site-nav", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("justify-self: center;", layoutCss, StringComparison.Ordinal);
+        Assert.Contains(".site-header-actions", layoutCss, StringComparison.Ordinal);
+        Assert.Contains("justify-self: end;", layoutCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Client_remote_logger_uses_warning_plus_startup_information_and_current_page_provider()
+    {
+        var programText = File.ReadAllText(Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Program.cs")));
         var loggingDirectory = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.BlazorClient", "Services", "Logging"));
         var providerText = string.Join(Environment.NewLine, Directory.GetFiles(loggingDirectory, "*.cs").Select(File.ReadAllText));
 
+        Assert.Contains("LogLevel.Warning", programText, StringComparison.Ordinal);
         Assert.Contains("LogLevel.Information", providerText, StringComparison.Ordinal);
-        Assert.Contains("logLevel < _minimumLevel", providerText, StringComparison.Ordinal);
+        Assert.Contains("logLevel >= _minimumLevel", providerText, StringComparison.Ordinal);
+        Assert.Contains("logLevel == LogLevel.Information", providerText, StringComparison.Ordinal);
+        Assert.Contains("StartupCategory", providerText, StringComparison.Ordinal);
+        Assert.Contains("currentPageProvider", providerText, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<NavigationManager>().Uri", programText, StringComparison.Ordinal);
         Assert.Contains("System.Net.Http", providerText, StringComparison.Ordinal);
         Assert.Contains("ClientLogEntryRequest", providerText, StringComparison.Ordinal);
         Assert.Contains("PostAsJsonAsync", providerText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Client_root_logs_unhandled_component_errors()
+    {
+        var clientRoot = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "BioTwin_AI.BlazorClient"));
+        var appText = File.ReadAllText(Path.Combine(clientRoot, "App.razor"));
+        var boundaryPath = Path.Combine(clientRoot, "Components", "ClientErrorBoundary.cs");
+        var layoutText = File.ReadAllText(Path.Combine(clientRoot, "Layout", "MainLayout.razor"));
+
+        Assert.True(File.Exists(boundaryPath));
+        var boundaryText = File.ReadAllText(boundaryPath);
+
+        Assert.Contains("<ClientErrorBoundary>", appText, StringComparison.Ordinal);
+        Assert.Contains("<ErrorContent", appText, StringComparison.Ordinal);
+        Assert.Contains("OnErrorAsync", boundaryText, StringComparison.Ordinal);
+        Assert.Contains("LogError", boundaryText, StringComparison.Ordinal);
+        Assert.Contains("LocationChanged +=", boundaryText, StringComparison.Ordinal);
+        Assert.Contains("InvokeAsync(Recover)", boundaryText, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ErrorBoundary>", layoutText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -150,7 +204,7 @@ public class RouteScaffoldTests
         Assert.Contains("workspace-outline", pageText, StringComparison.Ordinal);
         Assert.Contains("ResumeLanguages.SimplifiedChinese", pageText, StringComparison.Ordinal);
         Assert.Contains("ResumeLanguages.English", pageText, StringComparison.Ordinal);
-        Assert.Contains("MergePreviewAsync", pageText, StringComparison.Ordinal);
+        Assert.Contains("StartWorkspaceImportAsync", pageText, StringComparison.Ordinal);
         Assert.Contains("<MarkdownEditor", pageText, StringComparison.Ordinal);
         Assert.Contains("markdownEditor", editorText, StringComparison.Ordinal);
         Assert.True(File.Exists(editorScriptPath));
@@ -360,16 +414,18 @@ public class RouteScaffoldTests
     }
 
     [Fact]
-    public void Resume_creation_page_orchestrates_import_review_and_final_save_in_memory()
+    public void Resume_creation_page_uses_api_owned_import_pipeline_and_final_save()
     {
         var pageText = ReadPage("ResumeCreate.razor");
 
         Assert.Contains("<NavigationLock", pageText, StringComparison.Ordinal);
         Assert.Contains("ResumeWizardStepper", pageText, StringComparison.Ordinal);
-        Assert.Contains("ExtractWizardAsync", pageText, StringComparison.Ordinal);
-        Assert.Contains("MergePreviewAsync", pageText, StringComparison.Ordinal);
+        Assert.Contains("StartWizardImportAsync", pageText, StringComparison.Ordinal);
+        Assert.Contains("AcquireOperationAsync", pageText, StringComparison.Ordinal);
         Assert.Contains("SaveResumeAsync", pageText, StringComparison.Ordinal);
         Assert.Contains("ResumeWizardMarkdownBuilder.Build", pageText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExtractWizardAsync", pageText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MergePreviewAsync", pageText, StringComparison.Ordinal);
         Assert.DoesNotContain("localStorage", pageText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("MarkdownEditor", pageText, StringComparison.Ordinal);
     }
@@ -389,6 +445,66 @@ public class RouteScaffoldTests
         Assert.Contains(".wizard-actions", appCss, StringComparison.Ordinal);
         Assert.Contains("position: sticky", appCss, StringComparison.Ordinal);
         Assert.Contains("border-radius: var(--panel-radius)", appCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Resume_imports_confirm_then_poll_api_owned_jobs_with_horizontal_progress()
+    {
+        var createText = ReadPage("ResumeCreate.razor");
+        var workspaceText = ReadPage("ResumeWorkspace.razor");
+        var apiText = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "BioTwin_AI.BlazorClient", "Services", "Api", "ResumeApiClient.cs")));
+        var overlayPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "BioTwin_AI.BlazorClient", "Components", "BlockingProgressOverlay.razor"));
+        var appCss = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "BioTwin_AI.BlazorClient", "wwwroot", "css", "app.css")));
+
+        Assert.True(File.Exists(overlayPath));
+        var overlayText = File.ReadAllText(overlayPath);
+        Assert.Contains("role=\"dialog\"", overlayText, StringComparison.Ordinal);
+        Assert.Contains("aria-modal=\"true\"", overlayText, StringComparison.Ordinal);
+        Assert.Contains("resume-import-stage-rail", overlayText, StringComparison.Ordinal);
+        Assert.Contains("OnCancel", overlayText, StringComparison.Ordinal);
+        Assert.Contains("OnRetry", overlayText, StringComparison.Ordinal);
+        Assert.Contains("OnChooseAnother", overlayText, StringComparison.Ordinal);
+        Assert.Contains("ProgressLabel", overlayText, StringComparison.Ordinal);
+        Assert.Contains("Processing stopped", overlayText, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n            }\n        </section>", overlayText, StringComparison.Ordinal);
+        Assert.Contains("FocusAsync", overlayText, StringComparison.Ordinal);
+        Assert.Contains("@onkeydown:preventDefault", overlayText, StringComparison.Ordinal);
+        Assert.Contains("api/resumes/import-jobs", apiText, StringComparison.Ordinal);
+        Assert.Contains("api/resumes/operations", apiText, StringComparison.Ordinal);
+        Assert.DoesNotContain("All2MD", apiText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/convert/jobs", apiText, StringComparison.Ordinal);
+        Assert.Contains("PendingResumeUpload", createText, StringComparison.Ordinal);
+        Assert.Contains("StartWizardImportAsync", createText, StringComparison.Ordinal);
+        Assert.Contains("PendingResumeUpload", workspaceText, StringComparison.Ordinal);
+        Assert.Contains("StartWorkspaceImportAsync", workspaceText, StringComparison.Ordinal);
+        Assert.Contains("await ReleaseOperationAsync();\n                return false;", createText, StringComparison.Ordinal);
+        Assert.Contains("await EnsureOperationAsync();\n        await RunImportAsync();", createText, StringComparison.Ordinal);
+        Assert.Contains("await ReleaseOperationAsync();\n                return;", workspaceText, StringComparison.Ordinal);
+        Assert.Contains("await EnsureOperationAsync();\n        await RunWorkspaceImportAsync();", workspaceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartConversionJobAsync", createText, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetConversionJobAsync", createText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MergePreviewAsync", createText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExtractWizardAsync", createText, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartConversionJobAsync", workspaceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetConversionJobAsync", workspaceText, StringComparison.Ordinal);
+        Assert.Contains("<NavigationLock", createText, StringComparison.Ordinal);
+        Assert.Contains("state.IsDirty || isBusy", createText, StringComparison.Ordinal);
+        Assert.Contains("<NavigationLock", workspaceText, StringComparison.Ordinal);
+        Assert.Contains("PreventNavigationDuringImport", workspaceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConvertUploadAsync(", createText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConvertUploadAsync(", workspaceText, StringComparison.Ordinal);
+        Assert.Contains(".blocking-progress-overlay", appCss, StringComparison.Ordinal);
+        Assert.Contains(".resume-import-stage-rail", appCss, StringComparison.Ordinal);
+        Assert.Contains("position: fixed;", appCss, StringComparison.Ordinal);
     }
 
     [Fact]

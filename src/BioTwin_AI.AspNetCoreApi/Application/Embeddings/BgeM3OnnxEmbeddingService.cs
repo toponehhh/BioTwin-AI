@@ -124,7 +124,8 @@ public sealed class BgeM3OnnxEmbeddingService : IEmbeddingService, IDisposable
         var sumSquares = 0.0;
         foreach (var value in vector)
         {
-            sumSquares += value * value;
+            var doubleValue = (double)value;
+            sumSquares += doubleValue * doubleValue;
         }
 
         if (sumSquares <= 0)

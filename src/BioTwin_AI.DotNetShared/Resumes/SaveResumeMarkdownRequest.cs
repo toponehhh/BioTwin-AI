@@ -7,4 +7,6 @@ public sealed record SaveResumeMarkdownRequest(
     string? SourceFileName,
     string? SourceContentType,
     long? SourceFileSize,
-    string? SourceFileContentBase64 = null);
+    string? SourceFileContentBase64 = null,
+    string? OperationId = null,
+    string? ExpectedStateToken = null);

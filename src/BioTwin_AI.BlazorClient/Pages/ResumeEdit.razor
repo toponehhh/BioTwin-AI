@@ -123,9 +123,28 @@
 
         try
         {
-            var detail = await IResumeApiClient.ReplaceMarkdownAsync(
-                selectedResumeId.Value,
-                new SaveResumeMarkdownRequest(title, markdown, language, null, null, null));
+            var state = await IResumeApiClient.GetResumeStateAsync();
+            var operation = await IResumeApiClient.AcquireOperationAsync(
+                new AcquireResumeOperationRequest("import", state.Token));
+            ResumeDetailDto detail;
+            try
+            {
+                detail = await IResumeApiClient.ReplaceMarkdownAsync(
+                    selectedResumeId.Value,
+                    new SaveResumeMarkdownRequest(
+                        title,
+                        markdown,
+                        language,
+                        null,
+                        null,
+                        null,
+                        OperationId: operation.OperationId,
+                        ExpectedStateToken: operation.ResumeStateToken));
+            }
+            finally
+            {
+                await IResumeApiClient.ReleaseOperationAsync(operation.OperationId);
+            }
             sections = Flatten(detail.Sections);
             message = "Saved and re-indexed.";
         }

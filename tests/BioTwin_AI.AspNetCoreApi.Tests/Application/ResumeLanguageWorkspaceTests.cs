@@ -103,7 +103,11 @@ public sealed class ResumeLanguageWorkspaceTests
             new CandidateProfileExtractionService(
                 context,
                 new CandidateProfileInfoService(context),
-                new ProfileShareCodeGenerator()));
+                new ProfileShareCodeGenerator()),
+            new ResumeOperationService(
+                new MemoryResumeOperationCoordinator(),
+                new ResumeStateTokenService(context),
+                TimeProvider.System));
     }
 
     private sealed class FakeEmbeddingService : IEmbeddingService
@@ -124,12 +128,12 @@ public sealed class ResumeLanguageWorkspaceTests
 
     private sealed class FakeLlmChatService : ILlmChatService
     {
-        public Task<string> CompleteAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, CancellationToken cancellationToken)
+        public Task<string> CompleteAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, LlmRequestKind requestKind, CancellationToken cancellationToken)
         {
             return Task.FromResult("# Donald Huang\n\n## 2025\nBuilt systems.\n\n## 2026\nLed AI migration.");
         }
 
-        public async IAsyncEnumerable<string> StreamAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<string> StreamAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, LlmRequestKind requestKind, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             await Task.CompletedTask;
             yield break;

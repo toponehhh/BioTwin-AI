@@ -1,0 +1,94 @@
+@if (Visible)
+{
+    <div class="blocking-progress-overlay"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="blocking-progress-title"
+         aria-describedby="blocking-progress-message"
+         @onclick:stopPropagation
+         @onkeydown:stopPropagation>
+        <section class="blocking-progress-panel"
+                 tabindex="0"
+                 @ref="panel"
+                 @onkeydown:stopPropagation
+                 @onkeydown:preventDefault>
+            <div class="blocking-progress-copy">
+                <p class="eyebrow">Document processing</p>
+                <h2 id="blocking-progress-title">@(IsFailed ? "Resume import needs attention" : "Preparing your resume")</h2>
+                <p id="blocking-progress-message" aria-live="polite">@DisplayMessage</p>
+            </div>
+            <strong class="blocking-progress-value">@ProgressLabel</strong>
+            @if (!IsFailed)
+            {
+                <progress max="100" value="@ClampedProgress">@ClampedProgress%</progress>
+            }
+            @if (Job?.Stages is { Count: > 0 })
+            {
+                <ol class="resume-import-stage-rail" aria-label="Resume import progress">
+                    @foreach (var stage in Job.Stages)
+                    {
+                        <li class="resume-import-stage @stage.Status">
+                            <span aria-hidden="true"></span>
+                            <strong>@stage.Label</strong>
+                        </li>
+                    }
+                </ol>
+            }
+            @if (IsFailed && !string.IsNullOrWhiteSpace(Job?.RecoveryHint))
+            {
+                <p class="resume-import-recovery">@Job.RecoveryHint</p>
+            }
+            <div class="resume-import-actions">
+                @if (IsFailed && Job?.CanRetry == true)
+                {
+                    <button type="button" class="command-button secondary" @onclick="OnRetry">Retry</button>
+                }
+                @if (IsFailed)
+                {
+                    <button type="button" class="command-button secondary" @onclick="OnChooseAnother">Choose another file</button>
+                }
+                <button type="button" class="text-button" @onclick="OnCancel">Cancel import</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Visible { get; set; }
+
+    [Parameter]
+    public ResumeImportJobDto? Job { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+
+    [Parameter]
+    public EventCallback OnChooseAnother { get; set; }
+
+    private ElementReference panel;
+    private bool hasFocus;
+
+    private int ClampedProgress => Math.Clamp(Job?.Progress ?? 0, 0, 100);
+    private bool IsFailed => Job?.Status == ResumeImportJobStatuses.Failed;
+    private string ProgressLabel => IsFailed ? "Processing stopped" : $"{ClampedProgress}%";
+    private string DisplayMessage => IsFailed
+        ? Job?.Error ?? "Resume processing stopped."
+        : Job?.Message ?? "Preparing your document...";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Visible && !hasFocus)
+        {
+            hasFocus = true;
+            await panel.FocusAsync(preventScroll: true);
+        }
+        else if (!Visible)
+        {
+            hasFocus = false;
+        }
+    }
+}

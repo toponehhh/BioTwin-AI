@@ -39,19 +39,35 @@ public sealed class PhaseImplementationTests
     }
 
     [Fact]
-    public void Api_registers_openrouter_compatible_llm_client()
+    public void Api_registers_native_cloudflare_and_openrouter_fallback_clients()
     {
         var apiDirectory = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "BioTwin_AI.AspNetCoreApi"));
         var projectText = File.ReadAllText(Path.Combine(apiDirectory, "BioTwin_AI.AspNetCoreApi.csproj"));
         var programText = File.ReadAllText(Path.Combine(apiDirectory, "Program.cs"));
+        var aiRegistrationText = File.ReadAllText(Path.Combine(
+            apiDirectory,
+            "Infrastructure",
+            "Ai",
+            "AiServiceCollectionExtensions.cs"));
         var appsettingsText = File.ReadAllText(Path.Combine(apiDirectory, "appsettings.json"));
+        var developmentText = File.ReadAllText(Path.Combine(apiDirectory, "appsettings.Development.json"));
 
         Assert.Contains("Microsoft.Extensions.AI.OpenAI", projectText, StringComparison.Ordinal);
         Assert.Contains("AddSingleton<ILlmChatService", programText, StringComparison.Ordinal);
         Assert.Contains("\"LLM\"", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("\"PrimaryProvider\": \"CloudflareWorkersAI\"", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("\"FallbackProvider\": \"OpenRouter\"", appsettingsText, StringComparison.Ordinal);
         Assert.Contains("\"BaseUrl\": \"https://openrouter.ai/api/v1\"", appsettingsText, StringComparison.Ordinal);
-        Assert.Contains("\"Model\": \"openrouter/free\"", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("\"ChatModel\": \"openrouter/free\"", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<CloudflareChatClient>", aiRegistrationText, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<CloudflareChatClient>", aiRegistrationText, StringComparison.Ordinal);
+        Assert.Contains("CreateChatClient", aiRegistrationText, StringComparison.Ordinal);
+        Assert.Contains("NetworkTimeout = networkTimeout", aiRegistrationText, StringComparison.Ordinal);
+        Assert.Contains("\"RequestTimeoutSeconds\": 180", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("\"ExtractionTimeoutSeconds\": 600", appsettingsText, StringComparison.Ordinal);
+        Assert.Contains("\"RequestTimeoutSeconds\": 600", developmentText, StringComparison.Ordinal);
+        Assert.Contains("\"ExtractionTimeoutSeconds\": 600", developmentText, StringComparison.Ordinal);
         Assert.DoesNotContain("not-needed", programText, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -97,7 +113,12 @@ public sealed class PhaseImplementationTests
         Assert.Contains("[Route(\"api/client-logs\")]", controllerText, StringComparison.Ordinal);
         Assert.Contains("ClientLogEntryRequest", controllerText, StringComparison.Ordinal);
         Assert.Contains("LogLevel.Information", controllerText, StringComparison.Ordinal);
-        Assert.Contains("LogLevel.Debug", controllerText, StringComparison.Ordinal);
+        Assert.Contains("ShouldLog", controllerText, StringComparison.Ordinal);
+        Assert.Contains("StartupCategory", controllerText, StringComparison.Ordinal);
+        Assert.Contains("MaxCategoryLength", controllerText, StringComparison.Ordinal);
+        Assert.Contains("MaxMessageLength", controllerText, StringComparison.Ordinal);
+        Assert.Contains("MaxExceptionLength", controllerText, StringComparison.Ordinal);
+        Assert.Contains("SanitizeUrl", controllerText, StringComparison.Ordinal);
         Assert.Contains("return Accepted();", controllerText, StringComparison.Ordinal);
         Assert.Contains("logger.Log", controllerText, StringComparison.Ordinal);
     }

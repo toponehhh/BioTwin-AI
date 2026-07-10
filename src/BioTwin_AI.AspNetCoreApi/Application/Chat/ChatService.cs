@@ -21,6 +21,7 @@ public sealed class ChatService(
         var answer = await llmChatService.CompleteAsync(
             BuildMessages(includeAllTenants, request.Question, citations.Results),
             CreateChatOptions(),
+            LlmRequestKind.General,
             cancellationToken);
 
         if (string.IsNullOrWhiteSpace(answer))
@@ -43,6 +44,7 @@ public sealed class ChatService(
         await foreach (var token in llmChatService.StreamAsync(
             BuildMessages(includeAllTenants, request.Question, citations.Results),
             CreateChatOptions(),
+            LlmRequestKind.General,
             cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -117,7 +119,6 @@ If the context is insufficient, say that the indexed resume data does not contai
     {
         return new AiChatOptions
         {
-            ModelId = configuration["LLM:Model"] ?? "openrouter/free",
             Temperature = (float)configuration.GetValue("LLM:Temperature", 0.2),
             MaxOutputTokens = configuration.GetValue("LLM:MaxTokens", 800)
         };

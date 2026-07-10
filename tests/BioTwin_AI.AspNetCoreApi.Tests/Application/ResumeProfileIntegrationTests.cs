@@ -33,6 +33,13 @@ public sealed class ResumeProfileIntegrationTests
             context,
             new CandidateProfileInfoService(context),
             new SequenceShareCodeGenerator("NEWHASH8"));
+        var stateTokenService = new ResumeStateTokenService(context);
+        var operationService = new ResumeOperationService(
+            new MemoryResumeOperationCoordinator(),
+            stateTokenService,
+            TimeProvider.System);
+        var stateToken = await stateTokenService.ComputeAsync("candidate", CancellationToken.None);
+        var lease = await operationService.AcquireAsync(user.Id, "candidate", "create", stateToken, CancellationToken.None);
         var resumeService = new ResumeService(
             context,
             new FakeEmbeddingService(),
@@ -40,11 +47,20 @@ public sealed class ResumeProfileIntegrationTests
             new ConfigurationBuilder().Build(),
             NullLogger<ResumeService>.Instance,
             new FakeLlmChatService(),
-            extractionService);
+            extractionService,
+            operationService);
 
         await resumeService.SaveAsync(
             "candidate",
-            new SaveResumeMarkdownRequest("Candidate Resume", "## AI Engineer\nBuilt local AI systems.", ResumeLanguages.English, null, null, null),
+            new SaveResumeMarkdownRequest(
+                "Candidate Resume",
+                "## AI Engineer\nBuilt local AI systems.",
+                ResumeLanguages.English,
+                null,
+                null,
+                null,
+                OperationId: lease.OperationId,
+                ExpectedStateToken: stateToken),
             user.Id,
             CancellationToken.None);
 
@@ -72,12 +88,12 @@ public sealed class ResumeProfileIntegrationTests
 
     private sealed class FakeLlmChatService : ILlmChatService
     {
-        public Task<string> CompleteAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, CancellationToken cancellationToken)
+        public Task<string> CompleteAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, LlmRequestKind requestKind, CancellationToken cancellationToken)
         {
             return Task.FromResult(string.Empty);
         }
 
-        public async IAsyncEnumerable<string> StreamAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<string> StreamAsync(IEnumerable<AiChatMessage> messages, AiChatOptions options, LlmRequestKind requestKind, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             await Task.CompletedTask;
             yield break;

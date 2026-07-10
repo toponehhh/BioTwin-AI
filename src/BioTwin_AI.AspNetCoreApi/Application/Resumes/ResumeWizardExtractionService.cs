@@ -2,13 +2,18 @@ using System.Text.Json;
 using BioTwin_AI.AspNetCoreApi.Application.Llm;
 using BioTwin_AI.DotNetShared.Resumes;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 
 namespace BioTwin_AI.AspNetCoreApi.Application.Resumes;
 
 public sealed class ResumeWizardExtractionService(
     ILlmChatService llmChatService,
-    ILogger<ResumeWizardExtractionService> logger) : IResumeWizardExtractionService
+    ILogger<ResumeWizardExtractionService> logger,
+    IConfiguration? configuration = null) : IResumeWizardExtractionService
 {
+    private const int MaxExtractionAttempts = 2;
+    private const int DefaultExtractionMaxTokens = 8000;
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
@@ -28,22 +33,89 @@ public sealed class ResumeWizardExtractionService(
             throw new InvalidOperationException($"Unsupported resume language '{request.Language}'.");
         }
 
-        var response = await llmChatService.CompleteAsync(
-            BuildMessages(request),
-            new ChatOptions { Temperature = 0.1f, MaxOutputTokens = 5000 },
-            cancellationToken);
+        JsonException? lastJsonException = null;
+        LlmResponseException? lastProviderException = null;
+        var receivedContent = false;
+        var extractionMaxTokens = Math.Max(
+            1000,
+            configuration?.GetValue("LLM:ExtractionMaxTokens", DefaultExtractionMaxTokens)
+                ?? DefaultExtractionMaxTokens);
+        for (var attempt = 1; attempt <= MaxExtractionAttempts; attempt++)
+        {
+            string response;
+            try
+            {
+                response = await llmChatService.CompleteAsync(
+                    BuildMessages(request),
+                    new ChatOptions
+                    {
+                        Temperature = 0.1f,
+                        MaxOutputTokens = extractionMaxTokens,
+                        Reasoning = new ReasoningOptions
+                        {
+                            Effort = ReasoningEffort.Low,
+                            Output = ReasoningOutput.None
+                        },
+                        ResponseFormat = ChatResponseFormat.ForJsonSchema<ResumeWizardDto>(
+                            JsonOptions,
+                            "resume_wizard",
+                            "Structured resume information extracted from the supplied Markdown.")
+                    },
+                    LlmRequestKind.StructuredExtraction,
+                    cancellationToken);
+            }
+            catch (LlmResponseException ex)
+            {
+                lastProviderException = ex;
+                logger.LogWarning(
+                    ex,
+                    "Resume wizard extraction providers returned no usable content on attempt {Attempt} of {MaxAttempts}.",
+                    attempt,
+                    MaxExtractionAttempts);
+                continue;
+            }
 
-        try
-        {
-            var resume = JsonSerializer.Deserialize<ResumeWizardDto>(StripCodeFence(response), JsonOptions)
-                ?? throw new InvalidOperationException("Resume extraction returned an empty result.");
-            return new ExtractResumeWizardResponse(Normalize(resume, request), []);
+            if (!string.IsNullOrWhiteSpace(response))
+            {
+                receivedContent = true;
+                try
+                {
+                    var resume = JsonSerializer.Deserialize<ResumeWizardDto>(ExtractJsonPayload(response), JsonOptions)
+                        ?? throw new JsonException("Resume extraction returned an empty JSON value.");
+                    return new ExtractResumeWizardResponse(Normalize(resume, request), []);
+                }
+                catch (JsonException ex)
+                {
+                    lastJsonException = ex;
+                    logger.LogWarning(
+                        ex,
+                        "Resume wizard extraction returned invalid JSON on attempt {Attempt} of {MaxAttempts}.",
+                        attempt,
+                        MaxExtractionAttempts);
+                    continue;
+                }
+            }
+
+            logger.LogWarning(
+                "Resume wizard extraction returned empty content on attempt {Attempt} of {MaxAttempts}.",
+                attempt,
+                MaxExtractionAttempts);
         }
-        catch (JsonException ex)
+
+        if (!receivedContent)
         {
-            logger.LogWarning(ex, "Resume wizard extraction returned invalid JSON.");
-            throw new InvalidOperationException("Resume extraction returned invalid JSON.", ex);
+            if (lastProviderException is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Resume extraction providers failed after {MaxExtractionAttempts} attempts.",
+                    lastProviderException);
+            }
+
+            throw new InvalidOperationException(
+                $"Resume extraction returned no content after {MaxExtractionAttempts} attempts.");
         }
+
+        throw new InvalidOperationException("Resume extraction returned invalid JSON.", lastJsonException);
     }
 
     private static IReadOnlyList<ChatMessage> BuildMessages(ExtractResumeWizardRequest request)
@@ -142,6 +214,16 @@ Resume Markdown:
         }
 
         return json;
+    }
+
+    private static string ExtractJsonPayload(string? response)
+    {
+        var content = StripCodeFence(response);
+        var start = content.IndexOf('{');
+        var end = content.LastIndexOf('}');
+        return start >= 0 && end > start
+            ? content[start..(end + 1)]
+            : content;
     }
 
     private static string Clean(string? value) => value?.Trim() ?? string.Empty;
